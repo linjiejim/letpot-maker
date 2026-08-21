@@ -32,6 +32,11 @@ GitHub Actions runs the complete repository checks and publishes a Linux AMD64 i
 
 Image publication uses the workflow's repository-scoped `GITHUB_TOKEN`. It does not require a personal access token, SSH key, or custom Actions secret. AI provider credentials are runtime-only server settings and must never be added to the build workflow.
 
+GitHub creates a container package as private by default, including for a public repository. Choose one deployment policy before the first server pull:
+
+- For a public image, an account administrator can open the package settings and change its visibility to **Public**. GitHub treats this as an irreversible account-level change, so the workflow does not automate it.
+- For a private image, authenticate the server to `ghcr.io` with a narrowly scoped classic token that has `read:packages`. Do not reuse a broad personal token.
+
 For a server deployment, prefer an immutable SHA tag:
 
 ```bash

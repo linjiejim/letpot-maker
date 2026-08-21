@@ -120,7 +120,7 @@ npm run docker:deploy
 
 See [Docker deployment](docs/docker-deployment.md) before exposing the service to a network. The reverse proxy should provide TLS, authentication or access policy where needed, and request limits for AI-enabled deployments.
 
-GitHub Actions verifies every change and publishes a Linux AMD64 image to GitHub Container Registry after a successful `main` build. Image publication uses the repository-scoped `GITHUB_TOKEN`; it requires no custom Actions secret.
+GitHub Actions verifies every change and publishes a Linux AMD64 image to GitHub Container Registry after a successful `main` build. Image publication uses the repository-scoped `GITHUB_TOKEN`; it requires no custom Actions secret. GHCR package visibility is managed separately from repository visibility; see the deployment guide before configuring anonymous pulls.
 
 ## Contributing and license
 
