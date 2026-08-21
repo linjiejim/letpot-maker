@@ -1,0 +1,21 @@
+{
+  "schema": "letpot-maker/stack-trial/v1",
+  "adapterCount": 3,
+  "adapterStandard": {
+    "lowerDiameter": 33,
+    "upperDiameter": 41,
+    "lowerHeight": 3.1,
+    "transitionHeight": 2.3,
+    "upperBandHeight": 0.2,
+    "totalHeight": 5.6,
+    "logoRecessDepth": 0.6
+  },
+  "gaps": [
+    0.24,
+    0.32,
+    0.4
+  ],
+  "units": "millimetres",
+  "interface": "Three breakaway cone bridges between each adapter",
+  "warning": "Experimental process coupon. Start with the 0.40 mm gap and inspect separation before trying smaller gaps."
+}

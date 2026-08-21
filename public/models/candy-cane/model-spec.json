@@ -1,0 +1,67 @@
+{
+  "schema": "letpot-maker/model/v1",
+  "model": {
+    "id": "candy-cane",
+    "number": "33",
+    "name": "Candy Cane",
+    "subtitle": "Striped peppermint hook",
+    "difficulty": "Medium",
+    "parts": 3,
+    "series": "04",
+    "style": "realistic",
+    "tags": [
+      "realistic",
+      "christmas",
+      "other"
+    ],
+    "symbol": "⌁",
+    "defaults": {
+      "topperHeight": 39,
+      "topperWidth": 29,
+      "primaryColor": "#c72f3b",
+      "accentColor": "#d7d0bf"
+    },
+    "printNote": "Print upright with automatic support enabled. Overlapping rounded segments form the hook, while embedded raised bands preserve the peppermint stripe at printable scale."
+  },
+  "options": {
+    "modelId": "candy-cane",
+    "topperHeight": 39,
+    "topperWidth": 29,
+    "primaryColor": "#c72f3b",
+    "accentColor": "#d7d0bf",
+    "faceted": false,
+    "shape": {}
+  },
+  "adapterStandard": {
+    "lowerDiameter": 33,
+    "upperDiameter": 41,
+    "lowerHeight": 3.1,
+    "transitionHeight": 2.3,
+    "upperBandHeight": 0.2,
+    "totalHeight": 5.6,
+    "logoRecessDepth": 0.6
+  },
+  "measurements": {
+    "width": 41,
+    "height": 42.8,
+    "lowerDiameter": 33,
+    "upperDiameter": 41
+  },
+  "units": "millimetres",
+  "status": "prototype-fit",
+  "printConstraint": "Every STL part is one connected watertight manifold solid.",
+  "manufacturing": {
+    "status": "Prototype study",
+    "orientation": "Socketed body upright · connector pin vertical",
+    "supportStrategy": "Geometry review required",
+    "minWall": 1.2,
+    "minFeature": 1.6,
+    "batchMode": "Flat plate",
+    "stackMode": "Adapter stack only",
+    "details": [
+      "Closed manifold geometry verified",
+      "Connector dimensions are parametric",
+      "Run a detail and overhang audit before production"
+    ]
+  }
+}

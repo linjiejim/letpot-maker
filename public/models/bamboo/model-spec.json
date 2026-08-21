@@ -1,0 +1,110 @@
+{
+  "schema": "letpot-maker/model/v1",
+  "model": {
+    "id": "bamboo",
+    "number": "28",
+    "name": "Bamboo Stalks",
+    "subtitle": "Three-jointed living canes",
+    "difficulty": "Medium",
+    "parts": 3,
+    "series": "03",
+    "style": "realistic",
+    "tags": [
+      "realistic",
+      "tree",
+      "other"
+    ],
+    "symbol": "Ⅱ",
+    "parameters": [
+      {
+        "key": "caneCount",
+        "label": "Cane count",
+        "min": 3,
+        "max": 5,
+        "step": 1,
+        "defaultValue": 3,
+        "unit": "canes"
+      },
+      {
+        "key": "nodeCount",
+        "label": "Nodes per cane",
+        "min": 3,
+        "max": 6,
+        "step": 1,
+        "defaultValue": 4,
+        "unit": "nodes"
+      },
+      {
+        "key": "caneThickness",
+        "label": "Cane thickness",
+        "min": 0.8,
+        "max": 1.25,
+        "step": 0.05,
+        "defaultValue": 1,
+        "unit": "×"
+      },
+      {
+        "key": "leafDensity",
+        "label": "Leaf clusters",
+        "min": 1,
+        "max": 5,
+        "step": 1,
+        "defaultValue": 3,
+        "unit": "clusters"
+      }
+    ],
+    "defaults": {
+      "topperHeight": 43,
+      "topperWidth": 31,
+      "primaryColor": "#5c8a4e",
+      "accentColor": "#d7d0bf"
+    },
+    "printNote": "Print upright. Three smooth canes merge through a shared rhizome base; thick nodes and leaves remain durable at miniature scale."
+  },
+  "options": {
+    "modelId": "bamboo",
+    "topperHeight": 43,
+    "topperWidth": 31,
+    "primaryColor": "#5c8a4e",
+    "accentColor": "#d7d0bf",
+    "faceted": false,
+    "shape": {
+      "caneCount": 3,
+      "nodeCount": 4,
+      "caneThickness": 1,
+      "leafDensity": 3
+    }
+  },
+  "adapterStandard": {
+    "lowerDiameter": 33,
+    "upperDiameter": 41,
+    "lowerHeight": 3.1,
+    "transitionHeight": 2.3,
+    "upperBandHeight": 0.2,
+    "totalHeight": 5.6,
+    "logoRecessDepth": 0.6
+  },
+  "measurements": {
+    "width": 41,
+    "height": 47.6,
+    "lowerDiameter": 33,
+    "upperDiameter": 41
+  },
+  "units": "millimetres",
+  "status": "prototype-fit",
+  "printConstraint": "Every STL part is one connected watertight manifold solid.",
+  "manufacturing": {
+    "status": "Prototype study",
+    "orientation": "Socketed body upright · connector pin vertical",
+    "supportStrategy": "Geometry review required",
+    "minWall": 1.2,
+    "minFeature": 1.6,
+    "batchMode": "Flat plate",
+    "stackMode": "Adapter stack only",
+    "details": [
+      "Closed manifold geometry verified",
+      "Connector dimensions are parametric",
+      "Run a detail and overhang audit before production"
+    ]
+  }
+}

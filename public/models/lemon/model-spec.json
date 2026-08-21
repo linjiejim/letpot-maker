@@ -1,0 +1,66 @@
+{
+  "schema": "letpot-maker/model/v1",
+  "model": {
+    "id": "lemon",
+    "number": "27",
+    "name": "Ripe Lemon",
+    "subtitle": "Smooth citrus fruit study",
+    "difficulty": "Easy",
+    "parts": 3,
+    "series": "03",
+    "style": "realistic",
+    "tags": [
+      "realistic",
+      "fruit"
+    ],
+    "symbol": "⬭",
+    "defaults": {
+      "topperHeight": 33,
+      "topperWidth": 30,
+      "primaryColor": "#e1ba3d",
+      "accentColor": "#d7d0bf"
+    },
+    "printNote": "Print upright. The smooth citrus body, two end nipples, stem and leaf are merged around a hidden continuous core."
+  },
+  "options": {
+    "modelId": "lemon",
+    "topperHeight": 33,
+    "topperWidth": 30,
+    "primaryColor": "#e1ba3d",
+    "accentColor": "#d7d0bf",
+    "faceted": false,
+    "shape": {}
+  },
+  "adapterStandard": {
+    "lowerDiameter": 33,
+    "upperDiameter": 41,
+    "lowerHeight": 3.1,
+    "transitionHeight": 2.3,
+    "upperBandHeight": 0.2,
+    "totalHeight": 5.6,
+    "logoRecessDepth": 0.6
+  },
+  "measurements": {
+    "width": 41,
+    "height": 35.3,
+    "lowerDiameter": 33,
+    "upperDiameter": 41
+  },
+  "units": "millimetres",
+  "status": "prototype-fit",
+  "printConstraint": "Every STL part is one connected watertight manifold solid.",
+  "manufacturing": {
+    "status": "Prototype study",
+    "orientation": "Socketed body upright · connector pin vertical",
+    "supportStrategy": "Geometry review required",
+    "minWall": 1.2,
+    "minFeature": 1.6,
+    "batchMode": "Flat plate",
+    "stackMode": "Adapter stack only",
+    "details": [
+      "Closed manifold geometry verified",
+      "Connector dimensions are parametric",
+      "Run a detail and overhang audit before production"
+    ]
+  }
+}

@@ -1,0 +1,8 @@
+* text=auto eol=lf
+
+*.png binary
+*.stl binary
+
+public/models/**/*.obj linguist-generated=true
+public/models/**/model-spec.json linguist-generated=true
+public/models/manifest.json linguist-generated=true

@@ -1,0 +1,109 @@
+{
+  "schema": "letpot-maker/model/v1",
+  "model": {
+    "id": "sprout",
+    "number": "01",
+    "name": "Little Sprout",
+    "subtitle": "Universal pod topper",
+    "difficulty": "Easy",
+    "parts": 3,
+    "series": "01",
+    "style": "lowpoly",
+    "tags": [
+      "lowpoly",
+      "other"
+    ],
+    "symbol": "⌁",
+    "parameters": [
+      {
+        "key": "leafPairs",
+        "label": "Leaf pairs",
+        "min": 2,
+        "max": 5,
+        "step": 1,
+        "defaultValue": 4,
+        "unit": "pairs"
+      },
+      {
+        "key": "leafScale",
+        "label": "Leaf size",
+        "min": 0.75,
+        "max": 1.25,
+        "step": 0.05,
+        "defaultValue": 1,
+        "unit": "×"
+      },
+      {
+        "key": "leafSpread",
+        "label": "Canopy spread",
+        "min": 0.75,
+        "max": 1.25,
+        "step": 0.05,
+        "defaultValue": 1,
+        "unit": "×"
+      },
+      {
+        "key": "stemThickness",
+        "label": "Stem thickness",
+        "min": 0.8,
+        "max": 1.3,
+        "step": 0.05,
+        "defaultValue": 1,
+        "unit": "×"
+      }
+    ],
+    "defaults": {
+      "topperHeight": 35,
+      "topperWidth": 28,
+      "primaryColor": "#769567",
+      "accentColor": "#d7d0bf"
+    },
+    "printNote": "Print upright. Reinforced leaf roots, fused midribs and rising leaf angles are tuned for support-free printing."
+  },
+  "options": {
+    "modelId": "sprout",
+    "topperHeight": 35,
+    "topperWidth": 28,
+    "primaryColor": "#769567",
+    "accentColor": "#d7d0bf",
+    "faceted": true,
+    "shape": {
+      "leafPairs": 4,
+      "leafScale": 1,
+      "leafSpread": 1,
+      "stemThickness": 1
+    }
+  },
+  "adapterStandard": {
+    "lowerDiameter": 33,
+    "upperDiameter": 41,
+    "lowerHeight": 3.1,
+    "transitionHeight": 2.3,
+    "upperBandHeight": 0.2,
+    "totalHeight": 5.6,
+    "logoRecessDepth": 0.6
+  },
+  "measurements": {
+    "width": 41,
+    "height": 37.3,
+    "lowerDiameter": 33,
+    "upperDiameter": 41
+  },
+  "units": "millimetres",
+  "status": "production-trial",
+  "printConstraint": "Every STL part is one connected watertight manifold solid.",
+  "manufacturing": {
+    "status": "Production trial",
+    "orientation": "Socketed body upright · connector pin vertical",
+    "supportStrategy": "Support-free leaf angles",
+    "minWall": 1.6,
+    "minFeature": 1.6,
+    "batchMode": "Flat plate · 12–18 toppers",
+    "stackMode": "Adapter stack only",
+    "details": [
+      "Raised midribs are fused relief",
+      "Leaf roots overlap the stem by 2.4 mm",
+      "Rounded branch junctions resist snap-off"
+    ]
+  }
+}

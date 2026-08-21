@@ -1,0 +1,155 @@
+.page {
+  --green-50: #f4f8f1;
+  --green-100: #eef5ea;
+  --green-200: #ddebd5;
+  --green-400: #8cc63f;
+  --green-500: #2e8b3d;
+  --green-600: #277a35;
+  --green-700: #1f6b34;
+  --green-800: #18552a;
+  --ink: #253229;
+  --muted: #667168;
+  --edge: #dfe8dc;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  overscroll-behavior: none;
+  color: var(--ink);
+  background: #f7faf5;
+}
+
+.header {
+  position: relative;
+  flex: 0 0 68px;
+  z-index: 20;
+  top: 0;
+  height: 68px;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  padding: 0 26px;
+  border-bottom: 1px solid var(--edge);
+  background: rgba(255, 255, 255, .95);
+  backdrop-filter: blur(14px);
+}
+
+.brand, .studioLink { color: inherit; text-decoration: none; }
+.brand { display: inline-flex; align-items: center; gap: 10px; font-size: 14px; letter-spacing: -.02em; }
+.brand b { font-weight: 850; }
+.brandMark { width: 34px; height: 34px; flex: 0 0 auto; border-radius: 10px; background: var(--green-700) url('/logo-icon.png') center / 23px 25px no-repeat; }
+.machinePicker { display: flex; align-items: center; gap: 3px; padding: 3px; border: 1px solid #dce5d9; border-radius: 11px; background: #f5f8f3; }
+.machinePicker button { position: relative; min-width: 68px; height: 42px; display: grid; grid-template-columns: 1fr auto; grid-template-rows: 11px 1fr; align-items: center; gap: 0 7px; padding: 5px 8px; border: 0; border-radius: 8px; color: #69746b; background: transparent; text-align: left; cursor: pointer; }
+.machinePicker button:hover { color: var(--green-800); background: rgba(255,255,255,.7); }
+.machinePicker button small { grid-column: 1 / -1; overflow: hidden; color: #8a958c; font: 600 5px/1 ui-monospace, monospace; letter-spacing: .08em; white-space: nowrap; }
+.machinePicker button b { font-size: 8px; font-weight: 850; }
+.machinePicker button span { min-width: 16px; height: 16px; display: grid; place-items: center; border-radius: 99px; color: #849087; background: #e6ece3; font: 700 6px/1 ui-monospace, monospace; }
+.machinePicker .activeMachine { color: var(--green-800); background: white; box-shadow: 0 2px 8px rgba(31, 70, 34, .09); }
+.machinePicker .activeMachine small { color: var(--green-600); }
+.machinePicker .activeMachine span { color: white; background: var(--green-600); }
+.studioLink { justify-self: end; display: inline-flex; align-items: center; gap: 7px; color: var(--green-700); font-size: 10px; font-weight: 850; }
+.studioLink:hover { color: var(--green-800); }
+
+.workspace { width: 100%; flex: 1 1 auto; min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr) 218px; overflow: hidden; }
+.stage { position: relative; min-height: 0; overflow: hidden; background: var(--green-100); }
+.stage::before { content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none; opacity: 0; background: radial-gradient(ellipse at 50% 38%, rgba(235,255,205,.42), transparent 46%); transition: opacity .3s ease; }
+.stage.lightOn::before { opacity: 1; }
+.canvas { position: absolute; inset: 0; z-index: 0; }
+.canvas canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; outline: none; }
+.canvas canvas:active { cursor: grabbing; }
+.viewTools { position: absolute; z-index: 4; top: 20px; right: 24px; display: flex; gap: 2px; padding: 3px; border: 1px solid rgba(190, 207, 187, .78); border-radius: 9px; background: rgba(255, 255, 255, .82); backdrop-filter: blur(10px); }
+.viewTools button { display: inline-flex; align-items: center; gap: 5px; padding: 8px 10px; border: 0; border-radius: 6px; color: #667268; background: transparent; font-size: 8px; font-weight: 800; cursor: pointer; }
+.viewTools button:hover { color: var(--green-700); }
+.viewTools button span { font-size: 12px; }
+.viewTools .activeTool { color: var(--green-800); background: white; box-shadow: 0 1px 5px rgba(31, 70, 34, .09); }
+.screenReaderStatus { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+.stage.dragging::after { content: ""; position: absolute; inset: 12px; z-index: 5; border: 2px dashed rgba(46, 139, 61, .48); border-radius: 18px; background: rgba(238, 247, 235, .18); pointer-events: none; }
+.dropHint { position: absolute; z-index: 6; top: 50%; left: 50%; display: flex; flex-direction: column; align-items: center; gap: 6px; transform: translate(-50%, -50%); padding: 15px 20px; border: 1px solid #bdd8b7; border-radius: 13px; color: var(--green-800); background: rgba(255, 255, 255, .92); box-shadow: 0 12px 34px rgba(31, 78, 36, .13); pointer-events: none; }
+.dropHint span { font-size: 19px; }
+.dropHint b { font-size: 9px; }
+.sceneError { position: absolute; z-index: 2; inset: 0; display: grid; place-content: center; gap: 5px; text-align: center; }
+.sceneError b { font-size: 13px; }
+.sceneError span { color: var(--muted); font-size: 9px; }
+
+.stageDock { position: absolute; z-index: 4; right: 18px; bottom: 14px; padding: 4px; border: 1px solid rgba(185, 205, 181, .9); border-radius: 11px; background: rgba(250, 253, 248, .88); box-shadow: 0 9px 24px rgba(35, 70, 39, .08); backdrop-filter: blur(14px); }
+.stageActions { display: flex; gap: 5px; justify-content: flex-end; }
+.stageActions button { min-height: 32px; padding: 0 10px; border: 1px solid #cdd9ca; border-radius: 7px; color: #5f6b61; background: white; font-size: 7px; font-weight: 850; cursor: pointer; }
+.stageActions button:hover { border-color: #a9caa3; color: var(--green-800); }
+.stageActions button:first-child { border-color: #bdd6b8; color: var(--green-700); background: #f5faf3; }
+.stageActions button:last-child { color: white; border-color: var(--green-700); background: var(--green-700); }
+.stageActions button:disabled { opacity: .38; cursor: default; }
+
+.library { min-height: 0; display: grid; grid-template-rows: 36px minmax(0, 1fr); gap: 8px; padding: 10px 16px 8px; overflow: hidden; border-top: 1px solid var(--edge); background: #f8fbf6; }
+.libraryToolbar { min-width: 0; display: flex; align-items: center; gap: 12px; }
+.librarySelection { flex: 0 0 auto; min-width: 104px; display: flex; align-items: baseline; gap: 7px; padding-right: 12px; border-right: 1px solid var(--edge); white-space: nowrap; }
+.librarySelection strong { color: var(--green-800); font-size: 11px; }
+.librarySelection small { overflow: hidden; max-width: 100px; color: #778279; font-size: 8px; text-overflow: ellipsis; }
+.multiSelectHint { flex: 0 0 auto; color: #7b887e; font-size: 7px; font-weight: 750; white-space: nowrap; }
+.filters { min-width: 0; display: flex; align-items: center; gap: 5px; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+.filters::-webkit-scrollbar { display: none; }
+.filters button { flex: 0 0 auto; min-height: 28px; padding: 0 9px; border: 1px solid #d4e0d1; border-radius: 99px; color: #667368; background: rgba(255,255,255,.66); font-size: 7px; font-weight: 850; white-space: nowrap; cursor: pointer; }
+.filters button b { margin-left: 4px; color: #8a958c; font: 700 6px/1 ui-monospace, monospace; }
+.filters button:hover { color: var(--green-800); border-color: #bcd3b7; }
+.filters .activeFilter { color: white; border-color: var(--green-700); background: var(--green-700); }
+.filters .activeFilter b { color: #d9ecd3; }
+
+.modelGrid { min-width: 0; min-height: 0; display: flex; align-items: stretch; gap: 8px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-inline: contain; scroll-snap-type: x proximity; scrollbar-width: thin; scrollbar-color: #cbd8c7 transparent; padding: 0 0 6px; }
+.modelCard { flex: 0 0 128px; min-width: 0; height: 100%; overflow: hidden; scroll-snap-align: start; padding: 0; border: 1px solid #d7e3d4; border-radius: 11px; color: inherit; background: white; text-align: left; cursor: pointer; transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease; }
+.modelCard:hover { transform: translateY(-2px); border-color: #afcdaa; box-shadow: 0 8px 18px rgba(38, 73, 41, .09); }
+.modelCard.activeModel { border-color: var(--green-600); box-shadow: 0 0 0 2px rgba(46,139,61,.12); }
+.modelPreview { width: 100%; height: calc(100% - 42px); min-height: 0; display: grid; place-items: center; color: #89a187; background: linear-gradient(145deg, #eff6ec, #e7f1e3); background-position: center; background-repeat: no-repeat; background-size: cover; font: 700 24px/1 Georgia, serif; }
+.modelPreview.readyPreview { color: transparent; }
+.modelCardCopy { height: 42px; display: block; padding: 7px 9px; }
+.modelCardCopy strong, .modelCardCopy em { display: block; }
+.modelCardCopy strong { overflow: hidden; font-size: 11px; letter-spacing: -.015em; text-overflow: ellipsis; white-space: nowrap; }
+.modelCardCopy em { overflow: hidden; margin-top: 3px; color: #727f74; font-size: 7px; font-style: normal; text-overflow: ellipsis; white-space: nowrap; }
+
+@media (max-width: 1080px) {
+  .header { padding-inline: 16px; }
+  .machinePicker button { min-width: 56px; padding-inline: 6px; }
+  .workspace { grid-template-rows: minmax(0, 1fr) 204px; }
+}
+
+@media (max-width: 760px) {
+  .header { flex-basis: 112px; height: 112px; grid-template-columns: 1fr auto; grid-template-rows: 58px 46px; padding: 0 14px 7px; }
+  .brand { font-size: 12px; }
+  .brandMark { width: 31px; height: 31px; background-size: 21px 23px; }
+  .machinePicker { grid-column: 1 / -1; grid-row: 2; width: 100%; box-sizing: border-box; }
+  .machinePicker button { min-width: 0; width: 25%; height: 36px; grid-template-rows: 1fr; text-align: center; }
+  .machinePicker button small, .machinePicker button span { display: none; }
+  .machinePicker button b { font-size: 9px; }
+  .studioLink { font-size: 0; }
+  .studioLink span { font-size: 13px; }
+  .viewTools { top: 12px; right: 11px; }
+  .viewTools button { padding: 7px; font-size: 0; }
+  .viewTools button span { font-size: 12px; }
+  .workspace { grid-template-rows: minmax(0, 1fr) 188px; }
+  .stageDock { right: 9px; bottom: 9px; }
+  .stageActions button { min-height: 29px; padding-inline: 7px; font-size: 6px; }
+  .library { grid-template-rows: 32px minmax(0, 1fr); gap: 6px; padding: 8px 10px 6px; }
+  .libraryToolbar { gap: 8px; }
+  .librarySelection { min-width: 82px; padding-right: 8px; }
+  .librarySelection small { display: none; }
+  .multiSelectHint { display: none; }
+  .modelCard { flex-basis: 112px; }
+  .modelPreview { height: calc(100% - 37px); }
+  .modelCardCopy { height: 37px; padding: 6px 8px; }
+  .modelCardCopy strong { font-size: 10px; }
+  .modelCardCopy em { font-size: 6px; }
+}
+
+@media (max-width: 480px) {
+  .brand span:last-child { display: none; }
+  .header { flex-basis: 58px; height: 58px; grid-template-columns: auto 1fr auto; grid-template-rows: 1fr; padding: 0 10px; }
+  .machinePicker { grid-column: 2; grid-row: 1; margin-inline: 8px; }
+  .studioLink { grid-column: 3; }
+  .machinePicker button { height: 34px; }
+  .workspace { grid-template-rows: minmax(0, 1fr) 180px; }
+  .stageActions button:first-child { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modelCard { transition: none; }
+}

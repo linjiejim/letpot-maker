@@ -1,0 +1,66 @@
+{
+  "schema": "letpot-maker/model/v1",
+  "model": {
+    "id": "frog",
+    "number": "17",
+    "name": "Frog Sitter",
+    "subtitle": "Pocket pond guardian",
+    "difficulty": "Easy",
+    "parts": 3,
+    "series": "02",
+    "style": "lowpoly",
+    "tags": [
+      "lowpoly",
+      "animal"
+    ],
+    "symbol": "◉",
+    "defaults": {
+      "topperHeight": 31,
+      "topperWidth": 32,
+      "primaryColor": "#638652",
+      "accentColor": "#d7d0bf"
+    },
+    "printNote": "Print upright. Feet, body, head and eye forms overlap generously for a sturdy print."
+  },
+  "options": {
+    "modelId": "frog",
+    "topperHeight": 31,
+    "topperWidth": 32,
+    "primaryColor": "#638652",
+    "accentColor": "#d7d0bf",
+    "faceted": true,
+    "shape": {}
+  },
+  "adapterStandard": {
+    "lowerDiameter": 33,
+    "upperDiameter": 41,
+    "lowerHeight": 3.1,
+    "transitionHeight": 2.3,
+    "upperBandHeight": 0.2,
+    "totalHeight": 5.6,
+    "logoRecessDepth": 0.6
+  },
+  "measurements": {
+    "width": 41,
+    "height": 35.6,
+    "lowerDiameter": 33,
+    "upperDiameter": 41
+  },
+  "units": "millimetres",
+  "status": "prototype-fit",
+  "printConstraint": "Every STL part is one connected watertight manifold solid.",
+  "manufacturing": {
+    "status": "Prototype study",
+    "orientation": "Socketed body upright · connector pin vertical",
+    "supportStrategy": "Geometry review required",
+    "minWall": 1.2,
+    "minFeature": 1.6,
+    "batchMode": "Flat plate",
+    "stackMode": "Adapter stack only",
+    "details": [
+      "Closed manifold geometry verified",
+      "Connector dimensions are parametric",
+      "Run a detail and overhang audit before production"
+    ]
+  }
+}

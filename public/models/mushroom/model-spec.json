@@ -1,0 +1,109 @@
+{
+  "schema": "letpot-maker/model/v1",
+  "model": {
+    "id": "mushroom",
+    "number": "04",
+    "name": "Forest Cap",
+    "subtitle": "Mix-and-match mushroom",
+    "difficulty": "Medium",
+    "parts": 4,
+    "series": "01",
+    "style": "lowpoly",
+    "tags": [
+      "lowpoly",
+      "other"
+    ],
+    "symbol": "●",
+    "parameters": [
+      {
+        "key": "capDiameter",
+        "label": "Cap diameter",
+        "min": 0.8,
+        "max": 1.2,
+        "step": 0.05,
+        "defaultValue": 1,
+        "unit": "×"
+      },
+      {
+        "key": "capDome",
+        "label": "Cap dome",
+        "min": 0.75,
+        "max": 1.25,
+        "step": 0.05,
+        "defaultValue": 1,
+        "unit": "×"
+      },
+      {
+        "key": "stemThickness",
+        "label": "Stem thickness",
+        "min": 0.8,
+        "max": 1.25,
+        "step": 0.05,
+        "defaultValue": 1,
+        "unit": "×"
+      },
+      {
+        "key": "gillCount",
+        "label": "Gill count",
+        "min": 8,
+        "max": 16,
+        "step": 1,
+        "defaultValue": 12,
+        "unit": "gills"
+      }
+    ],
+    "defaults": {
+      "topperHeight": 34,
+      "topperWidth": 32,
+      "primaryColor": "#a95f49",
+      "accentColor": "#e7ddc8"
+    },
+    "printNote": "Print the cap upside down and the stem upright. A tapered press-fit key mates with the real cap socket without an AMS."
+  },
+  "options": {
+    "modelId": "mushroom",
+    "topperHeight": 34,
+    "topperWidth": 32,
+    "primaryColor": "#a95f49",
+    "accentColor": "#e7ddc8",
+    "faceted": true,
+    "shape": {
+      "capDiameter": 1,
+      "capDome": 1,
+      "stemThickness": 1,
+      "gillCount": 12
+    }
+  },
+  "adapterStandard": {
+    "lowerDiameter": 33,
+    "upperDiameter": 41,
+    "lowerHeight": 3.1,
+    "transitionHeight": 2.3,
+    "upperBandHeight": 0.2,
+    "totalHeight": 5.6,
+    "logoRecessDepth": 0.6
+  },
+  "measurements": {
+    "width": 41,
+    "height": 33.5,
+    "lowerDiameter": 33,
+    "upperDiameter": 41
+  },
+  "units": "millimetres",
+  "status": "production-trial",
+  "printConstraint": "Every STL part is one connected watertight manifold solid.",
+  "manufacturing": {
+    "status": "Production trial",
+    "orientation": "Stem and pin upright · cap upside down",
+    "supportStrategy": "No support with split orientation",
+    "minWall": 1.4,
+    "minFeature": 1.2,
+    "batchMode": "Print cassette or flat plate",
+    "stackMode": "Adapter stack only",
+    "details": [
+      "Cap includes a real tapered socket",
+      "Radial gills are printable fused relief",
+      "Lead-in key allows single-color press-fit assembly"
+    ]
+  }
+}

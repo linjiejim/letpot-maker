@@ -1,0 +1,454 @@
+{
+  "generatedAt": "2026-08-20T16:08:45.867Z",
+  "models": [
+    {
+      "id": "sprout",
+      "name": "Little Sprout",
+      "parts": 3,
+      "difficulty": "Easy",
+      "series": "01",
+      "style": "lowpoly",
+      "tags": [
+        "lowpoly",
+        "other"
+      ]
+    },
+    {
+      "id": "pine",
+      "name": "Alpine Pine",
+      "parts": 3,
+      "difficulty": "Easy",
+      "series": "01",
+      "style": "lowpoly",
+      "tags": [
+        "lowpoly",
+        "tree"
+      ]
+    },
+    {
+      "id": "cactus",
+      "name": "Round Cactus",
+      "parts": 3,
+      "difficulty": "Easy",
+      "series": "01",
+      "style": "lowpoly",
+      "tags": [
+        "lowpoly",
+        "other"
+      ]
+    },
+    {
+      "id": "mushroom",
+      "name": "Forest Cap",
+      "parts": 4,
+      "difficulty": "Medium",
+      "series": "01",
+      "style": "lowpoly",
+      "tags": [
+        "lowpoly",
+        "other"
+      ]
+    },
+    {
+      "id": "pumpkin",
+      "name": "Pumpkin Gem",
+      "parts": 3,
+      "difficulty": "Easy",
+      "series": "01",
+      "style": "lowpoly",
+      "tags": [
+        "lowpoly",
+        "veggie",
+        "fruit"
+      ]
+    },
+    {
+      "id": "acorn",
+      "name": "Acorn Lantern",
+      "parts": 3,
+      "difficulty": "Easy",
+      "series": "01",
+      "style": "lowpoly",
+      "tags": [
+        "lowpoly",
+        "tree",
+        "fruit"
+      ]
+    },
+    {
+      "id": "bonsai",
+      "name": "Cloud Bonsai",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "01",
+      "style": "lowpoly",
+      "tags": [
+        "lowpoly",
+        "tree"
+      ]
+    },
+    {
+      "id": "strawberry",
+      "name": "Strawberry Drop",
+      "parts": 3,
+      "difficulty": "Easy",
+      "series": "01",
+      "style": "lowpoly",
+      "tags": [
+        "lowpoly",
+        "fruit"
+      ]
+    },
+    {
+      "id": "clover",
+      "name": "Clover Charm",
+      "parts": 4,
+      "difficulty": "Medium",
+      "series": "01",
+      "style": "lowpoly",
+      "tags": [
+        "lowpoly",
+        "herbs",
+        "other"
+      ]
+    },
+    {
+      "id": "lotus",
+      "name": "Lotus Bud",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "01",
+      "style": "lowpoly",
+      "tags": [
+        "lowpoly",
+        "flower"
+      ]
+    },
+    {
+      "id": "aloe",
+      "name": "Aloe Star",
+      "parts": 3,
+      "difficulty": "Easy",
+      "series": "02",
+      "style": "lowpoly",
+      "tags": [
+        "lowpoly",
+        "herbs",
+        "other"
+      ]
+    },
+    {
+      "id": "snakeplant",
+      "name": "Snake Plant Crown",
+      "parts": 3,
+      "difficulty": "Easy",
+      "series": "02",
+      "style": "lowpoly",
+      "tags": [
+        "lowpoly",
+        "other"
+      ]
+    },
+    {
+      "id": "eggplant",
+      "name": "Eggplant Drop",
+      "parts": 3,
+      "difficulty": "Easy",
+      "series": "02",
+      "style": "lowpoly",
+      "tags": [
+        "lowpoly",
+        "veggie",
+        "fruit"
+      ]
+    },
+    {
+      "id": "grapes",
+      "name": "Grape Cluster",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "02",
+      "style": "lowpoly",
+      "tags": [
+        "lowpoly",
+        "fruit"
+      ]
+    },
+    {
+      "id": "sunflower",
+      "name": "Sunflower Shield",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "02",
+      "style": "lowpoly",
+      "tags": [
+        "lowpoly",
+        "flower"
+      ]
+    },
+    {
+      "id": "snail",
+      "name": "Snail Spiral",
+      "parts": 3,
+      "difficulty": "Easy",
+      "series": "02",
+      "style": "lowpoly",
+      "tags": [
+        "lowpoly",
+        "animal"
+      ]
+    },
+    {
+      "id": "frog",
+      "name": "Frog Sitter",
+      "parts": 3,
+      "difficulty": "Easy",
+      "series": "02",
+      "style": "lowpoly",
+      "tags": [
+        "lowpoly",
+        "animal"
+      ]
+    },
+    {
+      "id": "hedgehog",
+      "name": "Hedgehog Pebble",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "02",
+      "style": "lowpoly",
+      "tags": [
+        "lowpoly",
+        "animal"
+      ]
+    },
+    {
+      "id": "tomato",
+      "name": "Tomato Vine",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "03",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "veggie",
+        "fruit"
+      ]
+    },
+    {
+      "id": "carrot",
+      "name": "Garden Carrot",
+      "parts": 3,
+      "difficulty": "Easy",
+      "series": "03",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "veggie"
+      ]
+    },
+    {
+      "id": "chili",
+      "name": "Red Chili",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "03",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "veggie",
+        "fruit"
+      ]
+    },
+    {
+      "id": "basil",
+      "name": "Sweet Basil",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "03",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "herbs"
+      ]
+    },
+    {
+      "id": "rosemary",
+      "name": "Rosemary Sprig",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "03",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "herbs"
+      ]
+    },
+    {
+      "id": "parsley",
+      "name": "Flat Parsley",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "03",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "herbs"
+      ]
+    },
+    {
+      "id": "daisy",
+      "name": "White Daisy",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "03",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "flower"
+      ]
+    },
+    {
+      "id": "rose",
+      "name": "Garden Rose",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "03",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "flower"
+      ]
+    },
+    {
+      "id": "lemon",
+      "name": "Ripe Lemon",
+      "parts": 3,
+      "difficulty": "Easy",
+      "series": "03",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "fruit"
+      ]
+    },
+    {
+      "id": "bamboo",
+      "name": "Bamboo Stalks",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "03",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "tree",
+        "other"
+      ]
+    },
+    {
+      "id": "santa",
+      "name": "Jolly Santa",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "04",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "christmas"
+      ]
+    },
+    {
+      "id": "christmas-tree",
+      "name": "Festive Fir",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "04",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "christmas",
+        "tree"
+      ]
+    },
+    {
+      "id": "snowman",
+      "name": "Winter Snowman",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "04",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "christmas"
+      ]
+    },
+    {
+      "id": "gift-box",
+      "name": "Wrapped Gift",
+      "parts": 3,
+      "difficulty": "Easy",
+      "series": "04",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "christmas",
+        "other"
+      ]
+    },
+    {
+      "id": "candy-cane",
+      "name": "Candy Cane",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "04",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "christmas",
+        "other"
+      ]
+    },
+    {
+      "id": "christmas-bell",
+      "name": "Christmas Bell",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "04",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "christmas",
+        "other"
+      ]
+    }
+  ],
+  "printConstraint": "Every STL part is one connected watertight manifold solid.",
+  "adapterStandard": {
+    "lowerDiameter": 33,
+    "upperDiameter": 41,
+    "lowerHeight": 3.1,
+    "transitionHeight": 2.3,
+    "upperBandHeight": 0.2,
+    "totalHeight": 5.6,
+    "logoRecessDepth": 0.6,
+    "units": "millimetres"
+  },
+  "stackTrials": [
+    {
+      "gap": 0.24,
+      "adapters": 3,
+      "status": "experimental"
+    },
+    {
+      "gap": 0.32,
+      "adapters": 3,
+      "status": "experimental"
+    },
+    {
+      "gap": 0.4,
+      "adapters": 3,
+      "status": "experimental"
+    }
+  ],
+  "note": "Fixed Ø33/Ø41 mm pod-fit standard. Verify fit with a small test print before production."
+}

@@ -1,0 +1,3132 @@
+import * as THREE from "three";
+
+export type ModelId =
+  | "sprout"
+  | "pine"
+  | "cactus"
+  | "mushroom"
+  | "pumpkin"
+  | "acorn"
+  | "bonsai"
+  | "strawberry"
+  | "clover"
+  | "lotus"
+  | "aloe"
+  | "snakeplant"
+  | "eggplant"
+  | "grapes"
+  | "sunflower"
+  | "snail"
+  | "frog"
+  | "hedgehog"
+  | "tomato"
+  | "carrot"
+  | "chili"
+  | "basil"
+  | "rosemary"
+  | "parsley"
+  | "daisy"
+  | "rose"
+  | "lemon"
+  | "bamboo"
+  | "santa"
+  | "christmas-tree"
+  | "snowman"
+  | "gift-box"
+  | "candy-cane"
+  | "christmas-bell";
+
+export const MODEL_TAGS = [
+  "lowpoly",
+  "realistic",
+  "veggie",
+  "herbs",
+  "tree",
+  "fruit",
+  "flower",
+  "animal",
+  "christmas",
+  "other",
+] as const;
+
+export type ModelTag = typeof MODEL_TAGS[number];
+
+export type ShapeParameterKey =
+  | "leafPairs"
+  | "leafScale"
+  | "leafSpread"
+  | "stemThickness"
+  | "tierCount"
+  | "crownFullness"
+  | "trunkThickness"
+  | "tipRoundness"
+  | "armCount"
+  | "bodyPlumpness"
+  | "armRise"
+  | "ribCount"
+  | "capDiameter"
+  | "capDome"
+  | "gillCount"
+  | "fruitCount"
+  | "fruitSize"
+  | "branchSpread"
+  | "leafDensity"
+  | "caneCount"
+  | "nodeCount"
+  | "caneThickness";
+
+export interface ShapeParameterDefinition {
+  key: ShapeParameterKey;
+  label: string;
+  min: number;
+  max: number;
+  step: number;
+  defaultValue: number;
+  unit?: string;
+}
+
+export interface ModelOptions {
+  modelId: ModelId;
+  topperHeight: number;
+  topperWidth: number;
+  primaryColor: string;
+  accentColor: string;
+  faceted: boolean;
+  shape: Partial<Record<ShapeParameterKey, number>>;
+}
+
+export interface PrintablePart {
+  id: string;
+  label: string;
+  object: THREE.Object3D;
+  color: string;
+  printFlipZ?: boolean;
+}
+
+export interface ModelBuild {
+  assembly: THREE.Group;
+  parts: PrintablePart[];
+  measurements: {
+    width: number;
+    height: number;
+    lowerDiameter: number;
+    upperDiameter: number;
+  };
+}
+
+export interface ModelDefinition {
+  id: ModelId;
+  number: string;
+  name: string;
+  subtitle: string;
+  difficulty: "Easy" | "Medium";
+  parts: number;
+  series: "01" | "02" | "03" | "04";
+  style: "lowpoly" | "realistic";
+  tags: ModelTag[];
+  symbol: string;
+  parameters?: ShapeParameterDefinition[];
+  defaults: Pick<ModelOptions, "topperHeight" | "topperWidth" | "primaryColor" | "accentColor">;
+  printNote: string;
+}
+
+export interface ManufacturingProfile {
+  status: "Production trial" | "Prototype study";
+  orientation: string;
+  supportStrategy: string;
+  minWall: number;
+  minFeature: number;
+  batchMode: string;
+  stackMode: string;
+  details: string[];
+}
+
+export const STACK_TRIAL_GAPS = [0.24, 0.32, 0.4] as const;
+
+export const ADAPTER_STANDARD = {
+  lowerDiameter: 33,
+  upperDiameter: 41,
+  lowerHeight: 3.1,
+  transitionHeight: 2.3,
+  upperBandHeight: 0.2,
+  totalHeight: 5.6,
+  logoRecessDepth: 0.6,
+} as const;
+
+const PRODUCTION_PROFILES: Partial<Record<ModelId, ManufacturingProfile>> = {
+  sprout: {
+    status: "Production trial",
+    orientation: "Socketed body upright · connector pin vertical",
+    supportStrategy: "Support-free leaf angles",
+    minWall: 1.6,
+    minFeature: 1.6,
+    batchMode: "Flat plate · 12–18 toppers",
+    stackMode: "Adapter stack only",
+    details: ["Raised midribs are fused relief", "Leaf roots overlap the stem by 2.4 mm", "Rounded branch junctions resist snap-off"],
+  },
+  pine: {
+    status: "Production trial",
+    orientation: "Socketed body upright · connector pin vertical",
+    supportStrategy: "Self-supporting 40–42° skirts",
+    minWall: 1.4,
+    minFeature: 1.8,
+    batchMode: "Flat plate · 9–14 toppers",
+    stackMode: "Adapter stack only",
+    details: ["Staggered faceted tiers preserve the low-poly silhouette", "Four crown tiers overlap the reinforced trunk", "Root flare removes the narrow trunk-to-base stress point"],
+  },
+  cactus: {
+    status: "Production trial",
+    orientation: "Socketed body upright · connector pin vertical",
+    supportStrategy: "Rising arms avoid underside support",
+    minWall: 1.6,
+    minFeature: 1.4,
+    batchMode: "Flat plate · 10–16 toppers",
+    stackMode: "Adapter stack only",
+    details: ["Trunk, arms, ribs and areoles form one body", "Arms rise continuously instead of using flat bridges", "Areoles replace fragile needle geometry"],
+  },
+  mushroom: {
+    status: "Production trial",
+    orientation: "Stem and pin upright · cap upside down",
+    supportStrategy: "No support with split orientation",
+    minWall: 1.4,
+    minFeature: 1.2,
+    batchMode: "Print cassette or flat plate",
+    stackMode: "Adapter stack only",
+    details: ["Cap includes a real tapered socket", "Radial gills are printable fused relief", "Lead-in key allows single-color press-fit assembly"],
+  },
+  clover: {
+    status: "Production trial",
+    orientation: "All four parts upright on dedicated flat faces",
+    supportStrategy: "Support-free geometry with automatic support safety preset",
+    minWall: 1.4,
+    minFeature: 1.4,
+    batchMode: "Four-part flat plate kit",
+    stackMode: "Adapter stack only",
+    details: ["Flat-bottom trunk replaces the cantilevered peg base", "Independent double-ended hex pin preserves the universal adapter", "Four rounded low-poly leaves overlap a printable crown hub"],
+  },
+};
+
+export function getManufacturingProfile(modelId: ModelId): ManufacturingProfile {
+  return PRODUCTION_PROFILES[modelId] ?? {
+    status: "Prototype study",
+    orientation: "Socketed body upright · connector pin vertical",
+    supportStrategy: "Geometry review required",
+    minWall: 1.2,
+    minFeature: 1.6,
+    batchMode: "Flat plate",
+    stackMode: "Adapter stack only",
+    details: ["Closed manifold geometry verified", "Connector dimensions are parametric", "Run a detail and overhang audit before production"],
+  };
+}
+
+export const MODEL_LIBRARY: ModelDefinition[] = [
+  {
+    id: "sprout",
+    number: "01",
+    name: "Little Sprout",
+    subtitle: "Universal pod topper",
+    difficulty: "Easy",
+    parts: 3,
+    series: "01",
+    style: "lowpoly",
+    tags: ["lowpoly", "other"],
+    symbol: "⌁",
+    parameters: [
+      { key: "leafPairs", label: "Leaf pairs", min: 2, max: 5, step: 1, defaultValue: 4, unit: "pairs" },
+      { key: "leafScale", label: "Leaf size", min: 0.75, max: 1.25, step: 0.05, defaultValue: 1, unit: "×" },
+      { key: "leafSpread", label: "Canopy spread", min: 0.75, max: 1.25, step: 0.05, defaultValue: 1, unit: "×" },
+      { key: "stemThickness", label: "Stem thickness", min: 0.8, max: 1.3, step: 0.05, defaultValue: 1, unit: "×" },
+    ],
+    defaults: { topperHeight: 35, topperWidth: 28, primaryColor: "#769567", accentColor: "#d7d0bf" },
+    printNote: "Print upright. Reinforced leaf roots, fused midribs and rising leaf angles are tuned for support-free printing.",
+  },
+  {
+    id: "pine",
+    number: "02",
+    name: "Alpine Pine",
+    subtitle: "Stacked evergreen",
+    difficulty: "Easy",
+    parts: 3,
+    series: "01",
+    style: "lowpoly",
+    tags: ["lowpoly", "tree"],
+    symbol: "▲",
+    parameters: [
+      { key: "tierCount", label: "Crown tiers", min: 3, max: 5, step: 1, defaultValue: 4, unit: "tiers" },
+      { key: "crownFullness", label: "Crown fullness", min: 0.8, max: 1.2, step: 0.05, defaultValue: 1, unit: "×" },
+      { key: "trunkThickness", label: "Trunk thickness", min: 0.8, max: 1.3, step: 0.05, defaultValue: 1, unit: "×" },
+      { key: "tipRoundness", label: "Tip roundness", min: 0.7, max: 1.3, step: 0.05, defaultValue: 1, unit: "×" },
+    ],
+    defaults: { topperHeight: 42, topperWidth: 30, primaryColor: "#315b3e", accentColor: "#d7d0bf" },
+    printNote: "Print upright. Four overlapping branch skirts stay within a support-free FDM slope and lock into the reinforced trunk.",
+  },
+  {
+    id: "cactus",
+    number: "03",
+    name: "Round Cactus",
+    subtitle: "Desert garden friend",
+    difficulty: "Easy",
+    parts: 3,
+    series: "01",
+    style: "lowpoly",
+    tags: ["lowpoly", "other"],
+    symbol: "♣",
+    parameters: [
+      { key: "armCount", label: "Side arms", min: 1, max: 4, step: 1, defaultValue: 2, unit: "arms" },
+      { key: "bodyPlumpness", label: "Body plumpness", min: 0.82, max: 1.22, step: 0.05, defaultValue: 1, unit: "×" },
+      { key: "armRise", label: "Arm rise", min: 0.8, max: 1.25, step: 0.05, defaultValue: 1, unit: "×" },
+      { key: "ribCount", label: "Rib count", min: 6, max: 10, step: 1, defaultValue: 8, unit: "ribs" },
+    ],
+    defaults: { topperHeight: 36, topperWidth: 28, primaryColor: "#527d59", accentColor: "#d7d0bf" },
+    printNote: "Print upright. Rising arms, rounded areoles and longitudinal ribs merge into one continuous body without fragile needles.",
+  },
+  {
+    id: "mushroom",
+    number: "04",
+    name: "Forest Cap",
+    subtitle: "Mix-and-match mushroom",
+    difficulty: "Medium",
+    parts: 4,
+    series: "01",
+    style: "lowpoly",
+    tags: ["lowpoly", "other"],
+    symbol: "●",
+    parameters: [
+      { key: "capDiameter", label: "Cap diameter", min: 0.8, max: 1.2, step: 0.05, defaultValue: 1, unit: "×" },
+      { key: "capDome", label: "Cap dome", min: 0.75, max: 1.25, step: 0.05, defaultValue: 1, unit: "×" },
+      { key: "stemThickness", label: "Stem thickness", min: 0.8, max: 1.25, step: 0.05, defaultValue: 1, unit: "×" },
+      { key: "gillCount", label: "Gill count", min: 8, max: 16, step: 1, defaultValue: 12, unit: "gills" },
+    ],
+    defaults: { topperHeight: 34, topperWidth: 32, primaryColor: "#a95f49", accentColor: "#e7ddc8" },
+    printNote: "Print the cap upside down and the stem upright. A tapered press-fit key mates with the real cap socket without an AMS.",
+  },
+  {
+    id: "pumpkin",
+    number: "05",
+    name: "Pumpkin Gem",
+    subtitle: "Faceted harvest charm",
+    difficulty: "Easy",
+    parts: 3,
+    series: "01",
+    style: "lowpoly",
+    tags: ["lowpoly", "veggie", "fruit"],
+    symbol: "◆",
+    defaults: { topperHeight: 32, topperWidth: 31, primaryColor: "#c66f3c", accentColor: "#d7d0bf" },
+    printNote: "Print upright. Overlapping lobes are boolean-unioned into one connected topper.",
+  },
+  {
+    id: "acorn",
+    number: "06",
+    name: "Acorn Lantern",
+    subtitle: "Woodland seed totem",
+    difficulty: "Easy",
+    parts: 3,
+    series: "01",
+    style: "lowpoly",
+    tags: ["lowpoly", "tree", "fruit"],
+    symbol: "⬟",
+    defaults: { topperHeight: 34, topperWidth: 27, primaryColor: "#9a704c", accentColor: "#d7d0bf" },
+    printNote: "Print upright. Nut, cap and stalk become one continuous watertight solid.",
+  },
+  {
+    id: "bonsai",
+    number: "07",
+    name: "Cloud Bonsai",
+    subtitle: "Pocket landscape tree",
+    difficulty: "Medium",
+    parts: 3,
+    series: "01",
+    style: "lowpoly",
+    tags: ["lowpoly", "tree"],
+    symbol: "☁",
+    defaults: { topperHeight: 40, topperWidth: 34, primaryColor: "#477052", accentColor: "#d7d0bf" },
+    printNote: "Print upright. Thick branches bridge into a single merged cloud canopy.",
+  },
+  {
+    id: "strawberry",
+    number: "08",
+    name: "Strawberry Drop",
+    subtitle: "Geometric berry charm",
+    difficulty: "Easy",
+    parts: 3,
+    series: "01",
+    style: "lowpoly",
+    tags: ["lowpoly", "fruit"],
+    symbol: "♥",
+    defaults: { topperHeight: 34, topperWidth: 27, primaryColor: "#b95048", accentColor: "#d7d0bf" },
+    printNote: "Print upright. The leaf crown is fused to the berry for a durable single-color print.",
+  },
+  {
+    id: "clover",
+    number: "09",
+    name: "Clover Charm",
+    subtitle: "Four-part lucky token",
+    difficulty: "Medium",
+    parts: 4,
+    series: "01",
+    style: "lowpoly",
+    tags: ["lowpoly", "herbs", "other"],
+    symbol: "✤",
+    defaults: { topperHeight: 33, topperWidth: 30, primaryColor: "#56805a", accentColor: "#d7d0bf" },
+    printNote: "Print the adapter, double-ended pin, flat-bottom trunk and rounded four-leaf crown as four upright parts; both sockets include printable lead-in clearance.",
+  },
+  {
+    id: "lotus",
+    number: "10",
+    name: "Lotus Bud",
+    subtitle: "Closed faceted flower",
+    difficulty: "Medium",
+    parts: 3,
+    series: "01",
+    style: "lowpoly",
+    tags: ["lowpoly", "flower"],
+    symbol: "✦",
+    defaults: { topperHeight: 38, topperWidth: 29, primaryColor: "#bf7d83", accentColor: "#d7d0bf" },
+    printNote: "Print upright. Closed petals intersect the core and are merged before export.",
+  },
+  {
+    id: "aloe",
+    number: "11",
+    name: "Aloe Star",
+    subtitle: "Support-free succulent burst",
+    difficulty: "Easy",
+    parts: 3,
+    series: "02",
+    style: "lowpoly",
+    tags: ["lowpoly", "herbs", "other"],
+    symbol: "✷",
+    defaults: { topperHeight: 32, topperWidth: 34, primaryColor: "#5f8658", accentColor: "#d7d0bf" },
+    printNote: "Print upright. Every tapered leaf grows from and overlaps the same reinforced crown.",
+  },
+  {
+    id: "snakeplant",
+    number: "12",
+    name: "Snake Plant Crown",
+    subtitle: "Architectural leaf cluster",
+    difficulty: "Easy",
+    parts: 3,
+    series: "02",
+    style: "lowpoly",
+    tags: ["lowpoly", "other"],
+    symbol: "♒",
+    defaults: { topperHeight: 40, topperWidth: 30, primaryColor: "#436f4c", accentColor: "#d7d0bf" },
+    printNote: "Print upright. Thick extruded blades share a continuous root mass and need no support.",
+  },
+  {
+    id: "eggplant",
+    number: "13",
+    name: "Eggplant Drop",
+    subtitle: "Faceted kitchen-garden fruit",
+    difficulty: "Easy",
+    parts: 3,
+    series: "02",
+    style: "lowpoly",
+    tags: ["lowpoly", "veggie", "fruit"],
+    symbol: "◒",
+    defaults: { topperHeight: 35, topperWidth: 28, primaryColor: "#67527b", accentColor: "#d7d0bf" },
+    printNote: "Print upright. The fruit, leafy crown and stem overlap into one durable solid.",
+  },
+  {
+    id: "grapes",
+    number: "14",
+    name: "Grape Cluster",
+    subtitle: "Geometric harvest bunch",
+    difficulty: "Medium",
+    parts: 3,
+    series: "02",
+    style: "lowpoly",
+    tags: ["lowpoly", "fruit"],
+    symbol: "⠿",
+    defaults: { topperHeight: 35, topperWidth: 30, primaryColor: "#73577d", accentColor: "#d7d0bf" },
+    printNote: "Print upright. Overlapping berries are boolean-unioned around a hidden central stem.",
+  },
+  {
+    id: "sunflower",
+    number: "15",
+    name: "Sunflower Shield",
+    subtitle: "Bold garden medallion",
+    difficulty: "Medium",
+    parts: 3,
+    series: "02",
+    style: "lowpoly",
+    tags: ["lowpoly", "flower"],
+    symbol: "☼",
+    defaults: { topperHeight: 40, topperWidth: 34, primaryColor: "#d5a62e", accentColor: "#d7d0bf" },
+    printNote: "Print upright. Chunky petals overlap a thick center disc and reinforced stem.",
+  },
+  {
+    id: "snail",
+    number: "16",
+    name: "Snail Spiral",
+    subtitle: "Slow garden companion",
+    difficulty: "Easy",
+    parts: 3,
+    series: "02",
+    style: "lowpoly",
+    tags: ["lowpoly", "animal"],
+    symbol: "@",
+    defaults: { topperHeight: 29, topperWidth: 35, primaryColor: "#9a7754", accentColor: "#d7d0bf" },
+    printNote: "Print upright. The shell, body and stout feelers merge into a single friendly silhouette.",
+  },
+  {
+    id: "frog",
+    number: "17",
+    name: "Frog Sitter",
+    subtitle: "Pocket pond guardian",
+    difficulty: "Easy",
+    parts: 3,
+    series: "02",
+    style: "lowpoly",
+    tags: ["lowpoly", "animal"],
+    symbol: "◉",
+    defaults: { topperHeight: 31, topperWidth: 32, primaryColor: "#638652", accentColor: "#d7d0bf" },
+    printNote: "Print upright. Feet, body, head and eye forms overlap generously for a sturdy print.",
+  },
+  {
+    id: "hedgehog",
+    number: "18",
+    name: "Hedgehog Pebble",
+    subtitle: "Faceted woodland friend",
+    difficulty: "Medium",
+    parts: 3,
+    series: "02",
+    style: "lowpoly",
+    tags: ["lowpoly", "animal"],
+    symbol: "◇",
+    defaults: { topperHeight: 28, topperWidth: 35, primaryColor: "#765b45", accentColor: "#d7d0bf" },
+    printNote: "Print upright. Deep-set low-poly quills intersect the body rather than floating above it.",
+  },
+  {
+    id: "tomato",
+    number: "19",
+    name: "Tomato Vine",
+    subtitle: "Smooth clustered garden fruit",
+    difficulty: "Medium",
+    parts: 3,
+    series: "03",
+    style: "realistic",
+    tags: ["realistic", "veggie", "fruit"],
+    symbol: "●",
+    parameters: [
+      { key: "fruitCount", label: "Fruit count", min: 1, max: 5, step: 1, defaultValue: 3, unit: "fruit" },
+      { key: "fruitSize", label: "Fruit size", min: 0.8, max: 1.2, step: 0.05, defaultValue: 1, unit: "×" },
+      { key: "branchSpread", label: "Branch spread", min: 0.8, max: 1.2, step: 0.05, defaultValue: 1, unit: "×" },
+      { key: "leafDensity", label: "Leaf density", min: 3, max: 7, step: 1, defaultValue: 5, unit: "leaves" },
+    ],
+    defaults: { topperHeight: 39, topperWidth: 34, primaryColor: "#c94f43", accentColor: "#d7d0bf" },
+    printNote: "Print upright with automatic support enabled. Smooth tomatoes, calyxes and branching stems are deeply fused into one natural cluster.",
+  },
+  {
+    id: "carrot",
+    number: "20",
+    name: "Garden Carrot",
+    subtitle: "Tapered root with leafy crown",
+    difficulty: "Easy",
+    parts: 3,
+    series: "03",
+    style: "realistic",
+    tags: ["realistic", "veggie"],
+    symbol: "⌄",
+    defaults: { topperHeight: 38, topperWidth: 27, primaryColor: "#db7636", accentColor: "#d7d0bf" },
+    printNote: "Print upright. The smooth tapered root, subtle growth rings and flexible-looking leaf crown share a reinforced internal core.",
+  },
+  {
+    id: "chili",
+    number: "21",
+    name: "Red Chili",
+    subtitle: "Naturally curved pepper",
+    difficulty: "Medium",
+    parts: 3,
+    series: "03",
+    style: "realistic",
+    tags: ["realistic", "veggie", "fruit"],
+    symbol: "⌁",
+    defaults: { topperHeight: 27, topperWidth: 38, primaryColor: "#c83f38", accentColor: "#d7d0bf" },
+    printNote: "Print upright with automatic support enabled. A continuous tapered curve and recessed green shoulder reproduce a ripe pepper silhouette.",
+  },
+  {
+    id: "basil",
+    number: "22",
+    name: "Sweet Basil",
+    subtitle: "Broad aromatic leaf cluster",
+    difficulty: "Medium",
+    parts: 3,
+    series: "03",
+    style: "realistic",
+    tags: ["realistic", "herbs"],
+    symbol: "✤",
+    defaults: { topperHeight: 36, topperWidth: 35, primaryColor: "#4f8050", accentColor: "#d7d0bf" },
+    printNote: "Print upright with automatic support enabled. Broad softly bevelled leaves grow from reinforced branching stems.",
+  },
+  {
+    id: "rosemary",
+    number: "23",
+    name: "Rosemary Sprig",
+    subtitle: "Needled Mediterranean herb",
+    difficulty: "Medium",
+    parts: 3,
+    series: "03",
+    style: "realistic",
+    tags: ["realistic", "herbs"],
+    symbol: "≋",
+    defaults: { topperHeight: 40, topperWidth: 30, primaryColor: "#486f55", accentColor: "#d7d0bf" },
+    printNote: "Print upright. Thickened rosemary needles rise from three woody stems and stay above the minimum printable feature size.",
+  },
+  {
+    id: "parsley",
+    number: "24",
+    name: "Flat Parsley",
+    subtitle: "Layered compound herb leaves",
+    difficulty: "Medium",
+    parts: 3,
+    series: "03",
+    style: "realistic",
+    tags: ["realistic", "herbs"],
+    symbol: "♧",
+    defaults: { topperHeight: 34, topperWidth: 35, primaryColor: "#4d7d4d", accentColor: "#d7d0bf" },
+    printNote: "Print upright with automatic support enabled. Rounded compound leaflets overlap their branching stems to form one printable herb crown.",
+  },
+  {
+    id: "daisy",
+    number: "25",
+    name: "White Daisy",
+    subtitle: "Soft-petal field flower",
+    difficulty: "Medium",
+    parts: 3,
+    series: "03",
+    style: "realistic",
+    tags: ["realistic", "flower"],
+    symbol: "✼",
+    defaults: { topperHeight: 40, topperWidth: 34, primaryColor: "#f0eee5", accentColor: "#d7d0bf" },
+    printNote: "Print upright with automatic support enabled. Twelve smooth petals overlap a domed center and reinforced flower stem.",
+  },
+  {
+    id: "rose",
+    number: "26",
+    name: "Garden Rose",
+    subtitle: "Layered natural bloom",
+    difficulty: "Medium",
+    parts: 3,
+    series: "03",
+    style: "realistic",
+    tags: ["realistic", "flower"],
+    symbol: "✿",
+    defaults: { topperHeight: 40, topperWidth: 33, primaryColor: "#c84f5a", accentColor: "#d7d0bf" },
+    printNote: "Print upright with automatic support enabled. Two deeply overlapping petal rings create a rose-like spiral without floating shells.",
+  },
+  {
+    id: "lemon",
+    number: "27",
+    name: "Ripe Lemon",
+    subtitle: "Smooth citrus fruit study",
+    difficulty: "Easy",
+    parts: 3,
+    series: "03",
+    style: "realistic",
+    tags: ["realistic", "fruit"],
+    symbol: "⬭",
+    defaults: { topperHeight: 33, topperWidth: 30, primaryColor: "#e1ba3d", accentColor: "#d7d0bf" },
+    printNote: "Print upright. The smooth citrus body, two end nipples, stem and leaf are merged around a hidden continuous core.",
+  },
+  {
+    id: "bamboo",
+    number: "28",
+    name: "Bamboo Stalks",
+    subtitle: "Three-jointed living canes",
+    difficulty: "Medium",
+    parts: 3,
+    series: "03",
+    style: "realistic",
+    tags: ["realistic", "tree", "other"],
+    symbol: "Ⅱ",
+    parameters: [
+      { key: "caneCount", label: "Cane count", min: 3, max: 5, step: 1, defaultValue: 3, unit: "canes" },
+      { key: "nodeCount", label: "Nodes per cane", min: 3, max: 6, step: 1, defaultValue: 4, unit: "nodes" },
+      { key: "caneThickness", label: "Cane thickness", min: 0.8, max: 1.25, step: 0.05, defaultValue: 1, unit: "×" },
+      { key: "leafDensity", label: "Leaf clusters", min: 1, max: 5, step: 1, defaultValue: 3, unit: "clusters" },
+    ],
+    defaults: { topperHeight: 43, topperWidth: 31, primaryColor: "#5c8a4e", accentColor: "#d7d0bf" },
+    printNote: "Print upright. Three smooth canes merge through a shared rhizome base; thick nodes and leaves remain durable at miniature scale.",
+  },
+  {
+    id: "santa",
+    number: "29",
+    name: "Jolly Santa",
+    subtitle: "Bearded Christmas character",
+    difficulty: "Medium",
+    parts: 3,
+    series: "04",
+    style: "realistic",
+    tags: ["realistic", "christmas"],
+    symbol: "✣",
+    defaults: { topperHeight: 45, topperWidth: 35, primaryColor: "#b92f34", accentColor: "#d7d0bf" },
+    printNote: "Print upright with automatic support enabled. The hat, beard, face, belt, arms and mittens overlap a reinforced central body for a detailed single-piece Santa topper.",
+  },
+  {
+    id: "christmas-tree",
+    number: "30",
+    name: "Festive Fir",
+    subtitle: "Ornamented five-tier Christmas tree",
+    difficulty: "Medium",
+    parts: 3,
+    series: "04",
+    style: "realistic",
+    tags: ["realistic", "christmas", "tree"],
+    symbol: "★",
+    parameters: [
+      { key: "tierCount", label: "Branch tiers", min: 4, max: 6, step: 1, defaultValue: 5, unit: "tiers" },
+      { key: "crownFullness", label: "Branch fullness", min: 0.85, max: 1.15, step: 0.05, defaultValue: 1, unit: "×" },
+      { key: "leafDensity", label: "Ornament density", min: 12, max: 28, step: 4, defaultValue: 24, unit: "baubles" },
+      { key: "tipRoundness", label: "Star size", min: 0.8, max: 1.2, step: 0.05, defaultValue: 1, unit: "×" },
+    ],
+    defaults: { topperHeight: 48, topperWidth: 36, primaryColor: "#23563b", accentColor: "#d7d0bf" },
+    printNote: "Print upright with automatic support enabled. Six selectable sculpted branch tiers, embedded baubles and a fused star create a richer Christmas-tree silhouette.",
+  },
+  {
+    id: "snowman",
+    number: "31",
+    name: "Winter Snowman",
+    subtitle: "Scarf-wrapped holiday companion",
+    difficulty: "Medium",
+    parts: 3,
+    series: "04",
+    style: "realistic",
+    tags: ["realistic", "christmas"],
+    symbol: "☃",
+    defaults: { topperHeight: 46, topperWidth: 34, primaryColor: "#eef3ed", accentColor: "#d7d0bf" },
+    printNote: "Print upright with automatic support enabled. Three deeply overlapping snowballs carry a fused hat, scarf, carrot nose, buttons and sturdy branch arms.",
+  },
+  {
+    id: "gift-box",
+    number: "32",
+    name: "Wrapped Gift",
+    subtitle: "Ribboned Christmas present",
+    difficulty: "Easy",
+    parts: 3,
+    series: "04",
+    style: "realistic",
+    tags: ["realistic", "christmas", "other"],
+    symbol: "◇",
+    defaults: { topperHeight: 31, topperWidth: 32, primaryColor: "#b8323c", accentColor: "#d7d0bf" },
+    printNote: "Print upright. The box, lid, crossed ribbon, tails and rounded bow loops are generously fused into a sturdy festive topper.",
+  },
+  {
+    id: "candy-cane",
+    number: "33",
+    name: "Candy Cane",
+    subtitle: "Striped peppermint hook",
+    difficulty: "Medium",
+    parts: 3,
+    series: "04",
+    style: "realistic",
+    tags: ["realistic", "christmas", "other"],
+    symbol: "⌁",
+    defaults: { topperHeight: 39, topperWidth: 29, primaryColor: "#c72f3b", accentColor: "#d7d0bf" },
+    printNote: "Print upright with automatic support enabled. Overlapping rounded segments form the hook, while embedded raised bands preserve the peppermint stripe at printable scale.",
+  },
+  {
+    id: "christmas-bell",
+    number: "34",
+    name: "Christmas Bell",
+    subtitle: "Bowed golden holiday bell",
+    difficulty: "Medium",
+    parts: 3,
+    series: "04",
+    style: "realistic",
+    tags: ["realistic", "christmas", "other"],
+    symbol: "◒",
+    defaults: { topperHeight: 40, topperWidth: 31, primaryColor: "#d4a62f", accentColor: "#d7d0bf" },
+    printNote: "Print upright with automatic support enabled. A solid flared bell, reinforced clapper, raised rim and fused red bow form one durable holiday body.",
+  },
+];
+
+export function getDefaultShapeParameters(definition: ModelDefinition) {
+  return Object.fromEntries(
+    (definition.parameters ?? []).map((parameter) => [parameter.key, parameter.defaultValue]),
+  ) as Partial<Record<ShapeParameterKey, number>>;
+}
+
+export const DEFAULT_OPTIONS: ModelOptions = {
+  modelId: "sprout",
+  topperHeight: 35,
+  topperWidth: 28,
+  primaryColor: "#769567",
+  accentColor: "#d7d0bf",
+  faceted: true,
+  shape: {
+    leafPairs: 4,
+    leafScale: 1,
+    leafSpread: 1,
+    stemThickness: 1,
+  },
+};
+
+function shapeValue(options: ModelOptions, key: ShapeParameterKey, fallback: number) {
+  return options.shape[key] ?? fallback;
+}
+
+const SOCKET_RADIUS = 4.05;
+const KIT_PIN_RADIUS = 3.96;
+const KIT_PIN_LENGTH = 7.4;
+const KIT_PIN_ADAPTER_INSERT = 4;
+const KIT_TRUNK_SOCKET_RADIUS = 4.02;
+const KIT_TRUNK_SOCKET_DEPTH = 3.4;
+const KIT_CROWN_PIN_RADIUS = 2.6;
+const KIT_CROWN_SOCKET_RADIUS = 2.82;
+const KIT_CROWN_SOCKET_DEPTH = 3.05;
+const LOGO_RECESS_DEPTH = ADAPTER_STANDARD.logoRecessDepth;
+const LOGO_PREVIEW_LIFT = 0.01;
+// Keep the icon completely inside the exposed annulus. The largest topper
+// plinth reaches roughly 11 mm from centre, so an 11.2 mm clearance prevents
+// the artwork from being hidden while preserving a safe outer rim.
+const LOGO_INNER_CLEARANCE = 11.2;
+const LOGO_OUTER_MARGIN = 0.8;
+
+// Raster-to-solid interpretation of public/logo-icon.png. The compact mask
+// retains the supplied three-leaf silhouette while keeping each sampled run
+// viable for a 0.4 mm nozzle at the default 41 mm adapter diameter.
+const LETPOT_ICON_MASK = [
+  "............................",
+  "###.........................",
+  "####........................",
+  "#####.......................",
+  "#######.....................",
+  "#######.....................",
+  "########....................",
+  "#########...................",
+  "##########..................",
+  "##########..................",
+  "###########.................",
+  "####.######.................",
+  "####.######.................",
+  "#####.#####.................",
+  ".####.#####......##########.",
+  ".####..####....#############",
+  ".####..####...#############.",
+  "..####..###..##############.",
+  "..####..###.######.#######..",
+  "...####..##.##...########...",
+  "....####..#.#...########....",
+  "......###.....#########.....",
+  "........##....#######.......",
+  "............................",
+  "...........##.##............",
+  "...........###.##...........",
+  "...........###.##...........",
+  "...........#######..........",
+  "...........#######..........",
+  "...........#######..........",
+  "...........#######..........",
+  "...........######...........",
+  "...........######...........",
+  "...........#####............",
+  "...........####.............",
+  "...........###..............",
+  "............#...............",
+] as const;
+
+function material(color: string, faceted = true) {
+  return new THREE.MeshStandardMaterial({
+    color,
+    roughness: 0.8,
+    metalness: 0,
+    flatShading: faceted,
+  });
+}
+
+function hexHole(radius: number) {
+  const hole = new THREE.Path();
+  for (let i = 0; i < 6; i += 1) {
+    const angle = -i * Math.PI / 3;
+    const x = Math.cos(angle) * radius;
+    const y = Math.sin(angle) * radius;
+    if (i === 0) hole.moveTo(x, y);
+    else hole.lineTo(x, y);
+  }
+  hole.closePath();
+  return hole;
+}
+
+function ringGeometry(outerRadius: number, depth: number, steps = 1) {
+  const shape = new THREE.Shape();
+  shape.absarc(0, 0, outerRadius, 0, Math.PI * 2, false);
+  shape.holes.push(hexHole(SOCKET_RADIUS));
+  const geometry = new THREE.ExtrudeGeometry(shape, {
+    depth,
+    steps,
+    bevelEnabled: false,
+    curveSegments: 48,
+  });
+  geometry.rotateX(-Math.PI / 2);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+function taperedRingGeometry(
+  bottomRadius: number,
+  topRadius: number,
+  transitionHeight: number,
+  upperBandHeight = 0,
+) {
+  const totalDepth = transitionHeight + upperBandHeight;
+  // A 0.1 mm vertical subdivision puts an exact vertex ring at the end of the
+  // 2.3 mm taper, then continues at constant radius through the 0.2 mm band.
+  // Keeping both regions in one mesh avoids a coplanar boolean seam.
+  const verticalSteps = upperBandHeight > 0 ? Math.round(totalDepth * 10) : 1;
+  const geometry = ringGeometry(bottomRadius, totalDepth, verticalSteps);
+  const positions = geometry.getAttribute("position");
+  const outerBoundaryThreshold = (SOCKET_RADIUS + bottomRadius) / 2;
+
+  for (let index = 0; index < positions.count; index += 1) {
+    const x = positions.getX(index);
+    const y = THREE.MathUtils.clamp(positions.getY(index), 0, totalDepth);
+    const z = positions.getZ(index);
+    const radius = Math.hypot(x, z);
+    if (radius <= outerBoundaryThreshold) continue;
+    const transitionProgress = THREE.MathUtils.clamp(y / transitionHeight, 0, 1);
+    const targetRadius = THREE.MathUtils.lerp(bottomRadius, topRadius, transitionProgress);
+    const scale = targetRadius / radius;
+    positions.setX(index, x * scale);
+    positions.setZ(index, z * scale);
+  }
+
+  positions.needsUpdate = true;
+  geometry.computeVertexNormals();
+  geometry.computeBoundingBox();
+  return geometry;
+}
+
+function logoEngravingGeometry(outerRadius: number) {
+  const columns = LETPOT_ICON_MASK[0].length;
+  const usableRadialHeight = outerRadius - LOGO_OUTER_MARGIN - LOGO_INNER_CLEARANCE;
+  const physicalHeight = Math.max(8, usableRadialHeight);
+  const cell = physicalHeight / LETPOT_ICON_MASK.length;
+  const overlap = cell * 0.08;
+  const shapes: THREE.Shape[] = [];
+
+  LETPOT_ICON_MASK.forEach((row, rowIndex) => {
+    let start = -1;
+    for (let column = 0; column <= columns; column += 1) {
+      const filled = column < columns && row[column] === "#";
+      if (filled && start < 0) start = column;
+      if (filled || start < 0) continue;
+
+      const left = (start - columns / 2) * cell - overlap;
+      const right = (column - columns / 2) * cell + overlap;
+      const top = physicalHeight / 2 - rowIndex * cell + overlap;
+      const bottom = top - cell - overlap * 2;
+      const run = new THREE.Shape();
+      run.moveTo(left, bottom);
+      run.lineTo(right, bottom);
+      run.lineTo(right, top);
+      run.lineTo(left, top);
+      run.closePath();
+      shapes.push(run);
+      start = -1;
+    }
+  });
+
+  const geometry = new THREE.ExtrudeGeometry(shapes, {
+    depth: LOGO_RECESS_DEPTH + LOGO_PREVIEW_LIFT,
+    steps: 1,
+    bevelEnabled: false,
+    curveSegments: 1,
+  });
+  geometry.rotateX(-Math.PI / 2);
+  // Point the leaf crown toward the outer rim and the narrow stem toward the
+  // connector, matching the supplied upright icon on the circular face.
+  geometry.rotateY(Math.PI);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+function buildAdapter(options: ModelOptions, includeLogo = true) {
+  const group = new THREE.Group();
+  group.name = "universal_adapter";
+  const coverRadius = ADAPTER_STANDARD.upperDiameter / 2;
+  const locatorRadius = ADAPTER_STANDARD.lowerDiameter / 2;
+  const baseMaterial = material(options.accentColor, false);
+
+  // Extend the locator invisibly into the wider taper so translated stack
+  // coupons keep a true volumetric union instead of a coplanar face join.
+  const locatorTransitionOverlap = 0.04;
+  const locator = new THREE.Mesh(
+    ringGeometry(locatorRadius, ADAPTER_STANDARD.lowerHeight + locatorTransitionOverlap),
+    baseMaterial,
+  );
+  locator.name = "locator_skirt";
+  group.add(locator);
+
+  const transition = new THREE.Mesh(
+    taperedRingGeometry(
+      locatorRadius,
+      coverRadius,
+      ADAPTER_STANDARD.transitionHeight,
+      ADAPTER_STANDARD.upperBandHeight,
+    ),
+    baseMaterial,
+  );
+  transition.name = "pod_fit_transition_and_upper_band";
+  transition.position.y = ADAPTER_STANDARD.lowerHeight;
+  group.add(transition);
+
+  if (includeLogo) {
+    const logoCenterRadius = (
+      LOGO_INNER_CLEARANCE + coverRadius - LOGO_OUTER_MARGIN
+    ) / 2;
+    const logo = new THREE.Mesh(
+      logoEngravingGeometry(coverRadius),
+      material(detailColor(options.accentColor, -0.18), false),
+    );
+    logo.name = "letpot_icon_engraving_cutter";
+    logo.userData.booleanOperation = "subtract";
+    logo.position.set(
+      0,
+      ADAPTER_STANDARD.totalHeight - LOGO_RECESS_DEPTH,
+      logoCenterRadius,
+    );
+    group.add(logo);
+  }
+  return group;
+}
+
+export function buildAdapterStackCoupon(options: ModelOptions, gap: number, count = 3) {
+  const group = new THREE.Group();
+  group.name = `adapter_stack_${Math.round(gap * 100).toString().padStart(2, "0")}`;
+  const adapterHeight = ADAPTER_STANDARD.totalHeight;
+  const pitch = adapterHeight + gap;
+  for (let level = 0; level < count; level += 1) {
+    // Keep the release-gap coupon logo-free so the 0.24/0.32/0.40 mm
+    // calibration measures only the intended stack interface.
+    const adapter = buildAdapter(options, false);
+    adapter.name = `stack_adapter_${level + 1}`;
+    adapter.position.y = level * pitch;
+    group.add(adapter);
+    if (level === count - 1) continue;
+    for (let index = 0; index < 3; index += 1) {
+      const angle = index * Math.PI * 2 / 3;
+      const bridgeHeight = gap + 0.12;
+      const releaseBridge = mesh(
+        new THREE.CylinderGeometry(0.2, 0.62, bridgeHeight, 8),
+        options.accentColor,
+        false,
+      );
+      releaseBridge.name = `breakaway_bridge_${level + 1}_${index + 1}`;
+      releaseBridge.position.set(
+        Math.cos(angle) * 10.5,
+        level * pitch + adapterHeight + gap / 2,
+        Math.sin(angle) * 10.5,
+      );
+      group.add(releaseBridge);
+    }
+  }
+  group.updateMatrixWorld(true);
+  return group;
+}
+
+function prepareTopper(options: ModelOptions, color = options.primaryColor) {
+  const group = new THREE.Group();
+  group.name = `${options.modelId}_topper`;
+  const adapterTop = ADAPTER_STANDARD.totalHeight;
+  const socketBoss = mesh(
+    new THREE.CylinderGeometry(4.8, 5.3, 4.2, 10),
+    color,
+    options.faceted,
+  );
+  socketBoss.name = "detachable_topper_socket_boss";
+  socketBoss.position.y = adapterTop + 2.1;
+  group.add(socketBoss);
+
+  const socket = mesh(
+    new THREE.CylinderGeometry(KIT_TRUNK_SOCKET_RADIUS, KIT_TRUNK_SOCKET_RADIUS, KIT_TRUNK_SOCKET_DEPTH + 0.08, 6),
+    detailColor(color, -0.16),
+    false,
+  );
+  socket.name = "detachable_topper_pin_socket_cutter";
+  socket.userData.booleanOperation = "subtract";
+  socket.position.y = adapterTop + KIT_TRUNK_SOCKET_DEPTH / 2 - 0.04;
+  group.add(socket);
+  return group;
+}
+
+function buildConnectorPin(options: ModelOptions, name = "double_ended_connector_pin") {
+  const adapterTop = ADAPTER_STANDARD.totalHeight;
+  const pinBottom = adapterTop - KIT_PIN_ADAPTER_INSERT;
+  const leadHeight = 0.38;
+  const pinGroup = new THREE.Group();
+  pinGroup.name = name;
+  const pinBody = mesh(
+    new THREE.CylinderGeometry(KIT_PIN_RADIUS, KIT_PIN_RADIUS, KIT_PIN_LENGTH - leadHeight * 1.5, 6),
+    options.primaryColor,
+    options.faceted,
+  );
+  pinBody.name = "connector_pin_body";
+  pinBody.position.y = pinBottom + KIT_PIN_LENGTH / 2;
+  pinGroup.add(pinBody);
+  const lowerLead = mesh(
+    new THREE.CylinderGeometry(KIT_PIN_RADIUS, KIT_PIN_RADIUS - 0.28, leadHeight, 6),
+    options.primaryColor,
+    options.faceted,
+  );
+  lowerLead.name = "connector_pin_lower_lead_in";
+  lowerLead.position.y = pinBottom + leadHeight / 2;
+  pinGroup.add(lowerLead);
+  const upperLead = mesh(
+    new THREE.CylinderGeometry(KIT_PIN_RADIUS - 0.28, KIT_PIN_RADIUS, leadHeight, 6),
+    options.primaryColor,
+    options.faceted,
+  );
+  upperLead.name = "connector_pin_upper_lead_in";
+  upperLead.position.y = pinBottom + KIT_PIN_LENGTH - leadHeight / 2;
+  pinGroup.add(upperLead);
+  return pinGroup;
+}
+
+function mesh(geometry: THREE.BufferGeometry, color: string, faceted = true) {
+  const result = new THREE.Mesh(geometry, material(color, faceted));
+  result.castShadow = true;
+  result.receiveShadow = true;
+  return result;
+}
+
+function detailColor(color: string, amount = 0.08) {
+  return `#${new THREE.Color(color).offsetHSL(0, 0, amount).getHexString()}`;
+}
+
+function cylinderBetween(
+  start: THREE.Vector3,
+  end: THREE.Vector3,
+  radiusBottom: number,
+  radiusTop: number,
+  color: string,
+  faceted = true,
+  segments = 7,
+) {
+  const direction = end.clone().sub(start);
+  const result = mesh(
+    new THREE.CylinderGeometry(radiusTop, radiusBottom, direction.length(), segments),
+    color,
+    faceted,
+  );
+  result.position.copy(start).add(end).multiplyScalar(0.5);
+  result.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.normalize());
+  return result;
+}
+
+function leafBladeGeometry(length: number, width: number, thickness: number) {
+  const shape = new THREE.Shape();
+  shape.moveTo(-0.6, 0);
+  shape.bezierCurveTo(length * 0.22, width * 0.58, length * 0.72, width * 0.6, length, 0);
+  shape.bezierCurveTo(length * 0.72, -width * 0.6, length * 0.22, -width * 0.58, -0.6, 0);
+  const geometry = new THREE.ExtrudeGeometry(shape, {
+    depth: thickness,
+    steps: 1,
+    bevelEnabled: true,
+    bevelSegments: 1,
+    bevelSize: Math.min(0.38, thickness * 0.22),
+    bevelThickness: Math.min(0.32, thickness * 0.2),
+    curveSegments: 7,
+  });
+  geometry.translate(0, 0, -thickness / 2);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+function closedLatheGeometry(profile: THREE.Vector2[], segments: number) {
+  const positions: number[] = [];
+  const point3 = (point: THREE.Vector2, angle: number) => new THREE.Vector3(
+    Math.cos(angle) * point.x,
+    point.y,
+    Math.sin(angle) * point.x,
+  );
+  const push = (a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3) => {
+    positions.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z);
+  };
+  for (let edge = 0; edge < profile.length; edge += 1) {
+    const a = profile[edge];
+    const b = profile[(edge + 1) % profile.length];
+    if (a.x === 0 && b.x === 0) continue;
+    for (let segment = 0; segment < segments; segment += 1) {
+      const angle = segment * Math.PI * 2 / segments;
+      const nextAngle = (segment + 1) * Math.PI * 2 / segments;
+      const aCurrent = point3(a, angle);
+      const aNext = point3(a, nextAngle);
+      const bCurrent = point3(b, angle);
+      const bNext = point3(b, nextAngle);
+      if (a.x === 0) push(aCurrent, bNext, bCurrent);
+      else if (b.x === 0) push(aCurrent, aNext, bCurrent);
+      else {
+        push(aCurrent, aNext, bCurrent);
+        push(aNext, bNext, bCurrent);
+      }
+    }
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+function starPrismGeometry(outerRadius: number, innerRadius: number, depth: number, points = 5) {
+  const shape = new THREE.Shape();
+  for (let index = 0; index < points * 2; index += 1) {
+    const radius = index % 2 === 0 ? outerRadius : innerRadius;
+    const angle = Math.PI / 2 + index * Math.PI / points;
+    const x = Math.cos(angle) * radius;
+    const y = Math.sin(angle) * radius;
+    if (index === 0) shape.moveTo(x, y);
+    else shape.lineTo(x, y);
+  }
+  shape.closePath();
+  const geometry = new THREE.ExtrudeGeometry(shape, {
+    depth,
+    steps: 1,
+    bevelEnabled: true,
+    bevelSegments: 2,
+    bevelSize: Math.min(0.35, depth * 0.2),
+    bevelThickness: Math.min(0.3, depth * 0.18),
+    curveSegments: 1,
+  });
+  geometry.translate(0, 0, -depth / 2);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+function buildSprout(options: ModelOptions) {
+  const group = prepareTopper(options);
+  const sx = options.topperWidth / 28;
+  const sy = options.topperHeight / 35;
+  const leafPairs = Math.round(shapeValue(options, "leafPairs", 4));
+  const leafScale = shapeValue(options, "leafScale", 1);
+  const leafSpread = shapeValue(options, "leafSpread", 1);
+  const stemThickness = shapeValue(options, "stemThickness", 1);
+  const topY = ADAPTER_STANDARD.totalHeight - 0.05;
+  const sculpture = new THREE.Group();
+  sculpture.position.y = topY;
+  sculpture.scale.set(sx, sy, sx);
+
+  const plinth = mesh(new THREE.CylinderGeometry(9.4, 11.2, 4.2, 12), options.primaryColor, options.faceted);
+  plinth.name = "sprout_root_plinth";
+  plinth.position.y = 2.1;
+  sculpture.add(plinth);
+
+  const lowerStem = cylinderBetween(
+    new THREE.Vector3(0, 3.4, 0),
+    new THREE.Vector3(-0.3, 20.8, 0),
+    2.9 * stemThickness,
+    2.15 * stemThickness,
+    options.primaryColor,
+    options.faceted,
+    8,
+  );
+  lowerStem.name = "reinforced_tapered_stem";
+  sculpture.add(lowerStem);
+  const upperStem = cylinderBetween(
+    new THREE.Vector3(-0.25, 19.4, 0),
+    new THREE.Vector3(-0.2, 28.4, 0),
+    2.2 * stemThickness,
+    1.35 * stemThickness,
+    options.primaryColor,
+    options.faceted,
+    8,
+  );
+  upperStem.name = "reinforced_upper_stem";
+  sculpture.add(upperStem);
+
+  const leafColor = detailColor(options.primaryColor, 0.035);
+  const veinColor = detailColor(options.primaryColor, 0.11);
+  const addLeaf = (side: -1 | 1, y: number, scale: number, yaw: number) => {
+    const branchRoot = new THREE.Vector3(side * 0.3, y - 1.1, 0);
+    const tunedScale = scale * leafScale;
+    const branchTip = new THREE.Vector3(side * 3.7 * scale * leafSpread, y + 1.8 * scale, Math.sin(yaw * leafSpread) * 1.1);
+    const branch = cylinderBetween(branchRoot, branchTip, 1.25 * scale * stemThickness, 0.95 * scale * stemThickness, options.primaryColor, options.faceted, 7);
+    branch.name = `sprout_branch_${side < 0 ? "left" : "right"}_${Math.round(y)}`;
+    sculpture.add(branch);
+
+    const leafRig = new THREE.Group();
+    leafRig.position.copy(branchTip).add(new THREE.Vector3(side * -0.45, -0.35, 0));
+    leafRig.rotation.y = side < 0 ? Math.PI + yaw * leafSpread : -yaw * leafSpread;
+    leafRig.rotation.z = 0.3;
+
+    const blade = mesh(leafBladeGeometry(10.6 * tunedScale, 5.8 * tunedScale, 1.7), leafColor, options.faceted);
+    blade.name = `sprout_leaf_${side < 0 ? "left" : "right"}_${Math.round(y)}`;
+    leafRig.add(blade);
+    const midrib = cylinderBetween(
+      new THREE.Vector3(0.1, 0, 0.68),
+      new THREE.Vector3(8.7 * tunedScale, 0, 0.68),
+      0.62,
+      0.34,
+      veinColor,
+      options.faceted,
+      6,
+    );
+    midrib.name = "fused_leaf_midrib";
+    leafRig.add(midrib);
+    sculpture.add(leafRig);
+  };
+
+  const pairTemplates = [
+    { y: 17.4, scale: 0.68, yaw: 0.6 },
+    { y: 21.3, scale: 1, yaw: 0.15 },
+    { y: 24.25, scale: 0.7, yaw: 0.74 },
+    { y: 27.1, scale: 0.52, yaw: 0.4 },
+    { y: 28.15, scale: 0.42, yaw: 1.02 },
+  ];
+  pairTemplates.slice(0, leafPairs).forEach((pair, index) => {
+    const sideBias = index % 2 === 0 ? 0.02 : -0.02;
+    addLeaf(-1, pair.y - sideBias, pair.scale, -pair.yaw);
+    addLeaf(1, pair.y + sideBias, pair.scale * 0.96, pair.yaw);
+  });
+
+  const crown = mesh(new THREE.DodecahedronGeometry(2.5, 0), leafColor, options.faceted);
+  crown.name = "sprout_crown_union";
+  crown.scale.set(0.9, 1.4, 0.8);
+  crown.position.set(-0.2, 28.5, 0);
+  sculpture.add(crown);
+
+  group.add(sculpture);
+  return group;
+}
+
+function buildPine(options: ModelOptions) {
+  const group = prepareTopper(options);
+  const sx = options.topperWidth / 30;
+  const sy = options.topperHeight / 42;
+  const tierCount = Math.round(shapeValue(options, "tierCount", 4));
+  const crownFullness = shapeValue(options, "crownFullness", 1);
+  const trunkThickness = shapeValue(options, "trunkThickness", 1);
+  const tipRoundness = shapeValue(options, "tipRoundness", 1);
+  const topY = ADAPTER_STANDARD.totalHeight - 0.05;
+  const sculpture = new THREE.Group();
+  sculpture.position.y = topY;
+  sculpture.scale.set(sx, sy, sx);
+
+  const foot = mesh(new THREE.CylinderGeometry(8.8, 10.7, 3.8, 12), "#6d523e", options.faceted);
+  foot.name = "pine_root_plinth";
+  foot.position.y = 1.9;
+  sculpture.add(foot);
+
+  const rootFlare = mesh(new THREE.ConeGeometry(5.4 * trunkThickness, 8, 8), "#72533f", options.faceted);
+  rootFlare.name = "pine_root_flare";
+  rootFlare.position.y = 6.3;
+  sculpture.add(rootFlare);
+  const trunk = mesh(new THREE.CylinderGeometry(2.15 * trunkThickness, 3.35 * trunkThickness, 29.6, 8), "#72533f", options.faceted);
+  trunk.name = "pine_reinforced_trunk";
+  trunk.position.y = 17.8;
+  sculpture.add(trunk);
+  const pineLayers = Array.from({ length: tierCount }, (_, index) => {
+    const progress = tierCount === 1 ? 1 : index / (tierCount - 1);
+    return {
+      radius: THREE.MathUtils.lerp(14, 4.9, progress) * crownFullness,
+      height: THREE.MathUtils.lerp(16, 10, progress),
+      y: THREE.MathUtils.lerp(12.5, 35, progress),
+      rotation: index % 2 === 0 ? 0 : Math.PI / 8,
+    };
+  });
+  pineLayers.forEach((layer, index) => {
+    const crownGeometry = index === pineLayers.length - 1
+      ? new THREE.CylinderGeometry(1.35, layer.radius, 9.4, 12)
+      : new THREE.ConeGeometry(layer.radius, layer.height, 12);
+    const crown = mesh(crownGeometry, options.primaryColor, options.faceted);
+    crown.name = `pine_layer_${index + 1}`;
+    crown.position.y = layer.y;
+    crown.rotation.y = layer.rotation;
+    sculpture.add(crown);
+  });
+  const roundedTip = mesh(new THREE.DodecahedronGeometry(1.65, 0), options.primaryColor, options.faceted);
+  roundedTip.name = "pine_rounded_tip";
+  roundedTip.scale.set(0.9 * tipRoundness, 0.75 * tipRoundness, 0.9 * tipRoundness);
+  roundedTip.position.y = 39.45;
+  sculpture.add(roundedTip);
+  group.add(sculpture);
+  return group;
+}
+
+function buildCactus(options: ModelOptions) {
+  const group = prepareTopper(options);
+  const sx = options.topperWidth / 28;
+  const sy = options.topperHeight / 36;
+  const armCount = Math.round(shapeValue(options, "armCount", 2));
+  const bodyPlumpness = shapeValue(options, "bodyPlumpness", 1);
+  const armRise = shapeValue(options, "armRise", 1);
+  const ribCount = Math.round(shapeValue(options, "ribCount", 8));
+  const topY = ADAPTER_STANDARD.totalHeight - 0.05;
+  const sculpture = new THREE.Group();
+  sculpture.name = "single_body_cactus";
+  sculpture.position.y = topY;
+  sculpture.scale.set(sx, sy, sx);
+
+  const plinth = mesh(new THREE.CylinderGeometry(9.4, 11, 4, 12), options.primaryColor, options.faceted);
+  plinth.name = "cactus_root_plinth";
+  plinth.position.y = 2;
+  sculpture.add(plinth);
+
+  const trunk = mesh(new THREE.CylinderGeometry(5.25 * bodyPlumpness, 5.8 * bodyPlumpness, 25.5, 10), options.primaryColor, options.faceted);
+  trunk.name = "cactus_main_trunk";
+  trunk.position.y = 16.4;
+  sculpture.add(trunk);
+  const trunkCap = mesh(new THREE.SphereGeometry(5.25 * bodyPlumpness, 10, 6), options.primaryColor, options.faceted);
+  trunkCap.name = "cactus_rounded_crown";
+  trunkCap.scale.y = 0.58;
+  trunkCap.position.y = 29.2;
+  sculpture.add(trunkCap);
+
+  const addArm = (side: -1 | 1, startY: number, rise: number, z: number) => {
+    const start = new THREE.Vector3(side * 3.35 * bodyPlumpness, startY, 0);
+    const elbow = new THREE.Vector3(side * 8.25 * bodyPlumpness, startY + rise * armRise, z);
+    const diagonal = cylinderBetween(start, elbow, 3.45 * bodyPlumpness, 3.05 * bodyPlumpness, options.primaryColor, options.faceted, 9);
+    diagonal.name = `cactus_${side < 0 ? "left" : "right"}_rising_arm`;
+    sculpture.add(diagonal);
+    const rootJoint = mesh(new THREE.SphereGeometry(3.55 * bodyPlumpness, 9, 5), options.primaryColor, options.faceted);
+    rootJoint.name = `cactus_${side < 0 ? "left" : "right"}_fused_root_joint`;
+    rootJoint.scale.y = 0.82;
+    rootJoint.position.copy(start);
+    sculpture.add(rootJoint);
+    const elbowJoint = mesh(new THREE.SphereGeometry(3.2 * bodyPlumpness, 9, 5), options.primaryColor, options.faceted);
+    elbowJoint.name = `cactus_${side < 0 ? "left" : "right"}_fused_elbow_joint`;
+    elbowJoint.scale.y = 0.86;
+    elbowJoint.position.copy(elbow);
+    sculpture.add(elbowJoint);
+    const armHeight = side < 0 ? 7.6 : 6.4;
+    const upright = mesh(new THREE.CylinderGeometry(2.65 * bodyPlumpness, 2.9 * bodyPlumpness, armHeight, 9), options.primaryColor, options.faceted);
+    upright.name = `cactus_${side < 0 ? "left" : "right"}_upright`;
+    upright.position.set(elbow.x, elbow.y + armHeight / 2 - 0.7, elbow.z);
+    sculpture.add(upright);
+    const cap = mesh(new THREE.SphereGeometry(2.7 * bodyPlumpness, 9, 5), options.primaryColor, options.faceted);
+    cap.name = `cactus_${side < 0 ? "left" : "right"}_cap`;
+    cap.scale.y = 0.58;
+    cap.position.set(elbow.x, elbow.y + armHeight - 0.7, elbow.z);
+    sculpture.add(cap);
+  };
+  [
+    { side: -1 as const, startY: 14.4, rise: 4.1, z: -0.3 },
+    { side: 1 as const, startY: 11.5, rise: 4.8, z: 0.9 },
+    { side: -1 as const, startY: 20.2, rise: 3.2, z: 1.4 },
+    { side: 1 as const, startY: 18.2, rise: 3.6, z: -1.2 },
+  ].slice(0, armCount).forEach(({ side, startY, rise, z }) => addArm(side, startY, rise, z));
+
+  const ribColor = detailColor(options.primaryColor, 0.06);
+  for (let index = 0; index < ribCount; index += 1) {
+    const angle = index * Math.PI * 2 / ribCount;
+    const rib = mesh(new THREE.CylinderGeometry(0.72, 0.78, 22.8, 6), ribColor, options.faceted);
+    rib.name = `cactus_rib_${index + 1}`;
+    rib.position.set(Math.cos(angle) * 4.82 * bodyPlumpness, 16.2, Math.sin(angle) * 4.82 * bodyPlumpness);
+    sculpture.add(rib);
+  }
+
+  const areoleColor = detailColor(options.primaryColor, 0.14);
+  [
+    [0.2, 9], [2.5, 13], [4.9, 17], [1.35, 20.5], [3.75, 24.5], [5.6, 27],
+  ].forEach(([angle, y], index) => {
+    const areole = mesh(new THREE.DodecahedronGeometry(0.82, 0), areoleColor, options.faceted);
+    areole.name = `rounded_areole_${index + 1}`;
+    areole.position.set(Math.cos(angle) * 5.35 * bodyPlumpness, y, Math.sin(angle) * 5.35 * bodyPlumpness);
+    areole.scale.set(1, 0.72, 1);
+    sculpture.add(areole);
+  });
+
+  group.add(sculpture);
+  return group;
+}
+
+function buildPumpkin(options: ModelOptions) {
+  const group = prepareTopper(options);
+  const sculpture = new THREE.Group();
+  sculpture.position.y = ADAPTER_STANDARD.totalHeight - 0.05;
+  sculpture.scale.set(options.topperWidth / 31, options.topperHeight / 32, options.topperWidth / 31);
+  const foot = mesh(new THREE.CylinderGeometry(9.5, 11, 5, 10), options.primaryColor, options.faceted);
+  foot.position.y = 2.5;
+  sculpture.add(foot);
+  const fusedCore = mesh(new THREE.CylinderGeometry(4.6, 5.2, 21.4, 10), options.primaryColor, options.faceted);
+  fusedCore.name = "pumpkin_internal_fused_core";
+  fusedCore.position.y = 12.4;
+  sculpture.add(fusedCore);
+  for (let index = 0; index < 8; index += 1) {
+    const angle = index * Math.PI * 2 / 8;
+    const lobe = mesh(new THREE.SphereGeometry(9.2, 9, 7), options.primaryColor, options.faceted);
+    lobe.name = `pumpkin_lobe_${index + 1}`;
+    lobe.scale.set(0.78, 1.08, 0.78);
+    lobe.rotation.y = angle;
+    lobe.position.set(Math.cos(angle) * 3.4, 13.6, Math.sin(angle) * 3.4);
+    sculpture.add(lobe);
+  }
+  const stalk = mesh(new THREE.CylinderGeometry(1.8, 2.6, 6, 6), "#557052", options.faceted);
+  stalk.rotation.z = -0.12;
+  stalk.position.set(0.4, 24, 0);
+  sculpture.add(stalk);
+  group.add(sculpture);
+  return group;
+}
+
+function buildAcorn(options: ModelOptions) {
+  const group = prepareTopper(options);
+  const sculpture = new THREE.Group();
+  sculpture.position.y = ADAPTER_STANDARD.totalHeight - 0.05;
+  sculpture.scale.set(options.topperWidth / 27, options.topperHeight / 34, options.topperWidth / 27);
+  const foot = mesh(new THREE.CylinderGeometry(8.5, 10.5, 4.6, 9), options.primaryColor, options.faceted);
+  foot.position.y = 2.3;
+  sculpture.add(foot);
+  const nut = mesh(new THREE.DodecahedronGeometry(10, 0), options.primaryColor, options.faceted);
+  nut.name = "acorn_nut";
+  nut.scale.set(0.82, 1.1, 0.82);
+  nut.position.y = 14;
+  sculpture.add(nut);
+  const cap = mesh(new THREE.SphereGeometry(10, 9, 6), "#70513b", options.faceted);
+  cap.name = "acorn_cap";
+  cap.scale.set(0.88, 0.38, 0.88);
+  cap.position.y = 22;
+  sculpture.add(cap);
+  const stalk = mesh(new THREE.CylinderGeometry(1.5, 2.1, 6, 6), "#70513b", options.faceted);
+  stalk.rotation.z = 0.18;
+  stalk.position.set(-0.4, 27.5, 0);
+  sculpture.add(stalk);
+  group.add(sculpture);
+  return group;
+}
+
+function buildBonsai(options: ModelOptions) {
+  const group = prepareTopper(options);
+  const sculpture = new THREE.Group();
+  sculpture.position.y = ADAPTER_STANDARD.totalHeight - 0.05;
+  sculpture.scale.set(options.topperWidth / 34, options.topperHeight / 40, options.topperWidth / 34);
+  const foot = mesh(new THREE.CylinderGeometry(10.5, 12, 4.5, 10), "#6f543e", options.faceted);
+  foot.position.y = 2.25;
+  sculpture.add(foot);
+  const trunk = mesh(new THREE.CylinderGeometry(2.6, 4.2, 20, 7), "#6f543e", options.faceted);
+  trunk.rotation.z = -0.08;
+  trunk.position.set(0.6, 13.5, 0);
+  sculpture.add(trunk);
+  const addBranch = (x: number, y: number, angle: number) => {
+    const branch = mesh(new THREE.CylinderGeometry(1.8, 2.4, 13, 7), "#6f543e", options.faceted);
+    branch.rotation.z = angle;
+    branch.position.set(x, y, 0);
+    sculpture.add(branch);
+  };
+  addBranch(-3.5, 21, 0.86);
+  addBranch(3.5, 21, -0.86);
+  [
+    [-7.2, 25.2, 0],
+    [0, 28, 0.5],
+    [7.2, 25.5, -0.4],
+    [-0.8, 25.2, 6.2],
+    [1.1, 24.9, -6.2],
+    [0, 31.7, 0],
+  ].forEach(([x, y, z], index) => {
+    const crown = mesh(new THREE.DodecahedronGeometry(8.6, 0), options.primaryColor, options.faceted);
+    crown.name = `bonsai_cloud_${index + 1}`;
+    const isTop = index === 5;
+    crown.scale.set(isTop ? 0.82 : 1.1, isTop ? 0.66 : 0.72, isTop ? 0.82 : 0.96);
+    crown.position.set(x, y, z);
+    sculpture.add(crown);
+  });
+  group.add(sculpture);
+  return group;
+}
+
+function buildStrawberry(options: ModelOptions) {
+  const group = prepareTopper(options);
+  const sculpture = new THREE.Group();
+  sculpture.position.y = ADAPTER_STANDARD.totalHeight - 0.05;
+  sculpture.scale.set(options.topperWidth / 27, options.topperHeight / 34, options.topperWidth / 27);
+  const foot = mesh(new THREE.CylinderGeometry(8.5, 10.2, 4.2, 10), options.primaryColor, options.faceted);
+  foot.position.y = 2.1;
+  sculpture.add(foot);
+  const berry = mesh(new THREE.DodecahedronGeometry(10, 1), options.primaryColor, options.faceted);
+  berry.name = "strawberry_body";
+  berry.scale.set(0.78, 1.15, 0.78);
+  berry.position.y = 14.5;
+  sculpture.add(berry);
+  for (let i = 0; i < 5; i += 1) {
+    const angle = i * Math.PI * 2 / 5;
+    const leaf = mesh(new THREE.SphereGeometry(3.8, 6, 4), "#4d744d", options.faceted);
+    leaf.name = `berry_leaf_${i + 1}`;
+    leaf.scale.set(1.45, 0.38, 0.68);
+    leaf.rotation.y = -angle;
+    leaf.rotation.z = Math.cos(angle) * 0.35;
+    leaf.position.set(Math.cos(angle) * 3.5, 23.2, Math.sin(angle) * 3.5);
+    sculpture.add(leaf);
+  }
+  const stalk = mesh(new THREE.CylinderGeometry(1.3, 1.8, 5, 6), "#4d744d", options.faceted);
+  stalk.position.y = 26;
+  sculpture.add(stalk);
+  group.add(sculpture);
+  return group;
+}
+
+function buildCloverKit(options: ModelOptions) {
+  const widthScale = options.topperWidth / 30;
+  const heightScale = options.topperHeight / 33;
+  const adapterTop = ADAPTER_STANDARD.totalHeight;
+  const stemTop = 16.8 * heightScale;
+
+  const pinGroup = buildConnectorPin(options, "clover_double_ended_connector_pin");
+
+  const trunkGroup = new THREE.Group();
+  trunkGroup.name = "clover_flat_bottom_trunk";
+  trunkGroup.position.y = adapterTop;
+  const foot = mesh(
+    new THREE.CylinderGeometry(8.8 * widthScale, 10.8 * widthScale, 4.4, 12),
+    options.primaryColor,
+    options.faceted,
+  );
+  foot.name = "clover_flat_print_plinth";
+  foot.position.y = 2.2;
+  trunkGroup.add(foot);
+  const socketBoss = mesh(
+    new THREE.CylinderGeometry(4.8, 5.25, 4.8, 10),
+    options.primaryColor,
+    options.faceted,
+  );
+  socketBoss.name = "clover_socket_boss";
+  socketBoss.position.y = 2.4;
+  trunkGroup.add(socketBoss);
+  const stemBottom = 3.35;
+  const stem = mesh(
+    new THREE.CylinderGeometry(2.45 * widthScale, 3.35 * widthScale, stemTop - stemBottom, 8),
+    options.primaryColor,
+    options.faceted,
+  );
+  stem.name = "clover_support_free_trunk";
+  stem.position.y = (stemBottom + stemTop) / 2;
+  trunkGroup.add(stem);
+
+  const trunkSocket = mesh(
+    new THREE.CylinderGeometry(KIT_TRUNK_SOCKET_RADIUS, KIT_TRUNK_SOCKET_RADIUS, KIT_TRUNK_SOCKET_DEPTH + 0.08, 6),
+    detailColor(options.primaryColor, -0.16),
+    false,
+  );
+  trunkSocket.name = "clover_trunk_pin_socket_cutter";
+  trunkSocket.userData.booleanOperation = "subtract";
+  trunkSocket.position.y = KIT_TRUNK_SOCKET_DEPTH / 2 - 0.04;
+  trunkGroup.add(trunkSocket);
+
+  const crownPinHeight = KIT_CROWN_SOCKET_DEPTH + 0.35;
+  const crownPin = mesh(
+    new THREE.CylinderGeometry(KIT_CROWN_PIN_RADIUS - 0.2, KIT_CROWN_PIN_RADIUS, crownPinHeight, 6),
+    options.primaryColor,
+    options.faceted,
+  );
+  crownPin.name = "clover_crown_alignment_pin";
+  crownPin.position.y = stemTop + crownPinHeight / 2 - 0.28;
+  trunkGroup.add(crownPin);
+
+  const crownGroup = new THREE.Group();
+  crownGroup.name = "clover_printable_crown";
+  crownGroup.position.y = adapterTop + stemTop;
+  const crownHubHeight = 4;
+  const crownHub = mesh(
+    new THREE.CylinderGeometry(5.05 * widthScale, 5.8 * widthScale, crownHubHeight, 12),
+    options.primaryColor,
+    options.faceted,
+  );
+  crownHub.name = "clover_flat_crown_hub";
+  crownHub.position.y = crownHubHeight / 2;
+  crownGroup.add(crownHub);
+
+  const crownSocket = mesh(
+    new THREE.CylinderGeometry(KIT_CROWN_SOCKET_RADIUS, KIT_CROWN_SOCKET_RADIUS, KIT_CROWN_SOCKET_DEPTH + 0.08, 6),
+    detailColor(options.primaryColor, -0.16),
+    false,
+  );
+  crownSocket.name = "clover_crown_socket_cutter";
+  crownSocket.userData.booleanOperation = "subtract";
+  crownSocket.position.y = KIT_CROWN_SOCKET_DEPTH / 2 - 0.04;
+  crownGroup.add(crownSocket);
+
+  const leafDistance = 5.85 * widthScale;
+  const leafCentreY = crownHubHeight + 2.75 * heightScale;
+  const leafOffsets = [0, 0.045, -0.035, 0.025];
+  for (let index = 0; index < 4; index += 1) {
+    const angle = index * Math.PI / 2 + leafOffsets[index];
+    const radial = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle));
+    const leaf = mesh(
+      new THREE.DodecahedronGeometry(5.15, 0),
+      options.primaryColor,
+      options.faceted,
+    );
+    leaf.name = `clover_rounded_leaf_${index + 1}`;
+    leaf.scale.set(1.02 * widthScale, 0.8 * heightScale, 0.98 * widthScale);
+    leaf.rotation.y = -angle;
+    leaf.rotation.z = index % 2 === 0 ? 0.018 : -0.018;
+    leaf.position.copy(radial).multiplyScalar(leafDistance);
+    leaf.position.y = leafCentreY;
+    crownGroup.add(leaf);
+  }
+
+  const upperLeaf = mesh(
+    new THREE.DodecahedronGeometry(4.7, 0),
+    options.primaryColor,
+    options.faceted,
+  );
+  upperLeaf.name = "clover_rounded_upper_leaf_5";
+  upperLeaf.scale.set(0.9 * widthScale, 0.8 * heightScale, 0.86 * widthScale);
+  upperLeaf.rotation.x = -0.08;
+  upperLeaf.position.set(0, crownHubHeight + 6.15 * heightScale, -0.85 * widthScale);
+  crownGroup.add(upperLeaf);
+
+  const crownCentre = mesh(
+    new THREE.DodecahedronGeometry(2.55, 0),
+    detailColor(options.primaryColor, 0.035),
+    options.faceted,
+  );
+  crownCentre.name = "clover_crown_fused_centre";
+  crownCentre.scale.set(1.04 * widthScale, 0.7 * heightScale, 1.04 * widthScale);
+  crownCentre.position.y = crownHubHeight + 0.7 * heightScale;
+  crownGroup.add(crownCentre);
+
+  return { pinGroup, trunkGroup, crownGroup };
+}
+
+function buildLotus(options: ModelOptions) {
+  const group = prepareTopper(options);
+  const sculpture = new THREE.Group();
+  sculpture.position.y = ADAPTER_STANDARD.totalHeight - 0.05;
+  sculpture.scale.set(options.topperWidth / 29, options.topperHeight / 38, options.topperWidth / 29);
+  const leafColor = "#55734b";
+  const foot = mesh(new THREE.CylinderGeometry(9, 10.8, 4.2, 10), leafColor, options.faceted);
+  foot.name = "lotus_leaf_green_plinth";
+  foot.position.y = 2.1;
+  sculpture.add(foot);
+  const stem = mesh(new THREE.CylinderGeometry(2.4, 3.2, 20, 7), leafColor, options.faceted);
+  stem.name = "lotus_green_stem";
+  stem.position.y = 13;
+  sculpture.add(stem);
+
+  const innerColor = detailColor(options.primaryColor, 0.045);
+  const core = mesh(new THREE.DodecahedronGeometry(7.2, 0), innerColor, options.faceted);
+  core.name = "lotus_fused_central_bud";
+  core.scale.set(0.78, 1.3, 0.78);
+  core.position.y = 26;
+  sculpture.add(core);
+  for (let i = 0; i < 5; i += 1) {
+    const angle = i * Math.PI * 2 / 5;
+    const petal = mesh(new THREE.SphereGeometry(6, 7, 5), options.primaryColor, options.faceted);
+    petal.name = `lotus_petal_${i + 1}`;
+    petal.scale.set(0.58, 1.35, 0.5);
+    petal.rotation.y = angle;
+    petal.rotation.z = Math.cos(angle) * 0.28;
+    petal.position.set(Math.cos(angle) * 3.8, 24.5, Math.sin(angle) * 3.8);
+    sculpture.add(petal);
+  }
+  group.add(sculpture);
+  return group;
+}
+
+function buildAloe(options: ModelOptions) {
+  const group = prepareTopper(options);
+  const sculpture = new THREE.Group();
+  sculpture.position.y = ADAPTER_STANDARD.totalHeight - 0.05;
+  sculpture.scale.set(options.topperWidth / 34, options.topperHeight / 32, options.topperWidth / 34);
+  const foot = mesh(new THREE.CylinderGeometry(10.5, 11.5, 4.4, 10), options.primaryColor, options.faceted);
+  foot.position.y = 2.2;
+  sculpture.add(foot);
+
+  const leaves = [
+    { x: -7.2, z: 0, height: 21, radius: 4.4, rz: 0.62, rx: 0 },
+    { x: 7.2, z: 0, height: 21, radius: 4.4, rz: -0.62, rx: 0 },
+    { x: 0, z: -6.6, height: 20, radius: 4.2, rz: 0, rx: -0.58 },
+    { x: 0, z: 6.6, height: 20, radius: 4.2, rz: 0, rx: 0.58 },
+    { x: -3.8, z: -2.6, height: 26, radius: 4, rz: 0.28, rx: -0.2 },
+    { x: 3.8, z: 2.6, height: 26, radius: 4, rz: -0.28, rx: 0.2 },
+    { x: 0, z: 0, height: 29, radius: 4.2, rz: 0, rx: 0 },
+    { x: -5.4, z: 4.5, height: 18, radius: 3.8, rz: 0.46, rx: 0.38 },
+    { x: 5.4, z: -4.5, height: 18, radius: 3.8, rz: -0.46, rx: -0.38 },
+    { x: -4.7, z: -5, height: 22, radius: 3.75, rz: 0.32, rx: -0.34 },
+    { x: 4.7, z: 5, height: 22, radius: 3.75, rz: -0.32, rx: 0.34 },
+    { x: 0, z: 2.6, height: 24, radius: 3.9, rz: 0.08, rx: 0.18 },
+  ];
+  leaves.forEach((leaf, index) => {
+    const blade = mesh(new THREE.ConeGeometry(leaf.radius, leaf.height, 6), options.primaryColor, options.faceted);
+    blade.name = `aloe_leaf_${index + 1}`;
+    blade.position.set(leaf.x, leaf.height / 2 + 0.5, leaf.z);
+    blade.rotation.set(leaf.rx, 0, leaf.rz);
+    sculpture.add(blade);
+  });
+  group.add(sculpture);
+  return group;
+}
+
+function snakeBladeGeometry(width: number, height: number, depth: number) {
+  const shape = new THREE.Shape();
+  shape.moveTo(-width / 2, 0);
+  shape.lineTo(width / 2, 0);
+  shape.lineTo(width * 0.42, height * 0.66);
+  shape.lineTo(0, height);
+  shape.lineTo(-width * 0.42, height * 0.66);
+  shape.closePath();
+  const geometry = new THREE.ExtrudeGeometry(shape, {
+    depth,
+    steps: 1,
+    bevelEnabled: true,
+    bevelSegments: 1,
+    bevelSize: 0.35,
+    bevelThickness: 0.35,
+  });
+  geometry.translate(0, 0, -depth / 2);
+  return geometry;
+}
+
+function buildSnakePlant(options: ModelOptions) {
+  const group = prepareTopper(options);
+  const sculpture = new THREE.Group();
+  sculpture.position.y = ADAPTER_STANDARD.totalHeight - 0.05;
+  sculpture.scale.set(options.topperWidth / 30, options.topperHeight / 40, options.topperWidth / 30);
+  const foot = mesh(new THREE.CylinderGeometry(9.8, 11, 4.4, 10), options.primaryColor, options.faceted);
+  foot.position.y = 2.2;
+  sculpture.add(foot);
+  [
+    { x: -5.5, z: 0, h: 27, w: 7.5, rz: 0.22, ry: -0.1 },
+    { x: 5.2, z: 0.8, h: 30, w: 7.2, rz: -0.2, ry: 0.18 },
+    { x: -1.5, z: -3.8, h: 34, w: 7.3, rz: 0.08, ry: -0.45 },
+    { x: 2.2, z: 3.8, h: 32, w: 7.3, rz: -0.1, ry: 0.45 },
+    { x: 0, z: 0, h: 38, w: 7.6, rz: 0, ry: 0 },
+  ].forEach((blade, index) => {
+    const leaf = mesh(snakeBladeGeometry(blade.w, blade.h, 4.2), options.primaryColor, options.faceted);
+    leaf.name = `snake_blade_${index + 1}`;
+    leaf.position.set(blade.x, 1.2, blade.z);
+    leaf.rotation.set(0, blade.ry, blade.rz);
+    sculpture.add(leaf);
+  });
+  group.add(sculpture);
+  return group;
+}
+
+function buildEggplant(options: ModelOptions) {
+  const group = prepareTopper(options);
+  const sculpture = new THREE.Group();
+  sculpture.position.y = ADAPTER_STANDARD.totalHeight - 0.05;
+  sculpture.scale.set(options.topperWidth / 28, options.topperHeight / 35, options.topperWidth / 28);
+  const foot = mesh(new THREE.CylinderGeometry(9.2, 10.7, 4.5, 10), options.primaryColor, options.faceted);
+  foot.position.y = 2.25;
+  sculpture.add(foot);
+  const fruit = mesh(new THREE.DodecahedronGeometry(10, 1), options.primaryColor, options.faceted);
+  fruit.name = "eggplant_body";
+  fruit.scale.set(0.82, 1.15, 0.82);
+  fruit.rotation.z = -0.08;
+  fruit.position.set(0.5, 14.4, 0);
+  sculpture.add(fruit);
+  for (let i = 0; i < 5; i += 1) {
+    const angle = i * Math.PI * 2 / 5;
+    const crown = mesh(new THREE.SphereGeometry(4.5, 6, 4), "#55734b", options.faceted);
+    crown.name = `eggplant_calyx_${i + 1}`;
+    crown.scale.set(1.25, 0.38, 0.65);
+    crown.rotation.y = -angle;
+    crown.position.set(Math.cos(angle) * 2.8, 23.2, Math.sin(angle) * 2.8);
+    sculpture.add(crown);
+  }
+  const stalk = mesh(new THREE.CylinderGeometry(1.4, 2, 6, 6), "#55734b", options.faceted);
+  stalk.rotation.z = -0.16;
+  stalk.position.set(0.5, 27, 0);
+  sculpture.add(stalk);
+  group.add(sculpture);
+  return group;
+}
+
+function buildGrapes(options: ModelOptions) {
+  const group = prepareTopper(options);
+  const sculpture = new THREE.Group();
+  sculpture.position.y = ADAPTER_STANDARD.totalHeight - 0.05;
+  sculpture.scale.set(options.topperWidth / 30, options.topperHeight / 35, options.topperWidth / 30);
+  const foot = mesh(new THREE.CylinderGeometry(9.5, 10.8, 4.3, 10), options.primaryColor, options.faceted);
+  foot.position.y = 2.15;
+  sculpture.add(foot);
+  const core = mesh(new THREE.CylinderGeometry(2.1, 2.8, 25, 7), options.primaryColor, options.faceted);
+  core.position.y = 14.5;
+  sculpture.add(core);
+  const berries: Array<[number, number, number]> = [
+    [-5, 25, 0], [0, 26.5, 0], [5, 25, 0],
+    [-6, 20.5, 1.5], [-2, 21, -2.5], [2.5, 21, 2.4], [6, 20.5, -1],
+    [-4.6, 16.5, -1.5], [0, 17, 2], [4.6, 16.5, -1.4],
+    [-2.8, 12.7, 1], [2.8, 12.7, -1], [0, 9.4, 0],
+  ];
+  berries.forEach(([x, y, z], index) => {
+    const berry = mesh(new THREE.DodecahedronGeometry(4.5, 0), options.primaryColor, options.faceted);
+    berry.name = `grape_${index + 1}`;
+    berry.position.set(x, y, z);
+    sculpture.add(berry);
+  });
+  const stalk = mesh(new THREE.CylinderGeometry(1.4, 1.8, 7, 6), "#55734b", options.faceted);
+  stalk.rotation.z = -0.15;
+  stalk.position.set(0.5, 30.2, 0);
+  sculpture.add(stalk);
+  group.add(sculpture);
+  return group;
+}
+
+function buildSunflower(options: ModelOptions) {
+  const group = prepareTopper(options);
+  const sculpture = new THREE.Group();
+  sculpture.position.y = ADAPTER_STANDARD.totalHeight - 0.05;
+  sculpture.scale.set(options.topperWidth / 34, options.topperHeight / 40, options.topperWidth / 34);
+  const foot = mesh(new THREE.CylinderGeometry(9.5, 10.8, 4.3, 10), "#55734b", options.faceted);
+  foot.position.y = 2.15;
+  sculpture.add(foot);
+  const stem = mesh(new THREE.CylinderGeometry(2.2, 2.9, 24, 7), "#55734b", options.faceted);
+  stem.position.y = 14.5;
+  sculpture.add(stem);
+  [-1, 1].forEach((side, index) => {
+    const leaf = mesh(new THREE.SphereGeometry(6, 7, 5), "#55734b", options.faceted);
+    leaf.name = `sunflower_leaf_${index + 1}`;
+    leaf.scale.set(1.2, 0.42, 0.55);
+    leaf.rotation.z = side * 0.55;
+    leaf.position.set(side * 4.8, 17, 0);
+    sculpture.add(leaf);
+  });
+  const center = mesh(new THREE.CylinderGeometry(7.5, 7.5, 4.2, 10), "#6d523a", options.faceted);
+  center.name = "sunflower_center";
+  center.rotation.x = Math.PI / 2;
+  center.position.y = 31.5;
+  sculpture.add(center);
+  for (let i = 0; i < 12; i += 1) {
+    const angle = i * Math.PI * 2 / 12;
+    const petal = mesh(new THREE.DodecahedronGeometry(4.8, 0), options.primaryColor, options.faceted);
+    petal.name = `sunflower_petal_${i + 1}`;
+    petal.scale.set(1.3, 0.55, 0.36);
+    petal.rotation.z = angle;
+    petal.position.set(Math.cos(angle) * 10, 31.5 + Math.sin(angle) * 10, 0);
+    sculpture.add(petal);
+  }
+  group.add(sculpture);
+  return group;
+}
+
+function buildSnail(options: ModelOptions) {
+  const group = prepareTopper(options);
+  const sculpture = new THREE.Group();
+  sculpture.position.y = ADAPTER_STANDARD.totalHeight - 0.05;
+  sculpture.scale.set(options.topperWidth / 35, options.topperHeight / 29, options.topperWidth / 35);
+  const foot = mesh(new THREE.CylinderGeometry(10.5, 11.5, 4.6, 10), options.primaryColor, options.faceted);
+  foot.position.y = 2.3;
+  sculpture.add(foot);
+  const body = mesh(new THREE.DodecahedronGeometry(9, 1), "#b49368", options.faceted);
+  body.name = "snail_body";
+  body.scale.set(1.45, 0.45, 0.65);
+  body.position.set(0, 8, 0);
+  sculpture.add(body);
+  const shell = mesh(new THREE.DodecahedronGeometry(10, 1), options.primaryColor, options.faceted);
+  shell.name = "snail_shell";
+  shell.scale.set(1, 0.95, 0.68);
+  shell.position.set(-3.5, 14.6, 0);
+  sculpture.add(shell);
+  const head = mesh(new THREE.DodecahedronGeometry(6, 1), "#b49368", options.faceted);
+  head.name = "snail_head";
+  head.scale.set(0.95, 1, 0.8);
+  head.position.set(8.5, 10, 0);
+  sculpture.add(head);
+  [-2.2, 2.2].forEach((z, index) => {
+    const feeler = mesh(new THREE.CylinderGeometry(1.15, 1.5, 7, 6), "#b49368", options.faceted);
+    feeler.name = `snail_feeler_${index + 1}`;
+    feeler.rotation.z = index === 0 ? 0.18 : -0.18;
+    feeler.position.set(9, 15.2, z);
+    sculpture.add(feeler);
+    const eye = mesh(new THREE.DodecahedronGeometry(1.9, 0), "#59483b", options.faceted);
+    eye.position.set(index === 0 ? 8.4 : 9.6, 18.3, z);
+    sculpture.add(eye);
+  });
+  [4.4, 2.1].forEach((radius, index) => {
+    const spiral = mesh(new THREE.TorusGeometry(radius, index === 0 ? 1.3 : 1.05, 5, 12), "#644c3a", options.faceted);
+    spiral.name = `shell_spiral_${index + 1}`;
+    spiral.position.set(-3.5, 14.6, 5.9);
+    sculpture.add(spiral);
+  });
+  group.add(sculpture);
+  return group;
+}
+
+function buildFrog(options: ModelOptions) {
+  const group = prepareTopper(options);
+  const sculpture = new THREE.Group();
+  sculpture.position.y = ADAPTER_STANDARD.totalHeight - 0.05;
+  sculpture.scale.set(options.topperWidth / 32, options.topperHeight / 31, options.topperWidth / 32);
+  const foot = mesh(new THREE.CylinderGeometry(10.6, 11.5, 4.6, 10), options.primaryColor, options.faceted);
+  foot.position.y = 2.3;
+  sculpture.add(foot);
+  const body = mesh(new THREE.DodecahedronGeometry(10, 1), options.primaryColor, options.faceted);
+  body.name = "frog_body";
+  body.scale.set(0.9, 0.85, 0.8);
+  body.position.y = 12;
+  sculpture.add(body);
+  const head = mesh(new THREE.DodecahedronGeometry(8.5, 1), options.primaryColor, options.faceted);
+  head.name = "frog_head";
+  head.scale.set(1.05, 0.82, 0.85);
+  head.position.y = 21;
+  sculpture.add(head);
+  [-5.3, 5.3].forEach((x, index) => {
+    const eye = mesh(new THREE.DodecahedronGeometry(3.8, 0), options.primaryColor, options.faceted);
+    eye.name = `frog_eye_${index + 1}`;
+    eye.position.set(x, 26.5, 0);
+    sculpture.add(eye);
+    const footPad = mesh(new THREE.DodecahedronGeometry(5.2, 0), options.primaryColor, options.faceted);
+    footPad.name = `frog_foot_${index + 1}`;
+    footPad.scale.set(1.3, 0.42, 0.8);
+    footPad.position.set(x * 1.2, 6.2, 1.2);
+    sculpture.add(footPad);
+  });
+  const belly = mesh(new THREE.SphereGeometry(6.2, 8, 5), "#b9c99b", options.faceted);
+  belly.scale.set(0.85, 0.95, 0.22);
+  belly.position.set(0, 13, 7.2);
+  sculpture.add(belly);
+  group.add(sculpture);
+  return group;
+}
+
+function buildHedgehog(options: ModelOptions) {
+  const group = prepareTopper(options);
+  const sculpture = new THREE.Group();
+  sculpture.position.y = ADAPTER_STANDARD.totalHeight - 0.05;
+  sculpture.scale.set(options.topperWidth / 35, options.topperHeight / 28, options.topperWidth / 35);
+  const foot = mesh(new THREE.CylinderGeometry(10.8, 11.8, 4.6, 10), options.primaryColor, options.faceted);
+  foot.position.y = 2.3;
+  sculpture.add(foot);
+  const body = mesh(new THREE.DodecahedronGeometry(11, 1), options.primaryColor, options.faceted);
+  body.name = "hedgehog_body";
+  body.scale.set(1.25, 0.72, 0.82);
+  body.position.set(-1.5, 12, 0);
+  sculpture.add(body);
+  const face = mesh(new THREE.ConeGeometry(6.8, 12, 7), "#c5a27b", options.faceted);
+  face.name = "hedgehog_face";
+  face.rotation.z = -Math.PI / 2;
+  face.position.set(8, 11.2, 0);
+  sculpture.add(face);
+  const nose = mesh(new THREE.DodecahedronGeometry(2.1, 0), "#4f4238", options.faceted);
+  nose.position.set(14, 11.2, 0);
+  sculpture.add(nose);
+  [-3.8, 1.2].forEach((z, index) => {
+    const ear = mesh(new THREE.DodecahedronGeometry(3, 0), "#c5a27b", options.faceted);
+    ear.name = `hedgehog_ear_${index + 1}`;
+    ear.scale.set(0.7, 1, 0.7);
+    ear.position.set(4.3, 17.2, z);
+    sculpture.add(ear);
+  });
+  [
+    [-10, 18.2, -3.8, 0.26], [-5, 19.2, -4.2, 0.12], [0, 19.4, -4, -0.08],
+    [-9, 18.5, 3.8, 0.22], [-4, 19.3, 4.1, 0.08], [1, 19.2, 3.8, -0.12],
+  ].forEach(([x, y, z, rz], index) => {
+    const quill = mesh(new THREE.ConeGeometry(3.8, 8.5, 5), options.primaryColor, options.faceted);
+    quill.name = `hedgehog_quill_${index + 1}`;
+    quill.rotation.z = rz;
+    quill.position.set(x, y, z);
+    sculpture.add(quill);
+  });
+  group.add(sculpture);
+  return group;
+}
+
+function realisticLeafGeometry(length: number, width: number, thickness = 1.5) {
+  const shape = new THREE.Shape();
+  shape.moveTo(-0.8, 0);
+  shape.bezierCurveTo(length * 0.18, width * 0.58, length * 0.72, width * 0.56, length, 0);
+  shape.bezierCurveTo(length * 0.72, -width * 0.56, length * 0.18, -width * 0.58, -0.8, 0);
+  const geometry = new THREE.ExtrudeGeometry(shape, {
+    depth: thickness,
+    steps: 1,
+    bevelEnabled: true,
+    bevelSegments: 2,
+    bevelSize: Math.min(0.45, thickness * 0.25),
+    bevelThickness: Math.min(0.38, thickness * 0.22),
+    curveSegments: 12,
+  });
+  geometry.translate(0, 0, -thickness / 2);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+function radialBloomGeometry(petals: number, innerRadius: number, outerRadius: number, depth: number) {
+  const shape = new THREE.Shape();
+  const samples = petals * 16;
+  for (let index = 0; index < samples; index += 1) {
+    const angle = index * Math.PI * 2 / samples;
+    const wave = (Math.cos(angle * petals) + 1) / 2;
+    const radius = innerRadius + (outerRadius - innerRadius) * Math.pow(wave, 0.72);
+    const x = Math.cos(angle) * radius;
+    const y = Math.sin(angle) * radius;
+    if (index === 0) shape.moveTo(x, y);
+    else shape.lineTo(x, y);
+  }
+  shape.closePath();
+  const geometry = new THREE.ExtrudeGeometry(shape, {
+    depth,
+    steps: 1,
+    bevelEnabled: true,
+    bevelSegments: 2,
+    bevelSize: Math.min(0.65, depth * 0.28),
+    bevelThickness: Math.min(0.55, depth * 0.24),
+    curveSegments: 16,
+  });
+  geometry.translate(0, 0, -depth / 2);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+function addRealisticLeaf(
+  parent: THREE.Group,
+  name: string,
+  position: THREE.Vector3,
+  length: number,
+  width: number,
+  color: string,
+  yaw: number,
+  roll: number,
+  pitch = 0,
+  thickness = 1.5,
+) {
+  const rig = new THREE.Group();
+  rig.name = `${name}_rig`;
+  rig.position.copy(position);
+  rig.rotation.set(pitch, yaw, roll);
+  const leaf = mesh(realisticLeafGeometry(length, width, thickness), color, false);
+  leaf.name = name;
+  rig.add(leaf);
+  parent.add(rig);
+}
+
+function createRealisticSculpture(
+  options: ModelOptions,
+  nominalWidth: number,
+  nominalHeight: number,
+  socketColor: string,
+) {
+  const group = prepareTopper(options, socketColor);
+  const sculpture = new THREE.Group();
+  sculpture.name = `${options.modelId}_smooth_realistic_sculpture`;
+  sculpture.position.y = ADAPTER_STANDARD.totalHeight - 0.05;
+  sculpture.scale.set(
+    options.topperWidth / nominalWidth,
+    options.topperHeight / nominalHeight,
+    options.topperWidth / nominalWidth,
+  );
+  group.add(sculpture);
+  return { group, sculpture };
+}
+
+function addSmoothPlinth(parent: THREE.Group, color: string, radius = 11, height = 4.4) {
+  const plinth = mesh(new THREE.CylinderGeometry(radius - 1.2, radius, height, 28), color, false);
+  plinth.name = "smooth_reinforced_root_plinth";
+  plinth.position.y = height / 2;
+  parent.add(plinth);
+}
+
+function buildTomato(options: ModelOptions) {
+  const green = "#4f7549";
+  const fruitCount = Math.round(shapeValue(options, "fruitCount", 3));
+  const fruitSize = shapeValue(options, "fruitSize", 1);
+  const branchSpread = shapeValue(options, "branchSpread", 1);
+  const leafDensity = Math.round(shapeValue(options, "leafDensity", 5));
+  const { group, sculpture } = createRealisticSculpture(options, 34, 39, green);
+  addSmoothPlinth(sculpture, green, 11.2);
+  const stem = cylinderBetween(
+    new THREE.Vector3(0, 3.2, 0),
+    new THREE.Vector3(0.4, 31, 0),
+    1.8,
+    1.15,
+    green,
+    false,
+    18,
+  );
+  stem.name = "tomato_main_stem";
+  sculpture.add(stem);
+
+  const fruits = [
+    { center: new THREE.Vector3(-7.2, 15.2, 1.1), root: new THREE.Vector3(0, 17.8, 0), radius: 5.6 },
+    { center: new THREE.Vector3(7.1, 12.2, -1.2), root: new THREE.Vector3(0, 15.1, 0), radius: 5.4 },
+    { center: new THREE.Vector3(6.2, 23, 1.6), root: new THREE.Vector3(0.2, 24.8, 0), radius: 5.1 },
+    { center: new THREE.Vector3(-5.8, 24.5, -1.5), root: new THREE.Vector3(0.2, 26.1, 0), radius: 4.7 },
+    { center: new THREE.Vector3(-5, 9.8, 1.8), root: new THREE.Vector3(0, 12.3, 0), radius: 4.5 },
+  ].slice(0, fruitCount);
+  fruits.forEach(({ center, root, radius }, index) => {
+    center.x *= branchSpread;
+    center.z *= branchSpread;
+    radius *= fruitSize;
+    const shoulder = center.clone().add(new THREE.Vector3(0, radius * 0.72, 0));
+    const branch = cylinderBetween(root, shoulder, 1.05, 0.7, green, false, 14);
+    branch.name = `tomato_fruit_branch_${index + 1}`;
+    sculpture.add(branch);
+    const fruit = mesh(new THREE.SphereGeometry(radius, 24, 16), options.primaryColor, false);
+    fruit.name = `smooth_tomato_${index + 1}`;
+    fruit.scale.set(1, 0.9, 0.96);
+    fruit.position.copy(center);
+    sculpture.add(fruit);
+    for (let calyx = 0; calyx < 3; calyx += 1) {
+      addRealisticLeaf(
+        sculpture,
+        `tomato_calyx_${index + 1}_${calyx + 1}`,
+        center.clone().add(new THREE.Vector3(0, radius * 0.72, 0)),
+        3.3,
+        1.25,
+        green,
+        calyx * Math.PI * 2 / 3,
+        -0.22,
+        0,
+        1,
+      );
+    }
+  });
+
+  const leafTemplates = [
+    [-0.2, 10, 0, 8.5, 4.6, 2.65, 0.24],
+    [0.1, 13.2, 0, 8.2, 4.4, -0.48, 0.28],
+    [0, 20, 0, 8.8, 4.8, 2.9, 0.22],
+    [0.2, 25.5, 0, 7.7, 4.1, -0.26, 0.3],
+    [0.3, 29, 0, 6.4, 3.6, 2.3, 0.42],
+    [-0.1, 17.1, 0, 7.2, 4, 1.55, 0.3],
+    [0.2, 27.8, 0, 6.5, 3.7, -1.4, 0.38],
+  ];
+  leafTemplates.slice(0, leafDensity).forEach(([x, y, z, length, width, yaw, roll], index) => {
+    addRealisticLeaf(
+      sculpture,
+      `tomato_leaf_${index + 1}`,
+      new THREE.Vector3(x, y, z),
+      length,
+      width,
+      green,
+      yaw,
+      roll,
+      index % 2 ? 0.18 : -0.12,
+      1.55,
+    );
+  });
+  return group;
+}
+
+function buildCarrot(options: ModelOptions) {
+  const green = "#567b4b";
+  const { group, sculpture } = createRealisticSculpture(options, 27, 38, options.primaryColor);
+  addSmoothPlinth(sculpture, options.primaryColor, 10.3, 4.2);
+  const carrotProfile = [
+    new THREE.Vector2(0, 25.2),
+    new THREE.Vector2(5.5, 25.2),
+    new THREE.Vector2(7.1, 23),
+    new THREE.Vector2(6.7, 19),
+    new THREE.Vector2(4.8, 12),
+    new THREE.Vector2(3.4, 7),
+    new THREE.Vector2(2.3, 3.2),
+    new THREE.Vector2(0, 3),
+  ];
+  const root = mesh(closedLatheGeometry(carrotProfile, 32), options.primaryColor, false);
+  root.name = "smooth_tapered_carrot_root";
+  sculpture.add(root);
+  const crownHub = mesh(new THREE.SphereGeometry(5.2, 20, 12), green, false);
+  crownHub.name = "carrot_fused_leaf_crown";
+  crownHub.scale.y = 0.65;
+  crownHub.position.y = 24.8;
+  sculpture.add(crownHub);
+  [
+    { height: 12.8, x: -3.2, z: -0.7 },
+    { height: 14.5, x: -1.6, z: 0.7 },
+    { height: 16, x: 0, z: 0 },
+    { height: 14.3, x: 1.6, z: -0.7 },
+    { height: 12.6, x: 3.2, z: 0.7 },
+  ].forEach((leaf, index) => {
+    const blade = mesh(new THREE.ConeGeometry(1.55, leaf.height, 14), green, false);
+    blade.name = `carrot_leaf_${index + 1}`;
+    blade.position.set(leaf.x, 24.5 + leaf.height / 2, leaf.z);
+    sculpture.add(blade);
+  });
+  return group;
+}
+
+function buildChili(options: ModelOptions) {
+  const green = "#55754b";
+  const { group, sculpture } = createRealisticSculpture(options, 38, 27, options.primaryColor);
+  addSmoothPlinth(sculpture, options.primaryColor, 11.4, 4.2);
+  const points = [
+    new THREE.Vector3(-8.2, 13.7, 0),
+    new THREE.Vector3(-3.4, 13, 0.5),
+    new THREE.Vector3(1.2, 11.3, 0.2),
+    new THREE.Vector3(5.3, 8.9, -0.2),
+    new THREE.Vector3(8.3, 6.5, 0.1),
+    new THREE.Vector3(10.2, 4.7, 0),
+  ];
+  const radii = [5.5, 5.1, 4.45, 3.55, 2.55, 1.45];
+  points.forEach((point, index) => {
+    const section = mesh(new THREE.SphereGeometry(radii[index], 24, 16), options.primaryColor, false);
+    section.name = `chili_smooth_section_${index + 1}`;
+    section.scale.set(1, 1.02, 0.78);
+    section.position.copy(point);
+    sculpture.add(section);
+    if (index === 0) return;
+    const bridge = cylinderBetween(
+      points[index - 1],
+      point,
+      radii[index - 1] * 0.72,
+      radii[index] * 0.72,
+      options.primaryColor,
+      false,
+      20,
+    );
+    bridge.name = `chili_taper_bridge_${index}`;
+    sculpture.add(bridge);
+  });
+  const shoulder = mesh(new THREE.SphereGeometry(3.4, 20, 12), green, false);
+  shoulder.name = "chili_green_shoulder";
+  shoulder.scale.set(1.15, 0.48, 0.9);
+  shoulder.position.set(-8.4, 17.6, 0);
+  sculpture.add(shoulder);
+  const stalk = cylinderBetween(
+    new THREE.Vector3(-8.3, 16.5, 0),
+    new THREE.Vector3(-10.2, 23.2, 0.4),
+    1.55,
+    0.85,
+    green,
+    false,
+    16,
+  );
+  stalk.name = "chili_curved_stalk";
+  sculpture.add(stalk);
+  return group;
+}
+
+function buildBasil(options: ModelOptions) {
+  const green = options.primaryColor;
+  const { group, sculpture } = createRealisticSculpture(options, 35, 36, green);
+  addSmoothPlinth(sculpture, green, 11.3);
+  const stems = [
+    [new THREE.Vector3(0, 3.2, 0), new THREE.Vector3(0, 31.5, 0)],
+    [new THREE.Vector3(0, 13, 0), new THREE.Vector3(-7.5, 27, 1)],
+    [new THREE.Vector3(0, 16, 0), new THREE.Vector3(7.4, 28, -1)],
+  ];
+  stems.forEach(([start, end], index) => {
+    const stem = cylinderBetween(start, end, index === 0 ? 1.8 : 1.35, 0.9, green, false, 16);
+    stem.name = `basil_branch_${index + 1}`;
+    sculpture.add(stem);
+  });
+  [
+    [0, 9, 0, 10.4, 5.8, 2.8, 0.27],
+    [0, 12, 0, 10.2, 5.7, -0.35, 0.25],
+    [0, 17, 0, 10.8, 6, 2.55, 0.3],
+    [0, 20, 0, 10.2, 5.8, -0.58, 0.3],
+    [-4, 21, 0.5, 9.2, 5.2, 2.55, 0.36],
+    [-6.8, 25.8, 0.9, 7.8, 4.6, 2.1, 0.5],
+    [4, 22, -0.5, 9.2, 5.2, -0.45, 0.36],
+    [6.7, 26.6, -0.9, 7.8, 4.6, 0.2, 0.5],
+    [0, 28, 0, 7.5, 4.3, 2.35, 0.48],
+    [0, 30.5, 0, 6.8, 4, -0.8, 0.5],
+  ].forEach(([x, y, z, length, width, yaw, roll], index) => {
+    addRealisticLeaf(
+      sculpture,
+      `basil_soft_leaf_${index + 1}`,
+      new THREE.Vector3(x, y, z),
+      length,
+      width,
+      green,
+      yaw,
+      roll,
+      index % 3 === 0 ? 0.18 : -0.1,
+      1.65,
+    );
+  });
+  return group;
+}
+
+function buildRosemary(options: ModelOptions) {
+  const green = options.primaryColor;
+  const wood = detailColor(green, -0.12);
+  const { group, sculpture } = createRealisticSculpture(options, 30, 40, wood);
+  addSmoothPlinth(sculpture, wood, 10.6);
+  const stems = [
+    { start: new THREE.Vector3(-4, 3.2, 0), end: new THREE.Vector3(-5.2, 34, 0.8) },
+    { start: new THREE.Vector3(0, 3.2, 0), end: new THREE.Vector3(0.8, 38, -0.6) },
+    { start: new THREE.Vector3(4, 3.2, 0), end: new THREE.Vector3(5.1, 32.5, 0.8) },
+  ];
+  stems.forEach(({ start, end }, stemIndex) => {
+    const stem = cylinderBetween(start, end, 1.45, 0.82, wood, false, 14);
+    stem.name = `rosemary_woody_stem_${stemIndex + 1}`;
+    sculpture.add(stem);
+    for (let level = 1; level <= 7; level += 1) {
+      const t = level / 8;
+      const anchor = start.clone().lerp(end, t);
+      for (let side = 0; side < 2; side += 1) {
+        const angle = level * 1.37 + stemIndex * 0.7 + side * Math.PI;
+        const tip = anchor.clone().add(new THREE.Vector3(
+          Math.cos(angle) * 4.6,
+          2.2 + (level % 2) * 0.7,
+          Math.sin(angle) * 4.6,
+        ));
+        const needle = cylinderBetween(anchor, tip, 0.78, 0.38, green, false, 10);
+        needle.name = `rosemary_needle_${stemIndex + 1}_${level}_${side + 1}`;
+        sculpture.add(needle);
+      }
+    }
+  });
+  return group;
+}
+
+function buildParsley(options: ModelOptions) {
+  const green = options.primaryColor;
+  const { group, sculpture } = createRealisticSculpture(options, 35, 34, green);
+  addSmoothPlinth(sculpture, green, 11.2);
+  const endpoints = [
+    new THREE.Vector3(-7.2, 24, -1.5),
+    new THREE.Vector3(6.8, 25, -1),
+    new THREE.Vector3(-3, 29, 2),
+    new THREE.Vector3(3.4, 30, 1.4),
+    new THREE.Vector3(0, 32, -1.8),
+  ];
+  endpoints.forEach((endpoint, clusterIndex) => {
+    const stem = cylinderBetween(
+      new THREE.Vector3((clusterIndex - 2) * 0.65, 3.2, 0),
+      endpoint,
+      1.4,
+      0.78,
+      green,
+      false,
+      14,
+    );
+    stem.name = `parsley_stem_${clusterIndex + 1}`;
+    sculpture.add(stem);
+    const hub = mesh(new THREE.SphereGeometry(2.2, 16, 10), green, false);
+    hub.name = `parsley_leaf_hub_${clusterIndex + 1}`;
+    hub.position.copy(endpoint);
+    sculpture.add(hub);
+    const cluster = mesh(radialBloomGeometry(3, 2.2, 7.1, 1.7), green, false);
+    cluster.name = `parsley_compound_leaf_${clusterIndex + 1}`;
+    cluster.position.copy(endpoint);
+    cluster.rotation.y = clusterIndex * 0.42 - 0.75;
+    cluster.rotation.z = clusterIndex % 2 ? 0.18 : -0.15;
+    sculpture.add(cluster);
+  });
+  return group;
+}
+
+function buildDaisy(options: ModelOptions) {
+  const green = "#52794f";
+  const yellow = "#d5a83d";
+  const { group, sculpture } = createRealisticSculpture(options, 34, 40, green);
+  addSmoothPlinth(sculpture, green, 10.7);
+  const stem = mesh(new THREE.CylinderGeometry(1.45, 2.2, 28, 18), green, false);
+  stem.name = "daisy_reinforced_stem";
+  stem.position.y = 16.5;
+  sculpture.add(stem);
+  addRealisticLeaf(sculpture, "daisy_left_leaf", new THREE.Vector3(0, 13, 0), 9, 4.4, green, 2.7, 0.28, 0.15, 1.5);
+  addRealisticLeaf(sculpture, "daisy_right_leaf", new THREE.Vector3(0, 18, 0), 8.5, 4.1, green, -0.45, 0.3, -0.12, 1.5);
+  const flowerY = 31;
+  const petals = mesh(radialBloomGeometry(12, 4.15, 11.2, 2.4), options.primaryColor, false);
+  petals.name = "daisy_single_continuous_petal_crown";
+  petals.position.set(0, flowerY, 0);
+  sculpture.add(petals);
+  const center = mesh(new THREE.SphereGeometry(5, 24, 16), yellow, false);
+  center.name = "daisy_domed_center";
+  center.scale.set(1, 1, 0.55);
+  center.position.set(0, flowerY, 1.1);
+  sculpture.add(center);
+  return group;
+}
+
+function buildRose(options: ModelOptions) {
+  const green = "#4f754c";
+  const { group, sculpture } = createRealisticSculpture(options, 33, 40, green);
+  addSmoothPlinth(sculpture, green, 10.8);
+  const stem = mesh(new THREE.CylinderGeometry(1.5, 2.2, 27, 18), green, false);
+  stem.name = "rose_reinforced_stem";
+  stem.position.y = 16;
+  sculpture.add(stem);
+  addRealisticLeaf(sculpture, "rose_left_leaf", new THREE.Vector3(0, 13, 0), 9.2, 4.6, green, 2.72, 0.3, 0.12, 1.55);
+  addRealisticLeaf(sculpture, "rose_right_leaf", new THREE.Vector3(0, 19, 0), 8.8, 4.4, green, -0.48, 0.3, -0.12, 1.55);
+
+  const outerBloom = mesh(radialBloomGeometry(7, 4.7, 9.8, 3), options.primaryColor, false);
+  outerBloom.name = "rose_continuous_outer_petals";
+  outerBloom.position.set(0, 31, 0);
+  outerBloom.rotation.z = 0.12;
+  sculpture.add(outerBloom);
+  const innerColor = detailColor(options.primaryColor, -0.035);
+  const innerBloom = mesh(radialBloomGeometry(5, 2.8, 6.4, 3.2), innerColor, false);
+  innerBloom.name = "rose_continuous_inner_petals";
+  innerBloom.position.set(0, 31.6, 1.15);
+  innerBloom.rotation.z = -0.22;
+  sculpture.add(innerBloom);
+  const roseHeart = mesh(new THREE.SphereGeometry(3.25, 20, 14), detailColor(options.primaryColor, -0.07), false);
+  roseHeart.name = "rose_rolled_heart";
+  roseHeart.scale.set(0.9, 1.1, 0.62);
+  roseHeart.position.set(0, 32.1, 2.1);
+  sculpture.add(roseHeart);
+  return group;
+}
+
+function buildLemon(options: ModelOptions) {
+  const green = "#55784d";
+  const { group, sculpture } = createRealisticSculpture(options, 30, 33, options.primaryColor);
+  addSmoothPlinth(sculpture, options.primaryColor, 10.5, 4.2);
+  const fruit = mesh(new THREE.SphereGeometry(9, 28, 18), options.primaryColor, false);
+  fruit.name = "smooth_lemon_body";
+  fruit.scale.set(0.83, 1.08, 0.83);
+  fruit.position.y = 13.8;
+  sculpture.add(fruit);
+  const lowerNipple = mesh(new THREE.SphereGeometry(2.2, 18, 10), options.primaryColor, false);
+  lowerNipple.name = "lemon_lower_nipple";
+  lowerNipple.scale.y = 0.7;
+  lowerNipple.position.y = 4.2;
+  sculpture.add(lowerNipple);
+  const upperNipple = mesh(new THREE.SphereGeometry(2.3, 18, 10), options.primaryColor, false);
+  upperNipple.name = "lemon_upper_nipple";
+  upperNipple.scale.y = 0.75;
+  upperNipple.position.y = 23.4;
+  sculpture.add(upperNipple);
+  const stem = cylinderBetween(
+    new THREE.Vector3(0, 22.3, 0),
+    new THREE.Vector3(-0.7, 28, 0),
+    1.35,
+    0.78,
+    green,
+    false,
+    16,
+  );
+  stem.name = "lemon_stem";
+  sculpture.add(stem);
+  addRealisticLeaf(sculpture, "lemon_leaf", new THREE.Vector3(-0.4, 26, 0), 8.6, 4.4, green, -0.45, 0.22, 0.16, 1.5);
+  return group;
+}
+
+function buildBamboo(options: ModelOptions) {
+  const green = options.primaryColor;
+  const caneCount = Math.round(shapeValue(options, "caneCount", 3));
+  const nodeCount = Math.round(shapeValue(options, "nodeCount", 4));
+  const caneThickness = shapeValue(options, "caneThickness", 1);
+  const leafDensity = Math.round(shapeValue(options, "leafDensity", 3));
+  const { group, sculpture } = createRealisticSculpture(options, 31, 43, green);
+  addSmoothPlinth(sculpture, green, 10.7);
+  const canes = [
+    { x: -5, z: -0.8, height: 31, radius: 2.05 },
+    { x: 0, z: 0.7, height: 38, radius: 2.3 },
+    { x: 5, z: -0.2, height: 34, radius: 2.1 },
+    { x: -6.5, z: 4.5, height: 27, radius: 1.9 },
+    { x: 6.8, z: 4.8, height: 29, radius: 1.85 },
+  ].slice(0, caneCount).map((cane) => ({ ...cane, radius: cane.radius * caneThickness }));
+  canes.forEach(({ x, z, height, radius }, caneIndex) => {
+    const cane = mesh(new THREE.CylinderGeometry(radius * 0.92, radius, height, 22), green, false);
+    cane.name = `smooth_bamboo_cane_${caneIndex + 1}`;
+    cane.position.set(x, 3.2 + height / 2, z);
+    sculpture.add(cane);
+    for (let node = 1; node <= nodeCount; node += 1) {
+      const ring = mesh(new THREE.CylinderGeometry(radius + 0.32, radius + 0.32, 0.78, 22), detailColor(green, 0.035), false);
+      ring.name = `bamboo_node_${caneIndex + 1}_${node}`;
+      ring.position.set(x, 3.2 + node * height / (nodeCount + 1), z);
+      sculpture.add(ring);
+    }
+    const cap = mesh(new THREE.SphereGeometry(radius, 20, 10), green, false);
+    cap.name = `bamboo_cane_cap_${caneIndex + 1}`;
+    cap.scale.y = 0.35;
+    cap.position.set(x, 3.2 + height, z);
+    sculpture.add(cap);
+  });
+
+  [
+    { root: new THREE.Vector3(0, 28, 0.7), tip: new THREE.Vector3(8, 32, 0.5), yaw: 0.1 },
+    { root: new THREE.Vector3(5, 23, -0.2), tip: new THREE.Vector3(11, 27, 0.2), yaw: -0.05 },
+    { root: new THREE.Vector3(-5, 20, -0.8), tip: new THREE.Vector3(-11, 24, -0.2), yaw: Math.PI },
+    { root: new THREE.Vector3(0, 20, 0.7), tip: new THREE.Vector3(-7, 23.5, -2.6), yaw: Math.PI + 0.2 },
+    { root: new THREE.Vector3(5, 17, -0.2), tip: new THREE.Vector3(10.5, 20.5, 2.8), yaw: -0.2 },
+  ].slice(0, leafDensity).forEach(({ root, tip, yaw }, index) => {
+    const branch = cylinderBetween(root, tip, 1.05, 0.62, green, false, 14);
+    branch.name = `bamboo_leaf_branch_${index + 1}`;
+    sculpture.add(branch);
+    const leafJoint = mesh(new THREE.SphereGeometry(2.8, 16, 10), green, false);
+    leafJoint.name = `bamboo_fused_leaf_joint_${index + 1}`;
+    leafJoint.position.copy(tip);
+    sculpture.add(leafJoint);
+    addRealisticLeaf(sculpture, `bamboo_leaf_${index + 1}_a`, tip, 8, 3.6, green, yaw, 0.3, 0.12, 1.45);
+    addRealisticLeaf(sculpture, `bamboo_leaf_${index + 1}_b`, tip.clone().add(new THREE.Vector3(0, -0.7, 0)), 7.4, 3.3, green, yaw + 0.7, 0.24, -0.1, 1.45);
+  });
+  return group;
+}
+
+function buildSanta(options: ModelOptions) {
+  const red = options.primaryColor;
+  const white = "#f5f1e7";
+  const skin = "#e7b18f";
+  const charcoal = "#2d2928";
+  const gold = "#d9ad3f";
+  const { group, sculpture } = createRealisticSculpture(options, 35, 45, red);
+  addSmoothPlinth(sculpture, red, 10.9, 4.4);
+
+  // Keep the main silhouette continuous. The previous body was assembled from
+  // several near-tangent spheres and tori, which produced broken-looking
+  // interleaved surfaces in the live preview and unreliable boolean seams.
+  const body = mesh(closedLatheGeometry([
+    new THREE.Vector2(0, 23.4),
+    new THREE.Vector2(5.65, 23.1),
+    new THREE.Vector2(7.55, 20.5),
+    new THREE.Vector2(8.85, 16.4),
+    new THREE.Vector2(9.05, 12.6),
+    new THREE.Vector2(8.25, 7.2),
+    new THREE.Vector2(6.7, 3.7),
+    new THREE.Vector2(0, 3.5),
+  ], 32), red, false);
+  body.name = "santa_continuous_suit_body";
+  body.scale.z = 0.92;
+  sculpture.add(body);
+
+  const belt = mesh(new THREE.CylinderGeometry(9.2, 9.25, 1.45, 32), charcoal, false);
+  belt.name = "santa_clean_belt_band";
+  belt.scale.z = 0.92;
+  belt.position.set(0, 13.7, 0);
+  sculpture.add(belt);
+  const buckle = mesh(new THREE.BoxGeometry(3.9, 3.25, 1.15), gold, false);
+  buckle.name = "santa_belt_buckle";
+  buckle.position.set(0, 13.7, 8.85);
+  sculpture.add(buckle);
+
+  const head = mesh(new THREE.SphereGeometry(6.25, 30, 20), skin, false);
+  head.name = "santa_face";
+  head.scale.set(0.97, 1.02, 0.92);
+  head.position.set(0, 26.8, 0.05);
+  sculpture.add(head);
+
+  const beard = mesh(new THREE.SphereGeometry(5.1, 26, 18), white, false);
+  beard.name = "santa_single_beard_mass";
+  beard.scale.set(0.88, 1.08, 0.5);
+  beard.position.set(0, 23.25, 4.9);
+  sculpture.add(beard);
+  [
+    [-2.75, 20.1, 5.2, 1.85],
+    [0, 19.25, 5.45, 2.25],
+    [2.75, 20.1, 5.2, 1.85],
+  ].forEach(([x, y, z, radius], index) => {
+    const tuft = mesh(new THREE.SphereGeometry(radius, 18, 12), white, false);
+    tuft.name = `santa_beard_tuft_${index + 1}`;
+    tuft.scale.set(0.9, 1.16, 0.62);
+    tuft.position.set(x, y, z);
+    sculpture.add(tuft);
+  });
+
+  [-1, 1].forEach((side) => {
+    const moustache = mesh(new THREE.SphereGeometry(1.85, 18, 12), white, false);
+    moustache.name = `santa_moustache_${side < 0 ? "left" : "right"}`;
+    moustache.scale.set(1.05, 0.38, 0.46);
+    moustache.rotation.z = side * 0.22;
+    moustache.position.set(side * 1.55, 26.2, 6.05);
+    sculpture.add(moustache);
+    const eye = mesh(new THREE.SphereGeometry(0.56, 14, 10), charcoal, false);
+    eye.name = `santa_eye_${side < 0 ? "left" : "right"}`;
+    eye.position.set(side * 1.95, 28.85, 5.72);
+    sculpture.add(eye);
+  });
+  const nose = mesh(new THREE.SphereGeometry(1.22, 18, 12), skin, false);
+  nose.name = "santa_round_nose";
+  nose.position.set(0, 26.85, 6.52);
+  sculpture.add(nose);
+
+  [-1, 1].forEach((side) => {
+    const shoulder = new THREE.Vector3(side * 6.75, 19.2, 0);
+    const wrist = new THREE.Vector3(side * 10.55, 13.9, 1.05);
+    const arm = cylinderBetween(shoulder, wrist, 2.55, 2.1, red, false, 20);
+    arm.name = `santa_${side < 0 ? "left" : "right"}_sleeve`;
+    sculpture.add(arm);
+    const gloveJoint = wrist.clone().add(new THREE.Vector3(side * 1.3, -1.8, 0.25));
+    const cuff = cylinderBetween(wrist, gloveJoint, 2.18, 2.12, white, false, 20);
+    cuff.name = `santa_${side < 0 ? "left" : "right"}_cuff`;
+    sculpture.add(cuff);
+    const mitten = mesh(new THREE.SphereGeometry(2.18, 20, 14), charcoal, false);
+    mitten.name = `santa_${side < 0 ? "left" : "right"}_mitten`;
+    mitten.scale.set(0.82, 1, 0.8);
+    mitten.position.copy(gloveJoint).add(new THREE.Vector3(side * 0.65, -0.55, 0.05));
+    sculpture.add(mitten);
+  });
+
+  const hatBrim = mesh(new THREE.CylinderGeometry(6.3, 6.2, 1.65, 32), white, false);
+  hatBrim.name = "santa_hat_fur_brim";
+  hatBrim.position.set(0, 32.25, 0);
+  sculpture.add(hatBrim);
+  const hat = mesh(new THREE.ConeGeometry(5.95, 11.2, 32), red, false);
+  hat.name = "santa_tapered_hat";
+  hat.position.set(0, 38.0, 0);
+  sculpture.add(hat);
+  const pom = mesh(new THREE.SphereGeometry(1.95, 20, 14), white, false);
+  pom.name = "santa_hat_pom";
+  pom.position.set(0, 44.05, 0);
+  sculpture.add(pom);
+  return group;
+}
+
+function buildChristmasTree(options: ModelOptions) {
+  const green = options.primaryColor;
+  const trunkColor = "#6f5138";
+  const gold = "#dfb33f";
+  const red = "#c5373d";
+  const tierCount = Math.round(shapeValue(options, "tierCount", 5));
+  const crownFullness = shapeValue(options, "crownFullness", 1);
+  const ornamentCount = Math.round(shapeValue(options, "leafDensity", 24));
+  const starSize = shapeValue(options, "tipRoundness", 1);
+  const { group, sculpture } = createRealisticSculpture(options, 36, 48, green);
+  addSmoothPlinth(sculpture, trunkColor, 10.9, 4.4);
+
+  const trunk = mesh(new THREE.CylinderGeometry(2.3, 3.8, 33, 20), trunkColor, false);
+  trunk.name = "christmas_tree_reinforced_trunk";
+  trunk.position.y = 18.5;
+  sculpture.add(trunk);
+
+  const layers = Array.from({ length: tierCount }, (_, index) => {
+    const progress = tierCount === 1 ? 1 : index / (tierCount - 1);
+    return {
+      radius: THREE.MathUtils.lerp(17, 5.5, progress) * crownFullness,
+      height: THREE.MathUtils.lerp(15, 9.5, progress),
+      y: THREE.MathUtils.lerp(12.2, 34.5, progress),
+      rotation: index % 2 ? Math.PI / 12 : 0,
+    };
+  });
+  const treeProfile = [new THREE.Vector2(0, 38.8)];
+  for (let index = layers.length - 1; index >= 0; index -= 1) {
+    const layer = layers[index];
+    treeProfile.push(
+      new THREE.Vector2(layer.radius * 0.38, layer.y + layer.height * 0.28),
+      new THREE.Vector2(layer.radius, layer.y - layer.height * 0.43),
+    );
+  }
+  treeProfile.push(new THREE.Vector2(0, 4.2));
+  const crown = mesh(closedLatheGeometry(treeProfile, 36), green, false);
+  crown.name = "christmas_tree_continuous_tiered_crown";
+  sculpture.add(crown);
+
+  for (let index = 0; index < ornamentCount; index += 1) {
+    const layer = layers[index % layers.length];
+    const ring = Math.floor(index / layers.length);
+    const angle = ring * 2.399 + index * Math.PI * 2 / ornamentCount;
+    const radius = layer.radius * 0.65;
+    const bauble = mesh(
+      new THREE.SphereGeometry(index % 3 === 0 ? 1.35 : 1.2, 16, 10),
+      index % 3 === 0 ? gold : red,
+      false,
+    );
+    bauble.name = `christmas_tree_bauble_${index + 1}`;
+    bauble.position.set(
+      Math.cos(angle) * radius,
+      layer.y - layer.height * 0.09,
+      Math.sin(angle) * radius,
+    );
+    sculpture.add(bauble);
+  }
+
+  const star = mesh(starPrismGeometry(4.15 * starSize, 1.9 * starSize, 2), gold, false);
+  star.name = "christmas_tree_fused_star";
+  star.position.y = 40.2;
+  sculpture.add(star);
+  return group;
+}
+
+function buildSnowman(options: ModelOptions) {
+  const snow = options.primaryColor;
+  const charcoal = "#293136";
+  const red = "#b8333c";
+  const orange = "#dc7a2c";
+  const branchColor = "#73533c";
+  const { group, sculpture } = createRealisticSculpture(options, 34, 46, snow);
+  addSmoothPlinth(sculpture, snow, 10.9, 4.4);
+
+  const snowBody = mesh(closedLatheGeometry([
+    new THREE.Vector2(0, 38.1),
+    new THREE.Vector2(3.2, 37.4),
+    new THREE.Vector2(5.5, 34.7),
+    new THREE.Vector2(5.7, 31.8),
+    new THREE.Vector2(5.1, 29.2),
+    new THREE.Vector2(3.8, 27.3),
+    new THREE.Vector2(5.7, 27),
+    new THREE.Vector2(6.7, 24.1),
+    new THREE.Vector2(6.65, 20.5),
+    new THREE.Vector2(5.5, 17.2),
+    new THREE.Vector2(4.8, 16),
+    new THREE.Vector2(7.1, 16.6),
+    new THREE.Vector2(8.2, 13.3),
+    new THREE.Vector2(8.15, 9),
+    new THREE.Vector2(6.7, 5.1),
+    new THREE.Vector2(0, 3),
+  ], 32), snow, false);
+  snowBody.name = "snowman_continuous_three_ball_body";
+  snowBody.scale.z = 0.94;
+  sculpture.add(snowBody);
+
+  const scarf = mesh(new THREE.TorusGeometry(5.35, 1.15, 10, 32), red, false);
+  scarf.name = "snowman_scarf_collar";
+  scarf.rotation.x = Math.PI / 2;
+  scarf.position.set(0, 27.6, 0);
+  sculpture.add(scarf);
+  const scarfTail = mesh(new THREE.BoxGeometry(3.5, 9.5, 1.8), red, false);
+  scarfTail.name = "snowman_scarf_tail";
+  scarfTail.rotation.z = -0.22;
+  scarfTail.position.set(3.8, 23.5, 5.2);
+  sculpture.add(scarfTail);
+
+  const hatBrim = mesh(new THREE.BoxGeometry(13, 1.6, 11), charcoal, false);
+  hatBrim.name = "snowman_hat_brim";
+  hatBrim.position.y = 37.5;
+  sculpture.add(hatBrim);
+  const hatCrown = mesh(new THREE.CylinderGeometry(4.4, 4.75, 7.2, 28), charcoal, false);
+  hatCrown.name = "snowman_hat_crown";
+  hatCrown.position.y = 41.3;
+  sculpture.add(hatCrown);
+  const hatBand = mesh(new THREE.CylinderGeometry(4.82, 4.82, 1.25, 28), red, false);
+  hatBand.name = "snowman_hat_band";
+  hatBand.position.y = 38.6;
+  sculpture.add(hatBand);
+
+  [-1, 1].forEach((side) => {
+    const eye = mesh(new THREE.SphereGeometry(0.65, 14, 10), charcoal, false);
+    eye.name = `snowman_eye_${side < 0 ? "left" : "right"}`;
+    eye.position.set(side * 1.9, 33.8, 5.25);
+    sculpture.add(eye);
+    const armStart = new THREE.Vector3(side * 5.2, 23.2, 0);
+    const armEnd = new THREE.Vector3(side * 13.1, 26.4, 0.6);
+    const arm = cylinderBetween(armStart, armEnd, 1.25, 0.82, branchColor, false, 12);
+    arm.name = `snowman_branch_arm_${side < 0 ? "left" : "right"}`;
+    sculpture.add(arm);
+    [-1, 1].forEach((fork) => {
+      const twig = cylinderBetween(
+        armEnd.clone().add(new THREE.Vector3(side * -0.7, -0.25, 0)),
+        armEnd.clone().add(new THREE.Vector3(side * 2.35, fork * 2.2, fork * 0.8)),
+        0.78,
+        0.45,
+        branchColor,
+        false,
+        10,
+      );
+      twig.name = `snowman_${side < 0 ? "left" : "right"}_twig_${fork < 0 ? "lower" : "upper"}`;
+      sculpture.add(twig);
+    });
+  });
+  const nose = mesh(new THREE.ConeGeometry(1.25, 5, 18), orange, false);
+  nose.name = "snowman_carrot_nose";
+  nose.rotation.x = Math.PI / 2;
+  nose.position.set(0, 32.3, 6.8);
+  sculpture.add(nose);
+  [19.3, 23.1].forEach((y, index) => {
+    const button = mesh(new THREE.SphereGeometry(0.9, 14, 10), charcoal, false);
+    button.name = `snowman_coal_button_${index + 1}`;
+    button.position.set(0, y, 6.15);
+    sculpture.add(button);
+  });
+  return group;
+}
+
+function buildGiftBox(options: ModelOptions) {
+  const red = options.primaryColor;
+  const gold = "#deb23f";
+  const { group, sculpture } = createRealisticSculpture(options, 32, 31, red);
+  addSmoothPlinth(sculpture, red, 11, 4.4);
+
+  const box = mesh(new THREE.BoxGeometry(21, 18, 21), red, false);
+  box.name = "gift_box_body";
+  box.position.y = 12.5;
+  sculpture.add(box);
+  const lid = mesh(new THREE.BoxGeometry(23, 3.2, 23), detailColor(red, 0.045), false);
+  lid.name = "gift_box_lid";
+  lid.position.y = 22;
+  sculpture.add(lid);
+  const ribbonFront = mesh(new THREE.BoxGeometry(3.4, 19.5, 22.1), gold, false);
+  ribbonFront.name = "gift_vertical_ribbon";
+  ribbonFront.position.y = 13.5;
+  sculpture.add(ribbonFront);
+  const ribbonSide = mesh(new THREE.BoxGeometry(22.1, 19.5, 3.4), gold, false);
+  ribbonSide.name = "gift_cross_ribbon";
+  ribbonSide.position.y = 13.5;
+  sculpture.add(ribbonSide);
+
+  [-1, 1].forEach((side) => {
+    const loop = mesh(new THREE.TorusGeometry(3.2, 1.05, 12, 28), gold, false);
+    loop.name = `gift_bow_loop_${side < 0 ? "left" : "right"}`;
+    loop.scale.set(1.15, 0.72, 0.72);
+    loop.rotation.z = side * 0.28;
+    loop.position.set(side * 3.25, 24.4, 0);
+    sculpture.add(loop);
+    const tail = mesh(new THREE.BoxGeometry(2.2, 8.5, 1.8), gold, false);
+    tail.name = `gift_bow_tail_${side < 0 ? "left" : "right"}`;
+    tail.rotation.z = side * 0.62;
+    tail.position.set(side * 2.4, 24, 0);
+    sculpture.add(tail);
+  });
+  const knot = mesh(new THREE.SphereGeometry(2.35, 18, 12), gold, false);
+  knot.name = "gift_bow_knot";
+  knot.scale.z = 0.82;
+  knot.position.set(0, 24.3, 0);
+  sculpture.add(knot);
+  return group;
+}
+
+function buildCandyCane(options: ModelOptions) {
+  const red = options.primaryColor;
+  const white = "#f7f1e5";
+  const { group, sculpture } = createRealisticSculpture(options, 29, 39, red);
+  addSmoothPlinth(sculpture, red, 10.7, 4.4);
+  const caneShape = new THREE.Shape();
+  caneShape.moveTo(-8.5, 3.1);
+  caneShape.lineTo(-8.5, 27.5);
+  caneShape.bezierCurveTo(-8.5, 34.8, -3.4, 37.6, 1.5, 36.5);
+  caneShape.bezierCurveTo(6.5, 35.4, 9, 31.2, 9, 25.2);
+  caneShape.lineTo(3, 25.2);
+  caneShape.bezierCurveTo(3, 29.2, 1.4, 31.2, -1.1, 31.2);
+  caneShape.bezierCurveTo(-3.1, 31.2, -2.5, 28.4, -2.5, 26.1);
+  caneShape.lineTo(-2.5, 3.1);
+  caneShape.closePath();
+  const caneGeometry = new THREE.ExtrudeGeometry(caneShape, {
+    depth: 6.4,
+    steps: 1,
+    bevelEnabled: true,
+    bevelSegments: 3,
+    bevelSize: 0.55,
+    bevelThickness: 0.5,
+    curveSegments: 16,
+  });
+  caneGeometry.translate(0, 0, -3.2);
+  caneGeometry.computeVertexNormals();
+  const cane = mesh(caneGeometry, red, false);
+  cane.name = "candy_cane_continuous_rounded_body";
+  sculpture.add(cane);
+
+  const addStripe = (name: string, x: number, y: number, length: number, rotation: number) => {
+    [-1, 1].forEach((side) => {
+      const stripe = mesh(new THREE.BoxGeometry(length, 1.35, 1.5), white, false);
+      stripe.name = `${name}_${side < 0 ? "back" : "front"}`;
+      stripe.rotation.z = rotation;
+      stripe.position.set(x, y, side * 3);
+      sculpture.add(stripe);
+    });
+  };
+  [9.5, 15.5, 21.5, 27].forEach((y, index) => {
+    addStripe(`candy_cane_straight_stripe_${index + 1}`, -5.5, y, 5.4, -0.42);
+  });
+  [
+    { x: -3, y: 33.6, length: 4.2, rotation: -0.62 },
+    { x: 2.35, y: 33.8, length: 4.1, rotation: 0.18 },
+    { x: 6.1, y: 28.4, length: 4.3, rotation: -0.45 },
+  ].forEach(({ x, y, length, rotation }, index) => {
+    addStripe(`candy_cane_hook_stripe_${index + 1}`, x, y, length, rotation);
+  });
+  return group;
+}
+
+function buildChristmasBell(options: ModelOptions) {
+  const gold = options.primaryColor;
+  const red = "#b8323c";
+  const { group, sculpture } = createRealisticSculpture(options, 31, 40, gold);
+  addSmoothPlinth(sculpture, gold, 10.8, 4.4);
+  const support = mesh(new THREE.CylinderGeometry(2.5, 3.4, 13, 20), gold, false);
+  support.name = "bell_hidden_reinforced_support";
+  support.position.y = 9;
+  sculpture.add(support);
+
+  const bellProfile = [
+    new THREE.Vector2(0, 31),
+    new THREE.Vector2(2.5, 31),
+    new THREE.Vector2(4.6, 28.7),
+    new THREE.Vector2(5.7, 24.8),
+    new THREE.Vector2(7.2, 18.6),
+    new THREE.Vector2(9.5, 13.3),
+    new THREE.Vector2(10.7, 11.4),
+    new THREE.Vector2(10.7, 10),
+    new THREE.Vector2(0, 10),
+  ];
+  const bell = mesh(closedLatheGeometry(bellProfile, 32), gold, false);
+  bell.name = "solid_flared_christmas_bell";
+  sculpture.add(bell);
+  const rim = mesh(new THREE.TorusGeometry(10.15, 1.15, 12, 36), detailColor(gold, 0.055), false);
+  rim.name = "bell_raised_rim";
+  rim.rotation.x = Math.PI / 2;
+  rim.position.y = 11.2;
+  sculpture.add(rim);
+  const clapperStem = mesh(new THREE.CylinderGeometry(1.2, 1.2, 5.2, 16), detailColor(gold, -0.04), false);
+  clapperStem.name = "bell_clapper_stem";
+  clapperStem.position.y = 8.2;
+  sculpture.add(clapperStem);
+  const clapper = mesh(new THREE.SphereGeometry(2.45, 20, 14), detailColor(gold, -0.04), false);
+  clapper.name = "bell_clapper";
+  clapper.position.y = 5.9;
+  sculpture.add(clapper);
+  const crown = mesh(new THREE.SphereGeometry(2.5, 20, 14), gold, false);
+  crown.name = "bell_bow_mount";
+  crown.scale.y = 0.82;
+  crown.position.y = 30.7;
+  sculpture.add(crown);
+
+  [-1, 1].forEach((side) => {
+    const loop = mesh(new THREE.TorusGeometry(3.2, 1, 12, 28), red, false);
+    loop.name = `bell_bow_loop_${side < 0 ? "left" : "right"}`;
+    loop.scale.set(1.18, 0.76, 0.7);
+    loop.rotation.z = side * 0.3;
+    loop.position.set(side * 3.1, 32.3, 0);
+    sculpture.add(loop);
+  });
+  const knot = mesh(new THREE.SphereGeometry(2.25, 18, 12), red, false);
+  knot.name = "bell_bow_knot";
+  knot.scale.z = 0.82;
+  knot.position.y = 32.1;
+  sculpture.add(knot);
+  return group;
+}
+
+function buildMushroom(options: ModelOptions) {
+  const stemGroup = prepareTopper(options, options.accentColor);
+  stemGroup.name = "mushroom_stem";
+  const sx = options.topperWidth / 32;
+  const sy = options.topperHeight / 34;
+  const capDiameter = shapeValue(options, "capDiameter", 1);
+  const capDome = shapeValue(options, "capDome", 1);
+  const stemThickness = shapeValue(options, "stemThickness", 1);
+  const gillCount = Math.round(shapeValue(options, "gillCount", 12));
+  const topY = ADAPTER_STANDARD.totalHeight - 0.05;
+  const stemSculpture = new THREE.Group();
+  stemSculpture.position.y = topY;
+  stemSculpture.scale.set(sx, sy, sx);
+  const foot = mesh(new THREE.CylinderGeometry(8.7, 10.2, 3.8, 12), options.accentColor, options.faceted);
+  foot.name = "mushroom_root_plinth";
+  foot.position.y = 1.9;
+  stemSculpture.add(foot);
+  const stemProfile = [
+    new THREE.Vector2(0, 20.6),
+    new THREE.Vector2(4.1 * stemThickness, 20.6),
+    new THREE.Vector2(4.25 * stemThickness, 15.5),
+    new THREE.Vector2(5 * stemThickness, 9.5),
+    new THREE.Vector2(5.8 * stemThickness, 5.4),
+    new THREE.Vector2(6.1 * stemThickness, 3.2),
+    new THREE.Vector2(0, 3.2),
+  ];
+  const stem = mesh(closedLatheGeometry(stemProfile, options.faceted ? 10 : 24), options.accentColor, options.faceted);
+  stem.name = "faceted_mushroom_stem";
+  stemSculpture.add(stem);
+  const collar = mesh(new THREE.TorusGeometry(4.25 * stemThickness, 0.72, 6, 12), options.accentColor, options.faceted);
+  collar.name = "stem_socket_shoulder";
+  collar.rotation.x = Math.PI / 2;
+  collar.position.y = 19.6;
+  stemSculpture.add(collar);
+  const stemKey = mesh(new THREE.CylinderGeometry(2.92, 3.16, 4, 10), options.accentColor, options.faceted);
+  stemKey.name = "tapered_press_fit_key";
+  stemKey.position.y = 22.35;
+  stemSculpture.add(stemKey);
+  stemGroup.add(stemSculpture);
+
+  const capGroup = new THREE.Group();
+  capGroup.name = "mushroom_cap";
+  capGroup.position.y = topY;
+  capGroup.scale.set(sx, sy, sx);
+  const capProfile = [
+    new THREE.Vector2(0, 20.25 + (28 - 20.25) * capDome),
+    new THREE.Vector2(5.4 * capDiameter, 20.25 + (27.5 - 20.25) * capDome),
+    new THREE.Vector2(10.4 * capDiameter, 20.25 + (25.3 - 20.25) * capDome),
+    new THREE.Vector2(13.8 * capDiameter, 20.25 + (21.8 - 20.25) * capDome),
+    new THREE.Vector2(12.7 * capDiameter, 20.25),
+    new THREE.Vector2(4.35, 19.75),
+    new THREE.Vector2(3.38, 20.5),
+    new THREE.Vector2(3.38, 24.15),
+    new THREE.Vector2(0, 24.15),
+  ];
+  const cap = mesh(closedLatheGeometry(capProfile, options.faceted ? 12 : 28), options.primaryColor, options.faceted);
+  cap.name = "mushroom_cap_with_socket";
+  capGroup.add(cap);
+
+  const gillColor = detailColor(options.primaryColor, 0.1);
+  for (let index = 0; index < gillCount; index += 1) {
+    const angle = index * Math.PI * 2 / gillCount;
+    const gill = mesh(new THREE.BoxGeometry(7.9 * capDiameter, 0.58, 0.66), gillColor, options.faceted);
+    gill.name = `fused_gill_${index + 1}`;
+    gill.position.set(Math.cos(angle) * 7.9 * capDiameter, 20.18, -Math.sin(angle) * 7.9 * capDiameter);
+    gill.rotation.y = angle;
+    capGroup.add(gill);
+  }
+
+  return { stemGroup, capGroup };
+}
+
+export function createModel(options: ModelOptions): ModelBuild {
+  const assembly = new THREE.Group();
+  assembly.name = `${options.modelId}_assembly`;
+  const adapter = buildAdapter(options);
+  assembly.add(adapter);
+  const parts: PrintablePart[] = [
+    { id: "adapter", label: "Universal adapter · Ø41 face down", object: adapter, color: options.accentColor, printFlipZ: true },
+  ];
+
+  if (options.modelId === "mushroom") {
+    const pinGroup = buildConnectorPin(options, "mushroom_double_ended_connector_pin");
+    const { stemGroup, capGroup } = buildMushroom(options);
+    assembly.add(pinGroup, stemGroup, capGroup);
+    parts.push(
+      { id: "connector-pin", label: "Double-ended connector pin", object: pinGroup, color: options.primaryColor },
+      { id: "stem", label: "Socketed mushroom stem", object: stemGroup, color: options.accentColor },
+      { id: "cap", label: "Mushroom cap", object: capGroup, color: options.primaryColor },
+    );
+  } else if (options.modelId === "clover") {
+    const { pinGroup, trunkGroup, crownGroup } = buildCloverKit(options);
+    assembly.add(pinGroup, trunkGroup, crownGroup);
+    parts.push(
+      { id: "connector-pin", label: "Double-ended connector pin", object: pinGroup, color: options.primaryColor },
+      { id: "trunk", label: "Flat-bottom clover trunk", object: trunkGroup, color: options.primaryColor },
+      { id: "crown", label: "Rounded clover crown", object: crownGroup, color: options.primaryColor },
+    );
+  } else {
+    const builders: Record<Exclude<ModelId, "mushroom" | "clover">, (value: ModelOptions) => THREE.Group> = {
+      sprout: buildSprout,
+      pine: buildPine,
+      cactus: buildCactus,
+      pumpkin: buildPumpkin,
+      acorn: buildAcorn,
+      bonsai: buildBonsai,
+      strawberry: buildStrawberry,
+      lotus: buildLotus,
+      aloe: buildAloe,
+      snakeplant: buildSnakePlant,
+      eggplant: buildEggplant,
+      grapes: buildGrapes,
+      sunflower: buildSunflower,
+      snail: buildSnail,
+      frog: buildFrog,
+      hedgehog: buildHedgehog,
+      tomato: buildTomato,
+      carrot: buildCarrot,
+      chili: buildChili,
+      basil: buildBasil,
+      rosemary: buildRosemary,
+      parsley: buildParsley,
+      daisy: buildDaisy,
+      rose: buildRose,
+      lemon: buildLemon,
+      bamboo: buildBamboo,
+      santa: buildSanta,
+      "christmas-tree": buildChristmasTree,
+      snowman: buildSnowman,
+      "gift-box": buildGiftBox,
+      "candy-cane": buildCandyCane,
+      "christmas-bell": buildChristmasBell,
+    };
+    const pinGroup = buildConnectorPin(options);
+    const topper = builders[options.modelId](options);
+    assembly.add(pinGroup, topper);
+    parts.push(
+      { id: "connector-pin", label: "Double-ended connector pin", object: pinGroup, color: options.primaryColor },
+      { id: "topper", label: `Socketed ${options.modelId} body`, object: topper, color: options.primaryColor },
+    );
+  }
+
+  assembly.traverse((child) => {
+    if (child instanceof THREE.Mesh) {
+      child.castShadow = true;
+      child.receiveShadow = true;
+    }
+  });
+  assembly.updateMatrixWorld(true);
+  const bounds = new THREE.Box3().setFromObject(assembly);
+  const size = bounds.getSize(new THREE.Vector3());
+  return {
+    assembly,
+    parts,
+    measurements: {
+      width: Number(Math.max(size.x, size.z).toFixed(1)),
+      height: Number(size.y.toFixed(1)),
+      lowerDiameter: ADAPTER_STANDARD.lowerDiameter,
+      upperDiameter: ADAPTER_STANDARD.upperDiameter,
+    },
+  };
+}
+
+export function cloneForPrint(object: THREE.Object3D) {
+  const clone = object.clone(true);
+  clone.updateMatrixWorld(true);
+  const bounds = new THREE.Box3().setFromObject(clone);
+  clone.position.y -= bounds.min.y;
+  clone.updateMatrixWorld(true);
+  return clone;
+}
+
+export function disposeObject(object: THREE.Object3D) {
+  object.traverse((child) => {
+    if (!(child instanceof THREE.Mesh)) return;
+    child.geometry.dispose();
+    const materials = Array.isArray(child.material) ? child.material : [child.material];
+    materials.forEach((entry) => entry.dispose());
+  });
+}

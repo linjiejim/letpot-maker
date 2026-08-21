@@ -1,0 +1,902 @@
+"use client";
+
+import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import JSZip from "jszip";
+import * as THREE from "three";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { OBJExporter } from "three/examples/jsm/exporters/OBJExporter.js";
+import { STLExporter } from "three/examples/jsm/exporters/STLExporter.js";
+import {
+  ADAPTER_STANDARD,
+  buildAdapterStackCoupon,
+  createModel,
+  DEFAULT_OPTIONS,
+  disposeObject,
+  getDefaultShapeParameters,
+  getManufacturingProfile,
+  MODEL_LIBRARY,
+  MODEL_TAGS,
+  STACK_TRIAL_GAPS,
+  type ModelBuild,
+  type ModelId,
+  type ModelOptions,
+  type ModelTag,
+  type ShapeParameterKey,
+} from "../lib/model-factory";
+import { loadBrowserManifold, solidifyObject } from "../lib/solidify";
+import {
+  BAMBU_PRINTERS,
+  buildBambuThreeMf,
+  type BambuPrinterId,
+  type ThreeMfPart,
+} from "../lib/three-mf";
+import { normalizeAiRecipe, type AiDesignRecipe } from "../lib/ai-design";
+
+type ViewName = "orbit" | "front" | "top";
+
+const COLORS = ["#769567", "#294e35", "#a75f46", "#d3c5a5", "#d66c45"];
+const TAG_LABELS: Record<ModelTag, string> = {
+  lowpoly: "Low poly",
+  realistic: "Realistic",
+  veggie: "Veggie",
+  herbs: "Herbs",
+  tree: "Tree",
+  fruit: "Fruit",
+  flower: "Flower",
+  animal: "Animal",
+  christmas: "Christmas",
+  other: "Other",
+};
+
+function slugify(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+  const link = document.createElement("a");
+  const url = URL.createObjectURL(blob);
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function stlBlob(object: THREE.Object3D) {
+  const result = new STLExporter().parse(object, { binary: true });
+  const view = result as DataView;
+  const bytes = new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
+  return new Blob([Uint8Array.from(bytes).buffer], { type: "model/stl" });
+}
+
+function objBlob(object: THREE.Object3D) {
+  return new Blob([new OBJExporter().parse(object)], { type: "text/plain" });
+}
+
+function ModelViewport({ build, view }: { build: ModelBuild; view: { name: ViewName; nonce: number } }) {
+  const mountRef = useRef<HTMLDivElement>(null);
+  const sceneRef = useRef<THREE.Scene | null>(null);
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
+  const controlsRef = useRef<OrbitControls | null>(null);
+
+  useEffect(() => {
+    const mount = mountRef.current;
+    if (!mount) return;
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color("#f4f8f1");
+    scene.fog = new THREE.Fog("#f4f8f1", 145, 240);
+    const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 1000);
+    camera.position.set(78, 58, 84);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFShadowMap;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.05;
+    mount.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.07;
+    controls.minDistance = 45;
+    controls.maxDistance = 190;
+
+    scene.add(new THREE.HemisphereLight("#fffdf5", "#5c6d5e", 2.5));
+    const key = new THREE.DirectionalLight("#fff4da", 4.8);
+    key.position.set(52, 90, 62);
+    key.castShadow = true;
+    key.shadow.mapSize.set(1024, 1024);
+    scene.add(key);
+    const fill = new THREE.DirectionalLight("#c7ddd0", 1.7);
+    fill.position.set(-55, 36, -38);
+    scene.add(fill);
+
+    const ground = new THREE.Mesh(
+      new THREE.CircleGeometry(100, 64),
+      new THREE.ShadowMaterial({ color: "#3f4f42", opacity: 0.14 }),
+    );
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = -0.05;
+    ground.receiveShadow = true;
+    scene.add(ground);
+
+    const resize = () => {
+      const width = mount.clientWidth;
+      const height = mount.clientHeight;
+      renderer.setSize(width, height, false);
+      camera.aspect = width / Math.max(height, 1);
+      camera.updateProjectionMatrix();
+    };
+    const observer = new ResizeObserver(resize);
+    observer.observe(mount);
+    resize();
+    sceneRef.current = scene;
+    cameraRef.current = camera;
+    controlsRef.current = controls;
+
+    let frame = 0;
+    const render = () => {
+      frame = requestAnimationFrame(render);
+      controls.update();
+      renderer.render(scene, camera);
+    };
+    render();
+
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+      controls.dispose();
+      renderer.dispose();
+      ground.geometry.dispose();
+      (ground.material as THREE.Material).dispose();
+      mount.removeChild(renderer.domElement);
+      sceneRef.current = null;
+      cameraRef.current = null;
+      controlsRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    const scene = sceneRef.current;
+    const camera = cameraRef.current;
+    const controls = controlsRef.current;
+    if (!scene || !camera || !controls) return;
+    scene.add(build.assembly);
+    const bounds = new THREE.Box3().setFromObject(build.assembly);
+    const center = bounds.getCenter(new THREE.Vector3());
+    const size = bounds.getSize(new THREE.Vector3());
+    controls.target.copy(center);
+    const distance = Math.max(size.x, size.y, size.z) * 2.25;
+    camera.position.set(distance * 0.72, center.y + distance * 0.42, distance * 0.78);
+    camera.lookAt(center);
+    controls.update();
+    return () => {
+      scene.remove(build.assembly);
+    };
+  }, [build]);
+
+  useEffect(() => {
+    const camera = cameraRef.current;
+    const controls = controlsRef.current;
+    if (!camera || !controls) return;
+    const center = new THREE.Box3().setFromObject(build.assembly).getCenter(new THREE.Vector3());
+    const distance = Math.max(build.measurements.width, build.measurements.height) * 2.4;
+    const positions: Record<ViewName, THREE.Vector3> = {
+      orbit: new THREE.Vector3(distance * 0.7, center.y + distance * 0.45, distance * 0.76),
+      front: new THREE.Vector3(0, center.y, distance),
+      top: new THREE.Vector3(0.01, center.y + distance, 0),
+    };
+    camera.position.copy(positions[view.name]);
+    controls.target.copy(center);
+    camera.lookAt(center);
+    controls.update();
+  }, [build, view]);
+
+  return <div className="viewport" ref={mountRef} aria-label="Interactive 3D model preview" />;
+}
+
+function Slider({ label, value, min, max, step = 1, unit = "mm", onChange }: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step?: number;
+  unit?: string;
+  onChange: (value: number) => void;
+}) {
+  const precision = step < 0.1 ? 2 : step < 1 ? 1 : 0;
+  return (
+    <div className="control-group">
+      <label><span>{label}</span><output>{value.toFixed(precision)}{unit ? ` ${unit}` : ""}</output></label>
+      <input aria-label={label} type="range" min={min} max={max} step={step} value={value} onChange={(event) => onChange(Number(event.target.value))} />
+      <div className="range-label"><span>{min}</span><span>{max}</span></div>
+    </div>
+  );
+}
+
+const AI_EXAMPLES = [
+  "A compact three-arm desert cactus with a round body",
+  "A dense bamboo grove with five slender canes",
+  "A soft mushroom with a wide coral cap",
+];
+
+const AI_CREATION_STEPS = [
+  "Reading the shape language",
+  "Choosing a printable structure",
+  "Balancing the silhouette",
+  "Checking joints and proportions",
+  "Preparing the parametric model",
+];
+
+const AI_CREATIONS_STORAGE_KEY = "letpot-maker:ai-creations:v1";
+const LEGACY_AI_CREATIONS_STORAGE_KEY = "letpot-garden-lab:ai-creations:v1";
+
+type LocalAiCreation = {
+  id: string;
+  createdAt: string;
+  prompt: string;
+  recipe: AiDesignRecipe;
+};
+
+type ActiveAiDesign = AiDesignRecipe & { prompt: string; localId: string };
+
+function readLocalCreations(): LocalAiCreation[] {
+  try {
+    const stored = window.localStorage.getItem(AI_CREATIONS_STORAGE_KEY)
+      ?? window.localStorage.getItem(LEGACY_AI_CREATIONS_STORAGE_KEY)
+      ?? "[]";
+    const parsed = JSON.parse(stored) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.flatMap((entry): LocalAiCreation[] => {
+      if (!entry || typeof entry !== "object") return [];
+      const candidate = entry as Partial<LocalAiCreation>;
+      if (typeof candidate.id !== "string" || typeof candidate.prompt !== "string" || typeof candidate.createdAt !== "string") return [];
+      try {
+        return [{
+          id: candidate.id.slice(0, 80),
+          createdAt: candidate.createdAt,
+          prompt: candidate.prompt.replace(/\s+/g, " ").trim().slice(0, 280),
+          recipe: normalizeAiRecipe(candidate.recipe),
+        }];
+      } catch {
+        return [];
+      }
+    }).slice(0, 24);
+  } catch {
+    return [];
+  }
+}
+
+function AiGenerateModal({ open, onClose, onGenerated }: {
+  open: boolean;
+  onClose: () => void;
+  onGenerated: (recipe: AiDesignRecipe, prompt: string) => void;
+}) {
+  const [prompt, setPrompt] = useState("");
+  const [phase, setPhase] = useState<"idle" | "creating" | "success" | "error">("idle");
+  const [step, setStep] = useState(0);
+  const [error, setError] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const closeModal = useCallback(() => {
+    setPhase("idle");
+    setStep(0);
+    setError("");
+    onClose();
+  }, [onClose]);
+
+  useEffect(() => {
+    if (!open || phase === "creating" || phase === "success") return;
+    const frame = window.requestAnimationFrame(() => inputRef.current?.focus());
+    return () => window.cancelAnimationFrame(frame);
+  }, [open, phase]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && phase !== "creating") closeModal();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [open, phase, closeModal]);
+
+  useEffect(() => {
+    if (phase !== "creating") return;
+    const timer = window.setInterval(() => setStep((current) => Math.min(current + 1, AI_CREATION_STEPS.length - 1)), 1750);
+    return () => window.clearInterval(timer);
+  }, [phase]);
+
+  if (!open) return null;
+
+  const generate = async (event: FormEvent) => {
+    event.preventDefault();
+    const cleanPrompt = prompt.replace(/\s+/g, " ").trim();
+    if (cleanPrompt.length < 3) {
+      setError("Add a little more detail so the AI has something to shape.");
+      setPhase("error");
+      return;
+    }
+    setPhase("creating");
+    setStep(0);
+    setError("");
+    const startedAt = Date.now();
+    try {
+      const response = await fetch("/api/ai-generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: cleanPrompt }),
+      });
+      const result = await response.json() as { recipe?: AiDesignRecipe; error?: string };
+      const remainingAnimation = Math.max(0, 2600 - (Date.now() - startedAt));
+      if (remainingAnimation) await new Promise((resolve) => window.setTimeout(resolve, remainingAnimation));
+      if (!response.ok || !result.recipe) throw new Error(result.error || "The AI provider returned an incomplete design.");
+      onGenerated(result.recipe, cleanPrompt);
+      setPhase("success");
+      window.setTimeout(closeModal, 900);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "The model could not be generated.");
+      setPhase("error");
+    }
+  };
+
+  return (
+    <div className="ai-modal-backdrop">
+      <section className="ai-modal" role="dialog" aria-modal="true" aria-label="AI model generator">
+        <button className="ai-close" aria-label="Close AI generator" onClick={closeModal} disabled={phase === "creating"}>×</button>
+        {phase === "creating" || phase === "success" ? (
+          <div className={`ai-creating ${phase === "success" ? "complete" : ""}`} aria-live="polite">
+            <div className="ai-sculpture" aria-hidden="true">
+              <span className="ai-core" />
+              <span className="ai-leaf one" />
+              <span className="ai-leaf two" />
+              <span className="ai-leaf three" />
+              <i className="ai-orbit one" />
+              <i className="ai-orbit two" />
+            </div>
+            <p>{phase === "success" ? "MODEL READY" : "AI · CREATING"}</p>
+            <h2>{phase === "success" ? "Your idea is taking shape" : AI_CREATION_STEPS[step]}</h2>
+            <span>{phase === "success" ? "Opening the new parametric design…" : "Building within proven print-safe limits"}</span>
+            <div className="ai-progress"><i style={{ width: phase === "success" ? "100%" : `${18 + step * 17}%` }} /></div>
+          </div>
+        ) : (
+          <form onSubmit={generate}>
+            <div className="ai-modal-heading">
+              <span className="ai-kicker">✦ AI ASSISTED</span>
+              <h2 id="ai-modal-title">Generate a printable idea</h2>
+              <p>The configured AI turns your description into a constrained botanical recipe. The existing solid pipeline builds the model and keeps every parameter inside tested print limits.</p>
+              <small>Usually 10–25 seconds</small>
+            </div>
+            <div className="ai-examples" aria-label="Example prompts">
+              {AI_EXAMPLES.map((example) => <button type="button" key={example} onClick={() => { setPrompt(example); setError(""); setPhase("idle"); }}>{example}</button>)}
+            </div>
+            <label className="ai-prompt-field">
+              <span>Describe your model</span>
+              <div>
+                <input ref={inputRef} maxLength={280} value={prompt} onChange={(event) => { setPrompt(event.target.value); setError(""); setPhase("idle"); }} placeholder="e.g. A friendly round cactus with three upward arms" />
+                <button type="submit">Generate <span>→</span></button>
+              </div>
+            </label>
+            {error && <p className="ai-error" role="alert">{error}</p>}
+            <div className="ai-safety-note"><i>✓</i><span><b>Print-safe, locally organized</b>Your description is sent to the configured AI provider to create a constrained recipe—never arbitrary mesh code. The finished recipe is cached in My Creations on this device.</span></div>
+          </form>
+        )}
+      </section>
+    </div>
+  );
+}
+
+export function Studio() {
+  const [options, setOptions] = useState<ModelOptions>(DEFAULT_OPTIONS);
+  const [view, setView] = useState<{ name: ViewName; nonce: number }>({ name: "orbit", nonce: 0 });
+  const [exporting, setExporting] = useState(false);
+  const [printerId, setPrinterId] = useState<BambuPrinterId>("a1-mini");
+  const [activeTag, setActiveTag] = useState<"all" | ModelTag>("all");
+  const [libraryMode, setLibraryMode] = useState<"official" | "mine">("official");
+  const [message, setMessage] = useState("");
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiCreations, setAiCreations] = useState<LocalAiCreation[]>([]);
+  const [aiDesign, setAiDesign] = useState<ActiveAiDesign | null>(null);
+  const build = useMemo(() => createModel(options), [options]);
+  const definition = MODEL_LIBRARY.find((item) => item.id === options.modelId) ?? MODEL_LIBRARY[0];
+  const designName = aiDesign?.name ?? definition.name;
+  const designSubtitle = aiDesign?.subtitle ?? definition.subtitle;
+  const visibleModels = useMemo(
+    () => activeTag === "all" ? MODEL_LIBRARY : MODEL_LIBRARY.filter((item) => item.tags.includes(activeTag)),
+    [activeTag],
+  );
+  const manufacturing = getManufacturingProfile(options.modelId);
+
+  useEffect(() => () => disposeObject(build.assembly), [build]);
+
+  useEffect(() => {
+    const load = () => setAiCreations(readLocalCreations());
+    const frame = window.requestAnimationFrame(load);
+    window.addEventListener("storage", load);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("storage", load);
+    };
+  }, []);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      const requestedModel = new URLSearchParams(window.location.search).get("model");
+      const selected = MODEL_LIBRARY.find((item) => item.id === requestedModel);
+      if (!selected) return;
+      setOptions((current) => ({
+        ...current,
+        modelId: selected.id,
+        ...selected.defaults,
+        faceted: selected.style === "lowpoly",
+        shape: getDefaultShapeParameters(selected),
+      }));
+      setLibraryMode("official");
+      setActiveTag("all");
+      setAiDesign(null);
+      setMessage(`${selected.name} loaded`);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+
+  useEffect(() => {
+    if (!message || exporting) return;
+    const timer = window.setTimeout(() => setMessage(""), 3600);
+    return () => window.clearTimeout(timer);
+  }, [message, exporting]);
+
+  const update = <K extends keyof ModelOptions>(key: K, value: ModelOptions[K]) => {
+    setOptions((current) => ({ ...current, [key]: value }));
+  };
+
+  const updateShape = (key: ShapeParameterKey, value: number) => {
+    setOptions((current) => ({ ...current, shape: { ...current.shape, [key]: value } }));
+  };
+
+  const chooseModel = (modelId: ModelId) => {
+    const selected = MODEL_LIBRARY.find((item) => item.id === modelId);
+    if (!selected) return;
+    setOptions((current) => ({
+      ...current,
+      modelId,
+      ...selected.defaults,
+      faceted: selected.style === "lowpoly",
+      shape: getDefaultShapeParameters(selected),
+    }));
+    setAiDesign(null);
+    setMessage(`${selected.name} loaded`);
+  };
+
+  const persistCreations = (creations: LocalAiCreation[]) => {
+    const next = creations.slice(0, 24);
+    setAiCreations(next);
+    try {
+      window.localStorage.setItem(AI_CREATIONS_STORAGE_KEY, JSON.stringify(next));
+    } catch {
+      setMessage("This browser could not save the local creation");
+    }
+  };
+
+  const requestView = (name: ViewName) => setView((current) => ({ name, nonce: current.nonce + 1 }));
+
+  const applyAiDesign = (recipe: AiDesignRecipe, prompt: string) => {
+    const localId = window.crypto.randomUUID();
+    const creation: LocalAiCreation = { id: localId, createdAt: new Date().toISOString(), prompt, recipe };
+    setOptions((current) => ({
+      ...current,
+      modelId: recipe.templateId,
+      topperHeight: recipe.topperHeight,
+      topperWidth: recipe.topperWidth,
+      primaryColor: recipe.primaryColor,
+      accentColor: recipe.accentColor,
+      faceted: recipe.faceted,
+      shape: recipe.shape,
+    }));
+    persistCreations([creation, ...aiCreations]);
+    setAiDesign({ ...recipe, prompt, localId });
+    setLibraryMode("mine");
+    requestView("orbit");
+    setMessage(`${recipe.name} generated and saved locally`);
+  };
+
+  const chooseAiCreation = (creation: LocalAiCreation) => {
+    const recipe = normalizeAiRecipe(creation.recipe);
+    setOptions((current) => ({
+      ...current,
+      modelId: recipe.templateId,
+      topperHeight: recipe.topperHeight,
+      topperWidth: recipe.topperWidth,
+      primaryColor: recipe.primaryColor,
+      accentColor: recipe.accentColor,
+      faceted: recipe.faceted,
+      shape: recipe.shape,
+    }));
+    setAiDesign({ ...recipe, prompt: creation.prompt, localId: creation.id });
+    requestView("orbit");
+    setMessage(`${recipe.name} loaded from this browser`);
+  };
+
+  const removeAiCreation = (creation: LocalAiCreation) => {
+    if (!window.confirm(`Remove “${creation.recipe.name}” from this browser?`)) return;
+    persistCreations(aiCreations.filter((item) => item.id !== creation.id));
+    if (aiDesign?.localId === creation.id) {
+      setAiDesign(null);
+      setLibraryMode("official");
+    }
+    setMessage(`${creation.recipe.name} removed from local creations`);
+  };
+
+  const resetShape = () => {
+    setOptions((current) => ({ ...current, shape: getDefaultShapeParameters(definition) }));
+    setMessage("Shape parameters reset");
+  };
+
+  const randomizeShape = () => {
+    const shape = Object.fromEntries((definition.parameters ?? []).map((parameter) => {
+      const steps = Math.round((parameter.max - parameter.min) / parameter.step);
+      const value = parameter.min + Math.round(Math.random() * steps) * parameter.step;
+      return [parameter.key, Number(value.toFixed(parameter.step < 0.1 ? 2 : 1))];
+    })) as Partial<Record<ShapeParameterKey, number>>;
+    setOptions((current) => ({ ...current, shape }));
+    setMessage("Print-safe variation generated");
+  };
+
+  const savePreset = () => {
+    const payload = JSON.stringify({ schema: "letpot-maker/model/v1", model: designName, aiDesign, options }, null, 2);
+    downloadBlob(new Blob([payload], { type: "application/json" }), `${options.modelId}-preset.json`);
+    setMessage("Parameter preset saved");
+  };
+
+  const exportAssemblyObj = async () => {
+    setExporting(true);
+    setMessage("Solidifying assembly parts…");
+    try {
+      const wasm = await loadBrowserManifold();
+      const assembly = new THREE.Group();
+      for (const part of build.parts) {
+        assembly.add(await solidifyObject(wasm, part.object, { normalize: false }));
+      }
+      downloadBlob(objBlob(assembly), `${slugify(designName)}-solid-assembly.obj`);
+      disposeObject(assembly);
+      setMessage("Solid assembly OBJ exported");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Solid export failed");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const exportPack = async () => {
+    setExporting(true);
+    setMessage("Building print pack…");
+    try {
+      const wasm = await loadBrowserManifold();
+      const zip = new JSZip();
+      const root = zip.folder(slugify(designName));
+      if (!root) throw new Error("Could not create archive");
+      const solidAssembly = new THREE.Group();
+      for (const [index, part] of build.parts.entries()) {
+        setMessage(`Solidifying ${part.label}…`);
+        const solid = await solidifyObject(wasm, part.object, { flipZ: part.printFlipZ });
+        root.file(`${String(index + 1).padStart(2, "0")}-${part.id}.stl`, stlBlob(solid));
+        const assemblyPart = await solidifyObject(wasm, part.object, { normalize: false });
+        solidAssembly.add(assemblyPart);
+        disposeObject(solid);
+      }
+      root.file(`${slugify(designName)}-solid-assembly.obj`, objBlob(solidAssembly));
+      root.file("model-spec.json", JSON.stringify({
+        schema: "letpot-maker/model/v1",
+        model: { ...definition, name: designName, subtitle: designSubtitle },
+        aiDesign,
+        options,
+        adapterStandard: ADAPTER_STANDARD,
+        measurements: build.measurements,
+        units: "millimetres",
+        printConstraint: "Every exported part is one connected watertight manifold solid.",
+        manufacturing,
+        warning: "Fixed Ø33/Ø41 pod-fit standard. Verify fit with a small adapter test before production.",
+      }, null, 2));
+      root.file("PRINT-NOTES.txt", `${designName}\n\n${aiDesign ? `${aiDesign.creativeNote}\n\nGenerated from: ${aiDesign.prompt}\n\n` : ""}${definition.printNote}\n\nManufacturing status: ${manufacturing.status}.\nOrientation: ${manufacturing.orientation}.\nSupport: ${manufacturing.supportStrategy}.\nMinimum designed wall: ${manufacturing.minWall.toFixed(1)} mm.\nMinimum designed feature: ${manufacturing.minFeature.toFixed(1)} mm.\nBatch mode: ${manufacturing.batchMode}.\n\nEvery STL is a single connected, watertight solid. Every design is intentionally split into a universal adapter, a double-ended connector pin and a socketed body; mushroom and clover include one additional upper part.\n\nAdapter standard: Ø${ADAPTER_STANDARD.lowerDiameter.toFixed(2)} mm straight lower section × ${ADAPTER_STANDARD.lowerHeight.toFixed(2)} mm, then a ${ADAPTER_STANDARD.transitionHeight.toFixed(2)} mm transition to a Ø${ADAPTER_STANDARD.upperDiameter.toFixed(2)} mm × ${ADAPTER_STANDARD.upperBandHeight.toFixed(2)} mm vertical upper band; total height ${ADAPTER_STANDARD.totalHeight.toFixed(2)} mm. The STL is pre-oriented with the Ø${ADAPTER_STANDARD.upperDiameter.toFixed(2)} mm logo face on the print bed and the Ø${ADAPTER_STANDARD.lowerDiameter.toFixed(2)} mm side facing upward. Verify fit with a small test print before production.\n`);
+      const archive = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
+      downloadBlob(archive, `${slugify(designName)}-print-pack.zip`);
+      disposeObject(solidAssembly);
+      setMessage("Print pack exported");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Solid export failed");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const exportBambuProject = async () => {
+    setExporting(true);
+    setMessage(`Preparing ${BAMBU_PRINTERS[printerId].name} project…`);
+    const solids: THREE.Mesh[] = [];
+    try {
+      const wasm = await loadBrowserManifold();
+      const projectParts: ThreeMfPart[] = [];
+      for (const part of build.parts) {
+        const solid = await solidifyObject(wasm, part.object, { flipZ: part.printFlipZ });
+        solids.push(solid);
+        projectParts.push({ name: part.label, mesh: solid, color: part.color });
+      }
+      const project = await buildBambuThreeMf(projectParts, printerId, designName);
+      downloadBlob(project, `${slugify(designName)}-${printerId}.3mf`);
+      setMessage(`${BAMBU_PRINTERS[printerId].name} 3MF downloaded with support preset`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Bambu 3MF export failed");
+    } finally {
+      solids.forEach((solid) => disposeObject(solid));
+      setExporting(false);
+    }
+  };
+
+  const exportStackTrial = async () => {
+    setExporting(true);
+    setMessage("Building adapter stack trials…");
+    try {
+      const wasm = await loadBrowserManifold();
+      const zip = new JSZip();
+      const root = zip.folder("adapter-stack-trial");
+      if (!root) throw new Error("Could not create stack trial archive");
+      for (const gap of STACK_TRIAL_GAPS) {
+        const coupon = buildAdapterStackCoupon(options, gap, 3);
+        const solid = await solidifyObject(wasm, coupon);
+        const gapCode = Math.round(gap * 100).toString().padStart(2, "0");
+        root.file(`adapter-stack-gap-${gapCode}.stl`, stlBlob(solid));
+        disposeObject(solid);
+        disposeObject(coupon);
+      }
+      root.file("README.txt", `LetPot adapter stack trial\n\nThree experimental 3-adapter coupons are included with 0.24, 0.32 and 0.40 mm vertical release gaps. Each interface uses three tapered breakaway bridges, keeping every STL one connected manifold solid.\n\nStart with 0.40 mm using the same printer, nozzle, material and layer profile planned for production. Reduce the gap only after the adapters separate cleanly. Inspect the lower face and remove the three small bridge marks before fit testing.\n\nFixed adapter standard: Ø${ADAPTER_STANDARD.lowerDiameter.toFixed(2)} mm × ${ADAPTER_STANDARD.lowerHeight.toFixed(2)} mm lower section / Ø${ADAPTER_STANDARD.lowerDiameter.toFixed(2)}→Ø${ADAPTER_STANDARD.upperDiameter.toFixed(2)} mm × ${ADAPTER_STANDARD.transitionHeight.toFixed(2)} mm transition / Ø${ADAPTER_STANDARD.upperDiameter.toFixed(2)} mm × ${ADAPTER_STANDARD.upperBandHeight.toFixed(2)} mm vertical upper band / ${ADAPTER_STANDARD.totalHeight.toFixed(2)} mm total height.\n`);
+      root.file("stack-spec.json", JSON.stringify({
+        schema: "letpot-maker/stack-trial/v1",
+        adapter: ADAPTER_STANDARD,
+        adaptersPerCoupon: 3,
+        gaps: STACK_TRIAL_GAPS,
+        bridgeCount: 3,
+        status: "experimental",
+      }, null, 2));
+      const archive = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
+      downloadBlob(archive, "letpot-adapter-stack-trial.zip");
+      setMessage("Adapter stack trials exported");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Stack trial export failed");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const exportAll = async () => {
+    setExporting(true);
+    setMessage("Preparing the complete collection…");
+    try {
+      const wasm = await loadBrowserManifold();
+      const zip = new JSZip();
+      const root = zip.folder("letpot-maker-collection");
+      if (!root) throw new Error("Could not create collection archive");
+      const manifest: Array<{ id: ModelId; name: string; series: string; tags: ModelTag[]; stlParts: string[]; bambuProject: string; manufacturingStatus: string }> = [];
+      let adapterWritten = false;
+
+      for (const [modelIndex, modelDefinition] of MODEL_LIBRARY.entries()) {
+        setMessage(`Packing ${modelIndex + 1} / ${MODEL_LIBRARY.length}: ${modelDefinition.name}`);
+        const modelOptions: ModelOptions = {
+          ...DEFAULT_OPTIONS,
+          modelId: modelDefinition.id,
+          ...modelDefinition.defaults,
+          faceted: modelDefinition.style === "lowpoly",
+          shape: getDefaultShapeParameters(modelDefinition),
+        };
+        const modelBuild = createModel(modelOptions);
+        const solids: THREE.Mesh[] = [];
+        const projectParts: ThreeMfPart[] = [];
+        const stlParts: string[] = [];
+        try {
+          for (const [partIndex, part] of modelBuild.parts.entries()) {
+            const solid = await solidifyObject(wasm, part.object, { flipZ: part.printFlipZ });
+            solids.push(solid);
+            projectParts.push({ name: part.label, mesh: solid, color: part.color });
+            if (part.id === "adapter") {
+              if (!adapterWritten) {
+                root.file("stl/00-universal-adapter-33x41.stl", stlBlob(solid));
+                adapterWritten = true;
+              }
+            } else {
+              const stlPath = `stl/${modelDefinition.number}-${modelDefinition.id}/${String(partIndex).padStart(2, "0")}-${part.id}.stl`;
+              root.file(stlPath, stlBlob(solid));
+              stlParts.push(stlPath);
+            }
+          }
+          const projectPath = `bambu-${printerId}/${modelDefinition.number}-${modelDefinition.id}-${printerId}.3mf`;
+          const project = await buildBambuThreeMf(projectParts, printerId, modelDefinition.name);
+          root.file(projectPath, await project.arrayBuffer());
+          manifest.push({
+            id: modelDefinition.id,
+            name: modelDefinition.name,
+            series: modelDefinition.series,
+            tags: modelDefinition.tags,
+            stlParts,
+            bambuProject: projectPath,
+            manufacturingStatus: getManufacturingProfile(modelDefinition.id).status,
+          });
+        } finally {
+          solids.forEach((solid) => disposeObject(solid));
+          disposeObject(modelBuild.assembly);
+        }
+      }
+
+      const printer = BAMBU_PRINTERS[printerId];
+      root.file("manifest.json", JSON.stringify({
+        schema: "letpot-maker/collection/v2",
+        targetPrinter: printer,
+        adapter: { ...ADAPTER_STANDARD, units: "millimetres" },
+        models: manifest,
+        printConstraint: "Every STL part is one connected watertight manifold solid.",
+      }, null, 2));
+      root.file("README.txt", `LetPot Maker — complete printable collection\n\nTarget handoff: ${printer.name}, ${printer.nozzle.toFixed(1)} mm nozzle, ${printer.bedWidth} × ${printer.bedDepth} mm plate.\n\nThe stl folder contains one shared fixed Ø33/Ø41 mm adapter plus every detachable connector pin and topper part. Its Ø33 mm straight section is 3.1 mm high, followed by a 2.3 mm transition to Ø41 mm and a 0.2 mm-high Ø41 mm vertical upper band, for a 5.6 mm total height. The shared adapter is pre-oriented with its Ø41 mm logo face on the print bed and its Ø33 mm side facing upward. The bambu-${printerId} folder contains one print-ready 3MF project per design, already arranged inside the selected printer plate.\n\nAutomatic normal/snug support, a 30 degree threshold and a 4 mm outer brim are embedded in every Bambu project. Confirm the printer, build plate and filament, inspect the sliced preview, then send.\n`);
+      const archive = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } });
+      downloadBlob(archive, `letpot-maker-collection-${printerId}.zip`);
+      setMessage(`All ${MODEL_LIBRARY.length} designs exported for ${printer.name}`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Collection export failed");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  return (
+    <main className="studio-shell">
+      <header className="topbar">
+        <a className="brand" href="/" aria-label="LetPot Maker home">
+          <span className="brand-mark" aria-hidden="true" />
+          <span><b>LetPot</b> Maker</span>
+        </a>
+        <div className="topbar-actions">
+        <button className="ai-generate-trigger" onClick={() => setAiOpen(true)}><span>✦</span> AI Generate</button>
+        <details className="export-menu">
+          <summary>{exporting ? "Preparing…" : "Export"}<span>↓</span></summary>
+          <div className="export-popover">
+            <div className="export-heading"><b>Print handoff</b><span>{designName} · {definition.parts} parts</span></div>
+            <label className="printer-field"><span>Target printer</span><select aria-label="Target Bambu printer" value={printerId} onChange={(event) => setPrinterId(event.target.value as BambuPrinterId)}>{Object.values(BAMBU_PRINTERS).map((printer) => <option key={printer.id} value={printer.id}>{printer.name}</option>)}</select></label>
+            <button className="export-primary" onClick={exportBambuProject} disabled={exporting}>Bambu 3MF <span>Recommended</span></button>
+            <button onClick={exportPack} disabled={exporting}>STL print pack <span>Individual manifold parts</span></button>
+            <button onClick={exportAssemblyObj} disabled={exporting}>OBJ assembly <span>Editable solid assembly</span></button>
+            <hr />
+            <button onClick={savePreset}>Save parameter preset</button>
+            <button onClick={exportAll} disabled={exporting}>Export all {MODEL_LIBRARY.length} designs</button>
+            <button onClick={exportStackTrial} disabled={exporting}>Adapter stack trial</button>
+          </div>
+        </details>
+        </div>
+      </header>
+
+      <section className="workspace">
+        <aside className="library-panel">
+          <div className="panel-heading">
+            <p>{libraryMode === "official" ? "OFFICIAL COLLECTION" : "LOCAL WORKSPACE"}</p>
+            <h1>{libraryMode === "official" ? "Maker Library" : "My Creations"}</h1>
+            <span>{libraryMode === "official" ? `${MODEL_LIBRARY.length} printable models` : `${aiCreations.length} saved on this device`}</span>
+          </div>
+          <div className="library-mode" aria-label="Choose model library">
+            <button className={libraryMode === "official" ? "active" : ""} onClick={() => setLibraryMode("official")}>Official <span>{MODEL_LIBRARY.length}</span></button>
+            <button className={libraryMode === "mine" ? "active" : ""} onClick={() => setLibraryMode("mine")}>My Creations <span>{aiCreations.length}</span></button>
+          </div>
+          {libraryMode === "official" && <div className="tag-filter" aria-label="Filter designs by tag">
+            <button className={activeTag === "all" ? "active" : ""} onClick={() => setActiveTag("all")} aria-pressed={activeTag === "all"}>
+              All <span>{MODEL_LIBRARY.length}</span>
+            </button>
+            {MODEL_TAGS.map((tag) => {
+              const count = MODEL_LIBRARY.filter((item) => item.tags.includes(tag)).length;
+              return (
+                <button key={tag} className={activeTag === tag ? "active" : ""} onClick={() => setActiveTag(tag)} aria-pressed={activeTag === tag}>
+                  {TAG_LABELS[tag]} <span>{count}</span>
+                </button>
+              );
+            })}
+          </div>}
+          <div className="asset-list">
+            {libraryMode === "official" && visibleModels.map((item) => (
+              <button key={item.id} className={`asset-card ${item.style} ${item.id === options.modelId ? "active" : ""}`} onClick={() => chooseModel(item.id)}>
+                <span className="asset-number">{item.number}</span>
+                <span>
+                  <strong>{item.name}</strong>
+                  <small>{item.parts} detachable parts</small>
+                  <span className="asset-tags">{item.tags.slice(0, 3).map((tag) => <i key={tag}>{tag}</i>)}</span>
+                </span>
+              </button>
+            ))}
+            {libraryMode === "mine" && aiCreations.map((creation, index) => (
+              <div key={creation.id} className={`local-creation-card ${aiDesign?.localId === creation.id ? "active" : ""}`}>
+                <button className="local-creation-main" onClick={() => chooseAiCreation(creation)}>
+                  <span className="asset-number">AI{String(aiCreations.length - index).padStart(2, "0")}</span>
+                  <span><strong>{creation.recipe.name}</strong><small>{new Date(creation.createdAt).toLocaleDateString()} · {creation.recipe.templateId}</small><span className="asset-tags"><i>local</i><i>ai recipe</i></span></span>
+                </button>
+                <button className="local-creation-remove" aria-label={`Remove ${creation.recipe.name}`} onClick={() => removeAiCreation(creation)}>×</button>
+              </div>
+            ))}
+            {libraryMode === "mine" && aiCreations.length === 0 && <div className="local-empty-state"><span>✦</span><b>No local creations yet</b><p>Describe an idea and AI Generate will save its print-safe recipe only in this browser.</p><button onClick={() => setAiOpen(true)}>Generate your first model</button></div>}
+          </div>
+        </aside>
+
+        <section className="stage">
+          <div className="view-tools" aria-label="View tools">
+            {(["orbit", "front", "top"] as ViewName[]).map((name) => (
+              <button key={name} className={view.name === name ? "active" : ""} onClick={() => requestView(name)}>{name[0].toUpperCase() + name.slice(1)}</button>
+            ))}
+          </div>
+          <ModelViewport build={build} view={view} />
+          <div className="dimension-summary" aria-label="Model dimensions">
+            <span>MODEL SIZE</span><b>Ø {build.measurements.upperDiameter.toFixed(1)} × {build.measurements.height.toFixed(1)} mm</b>
+          </div>
+          {message && <div className="stage-toast" role="status" aria-live="polite">{message}</div>}
+        </section>
+
+        <aside className="inspector-panel">
+          <div className="inspector-title">
+            <div><p>{aiDesign ? "AI DESIGN" : `MODEL ${definition.number}`}</p><h2>{designName}</h2><span>{designSubtitle}</span></div>
+            <span className="part-count">{definition.parts} PARTS</span>
+          </div>
+          <div className="inspector-content">
+            <section className="inspector-section">
+              <div className="section-heading"><div><p>SHAPE</p><span>Overall printable envelope</span></div></div>
+              <Slider label="Topper height" value={options.topperHeight} min={25} max={50} step={0.5} onChange={(value) => update("topperHeight", value)} />
+              <Slider label="Topper width" value={options.topperWidth} min={20} max={40} step={0.5} onChange={(value) => update("topperWidth", value)} />
+            </section>
+
+            {(definition.parameters?.length ?? 0) > 0 && <section className="inspector-section signature-section">
+              <div className="section-heading">
+                <div><p>SIGNATURE</p><span>{definition.parameters?.length} model-specific controls</span></div>
+                <div className="section-actions"><button onClick={randomizeShape}>Vary</button><button onClick={resetShape}>Reset</button></div>
+              </div>
+              {definition.parameters?.map((parameter) => (
+                <Slider
+                  key={parameter.key}
+                  label={parameter.label}
+                  value={options.shape[parameter.key] ?? parameter.defaultValue}
+                  min={parameter.min}
+                  max={parameter.max}
+                  step={parameter.step}
+                  unit={parameter.unit ?? ""}
+                  onChange={(value) => updateShape(parameter.key, value)}
+                />
+              ))}
+              <p className="parameter-note">Ranges preserve the minimum printable feature size and all required part intersections.</p>
+            </section>}
+
+            <section className="inspector-section appearance-section">
+              <div className="section-heading"><div><p>APPEARANCE</p><span>{definition.style === "realistic" ? "Smooth realistic model" : "Faceted printable model"}</span></div></div>
+              {definition.style === "lowpoly" && <div className="control-group compact"><label><span>Surface style</span><select value={options.faceted ? "low" : "soft"} onChange={(event) => update("faceted", event.target.value === "low")}><option value="low">Low poly</option><option value="soft">Smooth faceted</option></select></label></div>}
+              <div className="control-group color-control"><span>{options.modelId === "mushroom" ? "Cap color" : "Topper color"}</span><div>{COLORS.map((color) => <button key={color} className={`swatch ${options.primaryColor === color ? "active" : ""}`} style={{ background: color }} aria-label={`Use ${color}`} onClick={() => update("primaryColor", color)} />)}<input className="color-input" aria-label="Custom topper color" type="color" value={options.primaryColor} onChange={(event) => update("primaryColor", event.target.value)} /></div></div>
+              <div className="control-group color-control"><span>{options.modelId === "mushroom" ? "Stem + base color" : "Adapter color"}</span><div><button className={`swatch ${options.accentColor === "#d7d0bf" ? "active" : ""}`} style={{ background: "#d7d0bf" }} onClick={() => update("accentColor", "#d7d0bf")} aria-label="Warm stone" /><button className={`swatch ${options.accentColor === "#1f3f2e" ? "active" : ""}`} style={{ background: "#1f3f2e" }} onClick={() => update("accentColor", "#1f3f2e")} aria-label="LetPot green" /><input className="color-input" aria-label="Custom adapter color" type="color" value={options.accentColor} onChange={(event) => update("accentColor", event.target.value)} /></div></div>
+            </section>
+
+            <details className="inspector-disclosure">
+              <summary><span><b>Base & fit</b><small>Ø33 / Ø41 mm · fixed standard</small></span><i>+</i></summary>
+              <div className="disclosure-content">
+                <div className="calibration-note">Locked pod-fit standard shared by every design. Base dimensions are intentionally not adjustable.</div>
+                <dl className="compact-spec">
+                  <div><dt>Lower section</dt><dd>Ø{ADAPTER_STANDARD.lowerDiameter} × {ADAPTER_STANDARD.lowerHeight.toFixed(1)} mm</dd></div>
+                  <div><dt>Transition layer</dt><dd>Ø{ADAPTER_STANDARD.lowerDiameter}→Ø{ADAPTER_STANDARD.upperDiameter} × {ADAPTER_STANDARD.transitionHeight.toFixed(1)} mm</dd></div>
+                  <div><dt>Upper vertical band</dt><dd>Ø{ADAPTER_STANDARD.upperDiameter} × {ADAPTER_STANDARD.upperBandHeight.toFixed(1)} mm</dd></div>
+                  <div><dt>Total height</dt><dd>{ADAPTER_STANDARD.totalHeight.toFixed(1)} mm</dd></div>
+                  <div><dt>Logo</dt><dd>Outer rim · crown outward</dd></div>
+                  <div><dt>Connector pin</dt><dd>Hex R3.96 · 7.4 mm</dd></div>
+                </dl>
+              </div>
+            </details>
+
+            <details className="inspector-disclosure readiness-disclosure">
+              <summary><span><b>Print readiness</b><small>{manufacturing.status} · {definition.parts} manifold parts</small></span><i className={manufacturing.status === "Production trial" ? "verified" : "review"}>{manufacturing.status === "Production trial" ? "✓" : "!"}</i></summary>
+              <div className="disclosure-content">
+                <p className="print-note">{definition.printNote}</p>
+                <dl className="compact-spec"><div><dt>Orientation</dt><dd>{manufacturing.orientation}</dd></div><div><dt>Support</dt><dd>{manufacturing.supportStrategy}</dd></div><div><dt>Minimum wall</dt><dd>{manufacturing.minWall.toFixed(1)} mm</dd></div><div><dt>Minimum feature</dt><dd>{manufacturing.minFeature.toFixed(1)} mm</dd></div><div><dt>Batch mode</dt><dd>{manufacturing.batchMode}</dd></div></dl>
+                <ul className="audit-list">{manufacturing.details.map((detail) => <li key={detail}>{detail}</li>)}</ul>
+              </div>
+            </details>
+          </div>
+        </aside>
+      </section>
+      <AiGenerateModal open={aiOpen} onClose={() => setAiOpen(false)} onGenerated={applyAiDesign} />
+    </main>
+  );
+}
