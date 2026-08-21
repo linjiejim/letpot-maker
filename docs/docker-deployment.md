@@ -26,6 +26,23 @@ npm run docker:deploy
 
 The script waits for the container health check before returning. The default local endpoint is `http://127.0.0.1:3000` and the health endpoint is `http://127.0.0.1:3000/api/health`.
 
+## Published images
+
+GitHub Actions runs the complete repository checks and publishes a Linux AMD64 image to `ghcr.io/<owner>/letpot-maker` after successful `main` builds. Every image receives an immutable `sha-<full-commit-sha>` tag; `main` also updates `latest`.
+
+Image publication uses the workflow's repository-scoped `GITHUB_TOKEN`. It does not require a personal access token, SSH key, or custom Actions secret. AI provider credentials are runtime-only server settings and must never be added to the build workflow.
+
+For a server deployment, prefer an immutable SHA tag:
+
+```bash
+export LETPOT_IMAGE=ghcr.io/<owner>/letpot-maker:sha-<full-commit-sha>
+export LETPOT_BIND_ADDRESS=127.0.0.1
+export LETPOT_PORT=18906
+npm run docker:deploy-image
+```
+
+The prebuilt-image script pulls the selected tag, starts only this Compose service without building on the server, and waits for its health check. Keep deployment from GitHub Actions disabled unless a dedicated, least-privilege server account and deploy key have been provisioned; do not upload a personal root SSH key as a repository secret.
+
 ## Network exposure
 
 The recommended layout is:

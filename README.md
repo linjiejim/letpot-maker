@@ -69,6 +69,8 @@ Set `AI_API_KEY`, `AI_BASE_URL`, and `AI_MODEL` for a provider that implements t
 | `npm run check` | Run ESLint and TypeScript checks |
 | `npm test` | Build, test rendered routes, and run all geometry validators |
 | `npm run ci` | Run every check used by continuous integration |
+| `npm run docker:deploy` | Build and health-check a local Compose deployment |
+| `npm run docker:deploy-image` | Pull and deploy an immutable published image |
 | `npm run generate:assets` | Regenerate the checked-in STL, OBJ, manifest, and stack-test assets |
 | `npm run validate:assets` | Validate generated STL topology and adapter orientation |
 | `npm run validate:parameters` | Exercise supported parameter boundaries |
@@ -117,6 +119,8 @@ npm run docker:deploy
 ```
 
 See [Docker deployment](docs/docker-deployment.md) before exposing the service to a network. The reverse proxy should provide TLS, authentication or access policy where needed, and request limits for AI-enabled deployments.
+
+GitHub Actions verifies every change and publishes a Linux AMD64 image to GitHub Container Registry after a successful `main` build. Image publication uses the repository-scoped `GITHUB_TOKEN`; it requires no custom Actions secret.
 
 ## Contributing and license
 
