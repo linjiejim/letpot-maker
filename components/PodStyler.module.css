@@ -36,7 +36,7 @@
   backdrop-filter: blur(14px);
 }
 
-.brand, .studioLink { color: inherit; text-decoration: none; }
+.brand, .studioLink { min-width: 44px; min-height: 44px; color: inherit; text-decoration: none; }
 .brand { display: inline-flex; align-items: center; gap: 10px; font-size: 14px; letter-spacing: -.02em; }
 .brand b { font-weight: 850; }
 .brandMark { width: 34px; height: 34px; flex: 0 0 auto; border-radius: 10px; background: var(--green-700) url('/logo-icon.png') center / 23px 25px no-repeat; }
@@ -81,7 +81,7 @@
 .stageActions button:last-child { color: white; border-color: var(--green-700); background: var(--green-700); }
 .stageActions button:disabled { opacity: .38; cursor: default; }
 
-.library { min-height: 0; display: grid; grid-template-rows: 36px minmax(0, 1fr); gap: 8px; padding: 10px 16px 8px; overflow: hidden; border-top: 1px solid var(--edge); background: #f8fbf6; }
+.library { min-height: 0; display: grid; grid-template-rows: 40px minmax(0, 1fr); gap: 8px; padding: 10px 16px 8px; overflow: hidden; border-top: 1px solid var(--edge); background: #f8fbf6; }
 .libraryToolbar { min-width: 0; display: flex; align-items: center; gap: 12px; }
 .librarySelection { flex: 0 0 auto; min-width: 104px; display: flex; align-items: baseline; gap: 7px; padding-right: 12px; border-right: 1px solid var(--edge); white-space: nowrap; }
 .librarySelection strong { color: var(--green-800); font-size: 11px; }
@@ -89,7 +89,7 @@
 .multiSelectHint { flex: 0 0 auto; color: #7b887e; font-size: 7px; font-weight: 750; white-space: nowrap; }
 .filters { min-width: 0; display: flex; align-items: center; gap: 5px; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
 .filters::-webkit-scrollbar { display: none; }
-.filters button { flex: 0 0 auto; min-height: 28px; padding: 0 9px; border: 1px solid #d4e0d1; border-radius: 99px; color: #667368; background: rgba(255,255,255,.66); font-size: 7px; font-weight: 850; white-space: nowrap; cursor: pointer; }
+.filters button { flex: 0 0 auto; min-height: 40px; padding: 0 11px; border: 1px solid #d4e0d1; border-radius: 99px; color: #667368; background: rgba(255,255,255,.66); font-size: 7px; font-weight: 850; white-space: nowrap; cursor: pointer; }
 .filters button b { margin-left: 4px; color: #8a958c; font: 700 6px/1 ui-monospace, monospace; }
 .filters button:hover { color: var(--green-800); border-color: #bcd3b7; }
 .filters .activeFilter { color: white; border-color: var(--green-700); background: var(--green-700); }
@@ -117,18 +117,18 @@
   .brand { font-size: 12px; }
   .brandMark { width: 31px; height: 31px; background-size: 21px 23px; }
   .machinePicker { grid-column: 1 / -1; grid-row: 2; width: 100%; box-sizing: border-box; }
-  .machinePicker button { min-width: 0; width: 25%; height: 36px; grid-template-rows: 1fr; text-align: center; }
+  .machinePicker button { min-width: 0; width: 25%; height: 40px; grid-template-rows: 1fr; text-align: center; }
   .machinePicker button small, .machinePicker button span { display: none; }
   .machinePicker button b { font-size: 9px; }
-  .studioLink { font-size: 0; }
+  .studioLink { min-width: 40px; display: inline-flex; justify-content: center; font-size: 0; }
   .studioLink span { font-size: 13px; }
   .viewTools { top: 12px; right: 11px; }
-  .viewTools button { padding: 7px; font-size: 0; }
+  .viewTools button { width: 40px; height: 40px; justify-content: center; padding: 7px; font-size: 0; }
   .viewTools button span { font-size: 12px; }
   .workspace { grid-template-rows: minmax(0, 1fr) 188px; }
   .stageDock { right: 9px; bottom: 9px; }
-  .stageActions button { min-height: 29px; padding-inline: 7px; font-size: 6px; }
-  .library { grid-template-rows: 32px minmax(0, 1fr); gap: 6px; padding: 8px 10px 6px; }
+  .stageActions button { min-height: 40px; padding-inline: 9px; font-size: 7px; }
+  .library { grid-template-rows: 42px minmax(0, 1fr); gap: 6px; padding: 8px 10px 6px; }
   .libraryToolbar { gap: 8px; }
   .librarySelection { min-width: 82px; padding-right: 8px; }
   .librarySelection small { display: none; }
@@ -142,12 +142,16 @@
 
 @media (max-width: 480px) {
   .brand span:last-child { display: none; }
-  .header { flex-basis: 58px; height: 58px; grid-template-columns: auto 1fr auto; grid-template-rows: 1fr; padding: 0 10px; }
+  .header { flex-basis: 64px; height: 64px; grid-template-columns: auto 1fr auto; grid-template-rows: 1fr; padding: 0 10px; }
   .machinePicker { grid-column: 2; grid-row: 1; margin-inline: 8px; }
   .studioLink { grid-column: 3; }
-  .machinePicker button { height: 34px; }
-  .workspace { grid-template-rows: minmax(0, 1fr) 180px; }
-  .stageActions button:first-child { display: none; }
+  .machinePicker button { height: 40px; }
+  .workspace { grid-template-rows: minmax(0, 1fr) 198px; }
+  .stageDock { max-width: calc(100% - 18px); }
+  .stageActions { flex-wrap: wrap; }
+  .stageActions button:first-child { display: inline-flex; align-items: center; }
+  .library { grid-template-rows: 42px minmax(0,1fr); padding-bottom: max(7px, env(safe-area-inset-bottom)); }
+  .modelCard { flex-basis: 118px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
