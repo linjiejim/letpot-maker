@@ -771,7 +771,7 @@ export function Studio() {
       </header>
 
       <section className="workspace">
-        <aside className="library-panel">
+        <aside className="library-panel" data-mode={libraryMode} aria-label="Maker Library">
           <div className="panel-heading">
             <p>{libraryMode === "official" ? "OFFICIAL COLLECTION" : "LOCAL WORKSPACE"}</p>
             <h1>{libraryMode === "official" ? "Maker Library" : "My Creations"}</h1>
