@@ -33,6 +33,7 @@ The page intentionally does not identify the configured model. The server uses t
 AI_API_KEY=your_minimax_key
 AI_BASE_URL=https://api.minimaxi.com/v1
 AI_MODEL=MiniMax-M3
+AI_DISABLE_THINKING=true
 ```
 
 Use `https://api.minimax.io/v1` for international MiniMax keys. MiniMax coding-plan keys issued in China can require `https://api.minimaxi.com/v1`; verify the host documented for the key being used.
@@ -47,6 +48,10 @@ AI_MODEL=k3-256k
 
 `AI_BASE_URL` may be either a `/v1`-style base URL or the full `/chat/completions` URL. The UI and API response do not expose the selected model.
 
+`AI_DISABLE_THINKING=true` sends MiniMax's optional `thinking: { type: "disabled" }` request field so the constrained recipe uses the output budget for JSON rather than hidden reasoning. Leave it false for providers that do not support that field.
+
+Public deployments enforce an in-process quota by the right-most reverse-proxy client address: five accepted generations per ten minutes and at most two simultaneous provider requests. Override these conservative defaults with `AI_RATE_LIMIT_MAX`, `AI_RATE_LIMIT_WINDOW_MS`, and `AI_MAX_CONCURRENCY`. The provider account should still have a hard spend/quota cap; application limits are protection against casual abuse, not billing isolation across multiple replicas.
+
 This workload is small constrained classification and parameter extraction. Very large context windows, multimodality, coding benchmarks, and agent tooling should not materially change the shapes that can be produced because geometry remains code-defined. Evaluate providers with a fixed prompt set and compare valid-recipe rate, family-selection quality, p50/p95 latency, rejection rate, and cost before selecting a production model.
 
 ## Prompt-injection boundary
@@ -58,5 +63,6 @@ The route uses defense in depth:
 3. The model has no tools, database, filesystem, browser, or access to the API key value. It can only return text.
 4. The response must contain a JSON recipe. Application code allowlists the template, shape keys, types, numeric ranges, colors, and text lengths before use.
 5. Provider response size and request time are bounded, provider errors are not echoed to the browser, and responses are marked `no-store`.
+6. Per-client request windows and a global concurrency ceiling limit anonymous quota consumption. Runtime state is intentionally ephemeral and resets when the single production container restarts.
 
-Prompt-injection detection is not a mathematical guarantee. The durable security boundary is least privilege plus deterministic output validation: even a disobedient model cannot add executable code or an unsupported geometry path. Continue adversarial regression testing when prompts, providers, tools, persistence, or publishing capabilities change. Public-facing deployments should also add request rate limits at the reverse proxy to protect API quota.
+Prompt-injection detection is not a mathematical guarantee. The durable security boundary is least privilege plus deterministic output validation: even a disobedient model cannot add executable code or an unsupported geometry path. Continue adversarial regression testing when prompts, providers, tools, persistence, or publishing capabilities change. For multiple application replicas or stricter abuse controls, move the counter to a shared rate-limit service or enforce an additional reverse-proxy limit.
