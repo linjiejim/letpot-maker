@@ -127,3 +127,7 @@ The automated deployment keeps the current container until an isolated candidate
 | `AI_API_KEY` | empty | Enables optional AI model recipes |
 | `AI_BASE_URL` | empty | OpenAI-compatible API base URL or full chat endpoint |
 | `AI_MODEL` | empty | Provider-specific model ID |
+| `AI_DISABLE_THINKING` | `false` | Sends MiniMax's optional disabled-thinking request field |
+| `AI_RATE_LIMIT_MAX` | `5` | Accepted requests per client in each window |
+| `AI_RATE_LIMIT_WINDOW_MS` | `600000` | Per-client request window in milliseconds |
+| `AI_MAX_CONCURRENCY` | `2` | Maximum simultaneous provider requests per app replica |

@@ -4,10 +4,12 @@ import {
   buildUntrustedIdeaMessage,
   MAX_AI_PROMPT_LENGTH,
 } from "../../../lib/ai-prompt-security";
+import { acquireAiRequest } from "../../../lib/ai-rate-limit";
 
 type RuntimeEnv = {
   AI_API_KEY?: string;
   AI_BASE_URL?: string;
+  AI_DISABLE_THINKING?: string;
   AI_MODEL?: string;
 };
 
@@ -47,10 +49,10 @@ Return only a JSON object with exactly these fields:
 Supported print-safe families:
 ${JSON.stringify(getAiTemplateCatalog())}`;
 
-function json(data: unknown, status = 200) {
+function json(data: unknown, status = 200, headers?: HeadersInit) {
   return Response.json(data, {
     status,
-    headers: { "Cache-Control": "no-store" },
+    headers: { "Cache-Control": "no-store", ...headers },
   });
 }
 
@@ -131,6 +133,17 @@ export async function POST(request: Request) {
     ],
     max_tokens: 1600,
   };
+  if (runtime.AI_DISABLE_THINKING?.trim().toLowerCase() === "true") {
+    requestBody.thinking = { type: "disabled" };
+  }
+
+  const admission = acquireAiRequest(request);
+  if (!admission.allowed) {
+    const error = admission.reason === "busy"
+      ? "AI generation is busy. Please try again in a few seconds."
+      : "You have generated several ideas recently. Please wait before trying again.";
+    return json({ error }, 429, { "Retry-After": String(admission.retryAfterSeconds) });
+  }
 
   try {
     const response = await fetch(endpoint, {
@@ -171,5 +184,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("AI recipe generation failed", error instanceof Error ? error.message : "Unknown error");
     return json({ error: "The design took too long or was incomplete. Please try again." }, 502);
+  } finally {
+    admission.release();
   }
 }
