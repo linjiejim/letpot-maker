@@ -2,9 +2,10 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-const [studio, podStyler, globalCss, podCss] = await Promise.all([
+const [studio, podStyler, landingPage, globalCss, podCss] = await Promise.all([
   readFile(new URL("../components/Studio.tsx", import.meta.url), "utf8"),
   readFile(new URL("../components/PodStyler.tsx", import.meta.url), "utf8"),
+  readFile(new URL("../components/LandingPage.tsx", import.meta.url), "utf8"),
   readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
   readFile(new URL("../components/PodStyler.module.css", import.meta.url), "utf8"),
 ]);
@@ -59,4 +60,28 @@ test("Studio foundations do not redeclare exact component selectors", () => {
       `${selector} should have one foundation rule`,
     );
   }
+});
+
+test("mobile Studio keeps the preview primary and exposes explicit workspace tabs", () => {
+  assert.match(studio, /data-mobile-panel=\{mobilePanel\}/);
+  assert.match(studio, /aria-label="Mobile Studio workspace"/);
+  assert.match(studio, /aria-controls="studio-preview"/);
+  assert.match(studio, /aria-controls="studio-library"/);
+  assert.match(studio, /aria-controls="studio-adjustments"/);
+  assert.match(globalCss, /workspace\[data-mobile-panel="library"\] \.library-panel/);
+  assert.match(globalCss, /workspace\[data-mobile-panel="adjust"\] \.inspector-panel/);
+});
+
+test("Pod Styler offers a keyboard-operable pod picker", () => {
+  assert.match(podStyler, /className=\{styles\.podPicker\} role="group"/);
+  assert.match(podStyler, /aria-pressed=\{selectedPods\.includes\(index\)\}/);
+  assert.match(podStyler, /selectPodFromPicker/);
+  assert.match(podCss, /\.podPicker button \{[^}]+44px/);
+});
+
+test("landing 3D waits for idle time and exposes loading feedback", () => {
+  assert.match(landingPage, /const \[shouldLoad, setShouldLoad\] = useState\(false\)/);
+  assert.match(landingPage, /requestIdleCallback/);
+  assert.match(landingPage, /Loading 3D preview…/);
+  assert.match(globalCss, /\.landing-model\[data-ready="true"\] \.landing-model-loading/);
 });

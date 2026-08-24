@@ -430,6 +430,7 @@ export function Studio() {
   const [aiOpen, setAiOpen] = useState(false);
   const [aiCreations, setAiCreations] = useState<LocalAiCreation[]>([]);
   const [aiDesign, setAiDesign] = useState<ActiveAiDesign | null>(null);
+  const [mobilePanel, setMobilePanel] = useState<"preview" | "library" | "adjust">("preview");
   const build = useMemo(() => createModel(options), [options]);
   const definition = MODEL_LIBRARY.find((item) => item.id === options.modelId) ?? MODEL_LIBRARY[0];
   const designName = aiDesign?.name ?? definition.name;
@@ -498,6 +499,7 @@ export function Studio() {
     }));
     setAiDesign(null);
     setMessage(`${selected.name} loaded`);
+    setMobilePanel("preview");
   };
 
   const persistCreations = (creations: LocalAiCreation[]) => {
@@ -530,6 +532,7 @@ export function Studio() {
     setLibraryMode("mine");
     requestView("orbit");
     setMessage(`${recipe.name} generated and saved locally`);
+    setMobilePanel("preview");
   };
 
   const chooseAiCreation = (creation: LocalAiCreation) => {
@@ -547,6 +550,7 @@ export function Studio() {
     setAiDesign({ ...recipe, prompt: creation.prompt, localId: creation.id });
     requestView("orbit");
     setMessage(`${recipe.name} loaded from this browser`);
+    setMobilePanel("preview");
   };
 
   const removeAiCreation = (creation: LocalAiCreation) => {
@@ -804,8 +808,8 @@ export function Studio() {
         </div>
       </header>
 
-      <section className="workspace" id="studio-workspace">
-        <aside className="library-panel" data-mode={libraryMode} aria-label="Maker Library">
+      <section className="workspace" id="studio-workspace" data-mobile-panel={mobilePanel}>
+        <aside className="library-panel" id="studio-library" data-mode={libraryMode} aria-label="Maker Library">
           <div className="panel-heading">
             <p>{libraryMode === "official" ? "OFFICIAL COLLECTION" : "LOCAL WORKSPACE"}</p>
             <h2>{libraryMode === "official" ? "Maker Library" : "My Creations"}</h2>
@@ -852,7 +856,7 @@ export function Studio() {
           </div>
         </aside>
 
-        <section className="stage">
+        <section className="stage" id="studio-preview" aria-label="3D model preview">
           <div className="view-tools" aria-label="View tools">
             {(["orbit", "front", "top"] as ViewName[]).map((name) => (
               <button key={name} className={view.name === name ? "active" : ""} onClick={() => requestView(name)}>{name[0].toUpperCase() + name.slice(1)}</button>
@@ -865,7 +869,7 @@ export function Studio() {
           {message && <div className="stage-toast" role="status" aria-live="polite">{message}</div>}
         </section>
 
-        <aside className="inspector-panel">
+        <aside className="inspector-panel" id="studio-adjustments" aria-label="Model adjustments">
           <div className="inspector-title">
             <div><p>{aiDesign ? "AI DESIGN" : `MODEL ${definition.number}`}</p><h2>{designName}</h2><span>{designSubtitle}</span></div>
             <span className="part-count">{definition.parts} PARTS</span>
@@ -930,6 +934,11 @@ export function Studio() {
           </div>
         </aside>
       </section>
+      <nav className="mobile-studio-tabs" aria-label="Mobile Studio workspace">
+        <button type="button" aria-controls="studio-preview" aria-pressed={mobilePanel === "preview"} onClick={() => setMobilePanel("preview")}><span aria-hidden="true">◇</span> Preview</button>
+        <button type="button" aria-controls="studio-library" aria-pressed={mobilePanel === "library"} onClick={() => setMobilePanel("library")}><span aria-hidden="true">▦</span> Library</button>
+        <button type="button" aria-controls="studio-adjustments" aria-pressed={mobilePanel === "adjust"} onClick={() => setMobilePanel("adjust")}><span aria-hidden="true">⌁</span> Adjust</button>
+      </nav>
       <AiGenerateModal open={aiOpen} onClose={() => setAiOpen(false)} onGenerated={applyAiDesign} />
     </main>
   );
