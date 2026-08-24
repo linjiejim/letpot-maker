@@ -29,3 +29,34 @@ test("primary copy and form controls use the readable type contract", () => {
   assert.match(globalCss, /\.control-group label[^}]+font-size: 14px;/);
   assert.match(podCss, /\.filters button \{ min-height: 44px; font-size: 13px;/);
 });
+
+test("all product surfaces inherit one documented token system", () => {
+  assert.doesNotMatch(globalCss, /Light-only LetPot brand convergence/);
+  assert.match(globalCss, /--text-xs: 12px;/);
+  assert.match(globalCss, /--focus-ring: #2e8b3d;/);
+  assert.match(podCss, /--green-700: var\(--primary-700\);/);
+  assert.match(podCss, /--ink: var\(--fg\);/);
+});
+
+test("Studio foundations do not redeclare exact component selectors", () => {
+  const foundation = globalCss.split("/* Public project introduction. */")[0];
+  const selectors = [
+    ".studio-shell",
+    ".topbar",
+    ".brand",
+    ".workspace",
+    ".library-panel",
+    ".stage",
+    ".view-tools",
+    ".inspector-panel",
+  ];
+
+  for (const selector of selectors) {
+    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    assert.equal(
+      [...foundation.matchAll(new RegExp(`^${escaped} \\{`, "gm"))].length,
+      1,
+      `${selector} should have one foundation rule`,
+    );
+  }
+});

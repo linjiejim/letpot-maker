@@ -6,6 +6,7 @@ This directory contains maintained technical documentation for LetPot Maker:
 - [AI generation](ai-generation.md) documents the optional provider integration, supported recipe schema, and prompt-injection boundary.
 - [Docker deployment](docker-deployment.md) covers the private-by-default container setup and operational controls.
 - [Search visibility](seo.md) documents canonical URL configuration, crawler endpoints, structured data, and the post-deployment search-engine checklist.
+- [Design system](design-system.md) defines the shared type, color, spacing, interaction, and responsive contracts.
 
 Keep durable product and engineering decisions here. Time-bound research notes, vendor comparisons, experiments, and implementation scratchpads should stay in issues or discussions instead of the release repository.
 
