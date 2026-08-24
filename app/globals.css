@@ -570,3 +570,94 @@ button:disabled { cursor: wait; opacity: .64; }
 @media (prefers-reduced-motion: reduce) {
   .ai-modal-backdrop, .ai-sculpture, .ai-leaf, .ai-orbit { animation: none; }
 }
+
+/* Round 1: readable type, generous controls, and a consistent keyboard focus contract. */
+.studio-shell :where(a, button, input, select, summary, [tabindex]):focus-visible {
+  outline: 3px solid #2e8b3d !important;
+  outline-offset: 3px;
+}
+.studio-skip-link { color: white; background: var(--primary-800); }
+.studio-shell .brand { font-size: 16px; }
+.ai-generate-trigger, .export-menu > summary { min-height: 44px; font-size: 14px; }
+.ai-generate-trigger span, .export-menu > summary span { font-size: 12px; }
+.export-heading b { font-size: 16px; }
+.export-heading span, .printer-field, .printer-field select, .export-popover button { font-size: 13px; }
+.printer-field select, .export-popover button { min-height: 44px; }
+.export-popover button span { font-size: 12px; }
+.panel-heading p, .inspector-title p, .section-heading p { font-size: 12px; letter-spacing: .11em; }
+.panel-heading > span { font-size: 13px; line-height: 1.45; }
+.library-mode button { min-height: 40px; font-size: 13px; }
+.library-mode button span, .tag-filter button span { font-size: 12px; }
+.tag-filter button { min-height: 36px; padding-inline: 10px; color: #536058; font-size: 12px; }
+.asset-card { min-height: 68px; }
+.asset-number { color: #5b675d; font-size: 12px; }
+.asset-card strong, .local-creation-main strong { font-size: 14px; line-height: 1.3; }
+.asset-card small, .local-creation-main small, .asset-tags i { color: #536258; font-size: 12px; line-height: 1.35; }
+.local-creation-main { min-height: 68px; }
+.local-creation-remove { width: 36px; height: 36px; }
+.local-empty-state b { font-size: 14px; }
+.local-empty-state p { font-size: 13px; }
+.local-empty-state button { min-height: 44px; font-size: 13px; }
+.view-tools button { min-width: 44px; min-height: 44px; font-size: 13px; }
+.dimension-summary span { font-size: 12px; }
+.dimension-summary b { font-size: 13px; }
+.stage-toast { font-size: 13px; line-height: 1.45; }
+.inspector-title > div > span { font-size: 13px; line-height: 1.45; }
+.part-count { font-size: 12px; }
+.section-heading > div > span { font-size: 13px; line-height: 1.4; }
+.section-actions button { min-height: 40px; font-size: 13px; }
+.control-group label, .color-control > span, .control-group select { font-size: 14px; }
+.control-group select { min-height: 44px; }
+.control-group input[type=range] { height: 44px; margin-top: 2px; }
+.range-label { margin-top: -8px; color: #5b675d; font-size: 12px; }
+.parameter-note, .calibration-note, .print-note { font-size: 13px; line-height: 1.55; }
+.swatch, .color-input { width: 40px; height: 40px; }
+.inspector-disclosure > summary { min-height: 58px; }
+.inspector-disclosure > summary span b { font-size: 14px; }
+.inspector-disclosure > summary span small { font-size: 12px; }
+.inspector-disclosure > summary > i { width: 32px; height: 32px; font-size: 14px; }
+.compact-spec > div, .audit-list li { font-size: 13px; line-height: 1.5; }
+.ai-close { width: 44px; height: 44px; }
+.ai-kicker { font-size: 12px; letter-spacing: .11em; }
+.ai-modal-heading p { font-size: 15px; }
+.ai-modal-heading small { font-size: 13px; }
+.ai-examples button { min-height: 72px; font-size: 14px; line-height: 1.5; }
+.ai-prompt-field > span { font-size: 14px; }
+.ai-prompt-field input { min-height: 48px; font-size: 16px; }
+.ai-prompt-field button { min-height: 44px; font-size: 14px; }
+.ai-error, .ai-safety-note, .ai-safety-note b { font-size: 13px; }
+.ai-creating > p { font-size: 12px; }
+.ai-creating > span { font-size: 13px; }
+
+.landing-nav nav a, .landing-nav-cta { font-size: 14px; }
+.landing-nav nav a { min-height: 44px; display: inline-flex; align-items: center; }
+.landing-kicker, .section-kicker { font-size: 12px; letter-spacing: .12em; }
+.hero-copy > p, .intro-copy p { font-size: 16px; }
+.landing-primary-cta, .landing-secondary-cta { min-height: 48px; font-size: 14px; }
+.hero-facts b { font-size: 14px; }
+.hero-facts span { font-size: 12px; line-height: 1.45; }
+.hero-model-meta > span { font-size: 12px; }
+.hero-model-meta b { font-size: 12px; }
+.featured-switcher button { min-height: 44px; font-size: 13px; }
+.system-number { color: #647168; font-size: 12px; }
+.system-grid p { font-size: 15px; }
+.system-grid article > b { font-size: 13px; }
+.gallery-heading p, .gallery-browser-heading p { font-size: 15px; }
+.gallery-browser-heading > div > span, .gallery-search > span { font-size: 12px; }
+.gallery-browser-heading > button { min-height: 44px; font-size: 13px; }
+.gallery-search input { font-size: 16px; }
+.gallery-tags button { min-height: 40px; font-size: 13px; }
+.gallery-tags button b, .gallery-result-note { font-size: 12px; }
+.gallery-models article span { font-size: 12px; }
+.gallery-models p { font-size: 14px; }
+.gallery-empty p, .gallery-empty button { font-size: 14px; }
+.workflow-heading p, .community-copy > p { font-size: 16px; }
+.landing-workflow li > span { color: #5c6a5e; font-size: 12px; }
+.landing-workflow li p { font-size: 14px; }
+.community-copy li { font-size: 14px; }
+.local-privacy-card > span { font-size: 12px; }
+.local-privacy-card > p { font-size: 14px; }
+.local-privacy-card > div { font-size: 13px; }
+.landing-final-cta a { min-height: 50px; font-size: 14px; }
+.landing-footer > p, .landing-footer > div a { font-size: 13px; }
+.landing-footer > div a { min-height: 44px; display: inline-flex; align-items: center; }
