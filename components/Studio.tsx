@@ -746,6 +746,7 @@ export function Studio() {
 
   return (
     <main className="studio-shell">
+      <h1 className="sr-only">LetPot Maker Studio: customize and export printable 3D accessories</h1>
       <header className="topbar">
         <a className="brand" href="/" aria-label="LetPot Maker home">
           <span className="brand-mark" aria-hidden="true" />
@@ -774,7 +775,7 @@ export function Studio() {
         <aside className="library-panel" data-mode={libraryMode} aria-label="Maker Library">
           <div className="panel-heading">
             <p>{libraryMode === "official" ? "OFFICIAL COLLECTION" : "LOCAL WORKSPACE"}</p>
-            <h1>{libraryMode === "official" ? "Maker Library" : "My Creations"}</h1>
+            <h2>{libraryMode === "official" ? "Maker Library" : "My Creations"}</h2>
             <span>{libraryMode === "official" ? `${MODEL_LIBRARY.length} printable models` : `${aiCreations.length} saved on this device`}</span>
           </div>
           <div className="library-mode" aria-label="Choose model library">

@@ -16,7 +16,7 @@ Clone the repository on the server, then create the local environment file:
 cp .env.example .env
 ```
 
-Keep `LETPOT_BIND_ADDRESS=127.0.0.1` for a private reverse-proxy or VPN setup. Set `AI_API_KEY` only if the optional AI Generate feature should be enabled.
+Keep `LETPOT_BIND_ADDRESS=127.0.0.1` for a private reverse-proxy or VPN setup. For a public deployment, set `LETPOT_SITE_URL` to the final HTTPS origin so canonical and discovery URLs never depend on proxy headers. Set `AI_API_KEY` only if the optional AI Generate feature should be enabled.
 
 Build and start the service:
 
@@ -94,7 +94,10 @@ Compose uses `restart: unless-stopped`, so the service returns after a server re
 | `LETPOT_BIND_ADDRESS` | `127.0.0.1` | Host interface exposed by Compose |
 | `LETPOT_PORT` | `3000` | Host port exposed by Compose |
 | `LETPOT_IMAGE` | `letpot-maker:local` | Local image name and tag |
+| `LETPOT_SITE_URL` | request origin | Public HTTPS origin used by canonical URLs, the sitemap, robots.txt, and JSON-LD |
 | `LETPOT_HEALTH_ATTEMPTS` | `30` | Two-second health polling attempts used by the deployment script |
+| `GOOGLE_SITE_VERIFICATION` | empty | Optional Google Search Console HTML verification token |
+| `BING_SITE_VERIFICATION` | empty | Optional Bing Webmaster Tools HTML verification token |
 | `AI_API_KEY` | empty | Enables optional AI model recipes |
 | `AI_BASE_URL` | empty | OpenAI-compatible API base URL or full chat endpoint |
 | `AI_MODEL` | empty | Provider-specific model ID |

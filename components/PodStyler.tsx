@@ -929,6 +929,7 @@ export function PodStyler() {
 
   return (
     <main className={styles.page}>
+      <h1 className="sr-only">LetPot Pod Styler: preview printable accessories on your indoor garden</h1>
       <header className={styles.header}>
         <a className={styles.brand} href="/" aria-label="LetPot Maker home"><span className={styles.brandMark} aria-hidden="true" /><span><b>LetPot</b> Maker</span></a>
         <nav className={styles.machinePicker} aria-label="Choose LetPot model">

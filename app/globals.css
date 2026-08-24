@@ -29,6 +29,7 @@
 }
 
 * { box-sizing: border-box; }
+.sr-only { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0, 0, 0, 0) !important; white-space: nowrap !important; border: 0 !important; }
 html, body { width: 100%; min-height: 100%; margin: 0; background: var(--paper); color: var(--ink); }
 html { scroll-behavior: smooth; }
 body { overflow-x: hidden; }
@@ -49,7 +50,7 @@ button:disabled { cursor: wait; opacity: .64; }
 .library-panel { border-right: 1px solid var(--line); padding: 24px 14px 16px; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
 .panel-heading { flex: 0 0 auto; padding: 0 8px 16px; }
 .panel-heading p, .inspector-title p { margin: 0 0 7px; font-size: 9px; letter-spacing: .16em; color: #7a827a; font-weight: 800; }
-.panel-heading h1 { margin: 0 0 5px; font: 500 22px/1.15 Georgia, serif; letter-spacing: -.03em; }
+.panel-heading h2 { margin: 0 0 5px; font: 500 22px/1.15 Georgia, serif; letter-spacing: -.03em; }
 .panel-heading>span { color: #8a918a; font-size: 11px; }
 .tag-filter { flex: 0 0 auto; display: flex; flex-wrap: wrap; gap: 4px; padding: 0 5px 12px; }
 .tag-filter button { display: inline-flex; align-items: center; gap: 4px; padding: 5px 7px; border: 1px solid #dfe3dc; border-radius: 99px; background: #f7f8f4; color: #747d74; font-size: 8px; line-height: 1; cursor: pointer; }
@@ -126,7 +127,7 @@ button:disabled { cursor: wait; opacity: .64; }
 .library-panel { padding: 22px 12px 14px; border-color: var(--edge); background: var(--chrome); }
 .panel-heading { padding: 0 8px 15px; }
 .panel-heading p, .inspector-title p, .section-heading p { margin: 0 0 6px; color: var(--primary-700); font-size: 8px; font-weight: 800; letter-spacing: .16em; }
-.panel-heading h1 { margin: 0 0 5px; font: 760 22px/1.1 Nunito, "Avenir Next", "Segoe UI", system-ui, sans-serif; letter-spacing: -.035em; }
+.panel-heading h2 { margin: 0 0 5px; font: 760 22px/1.1 Nunito, "Avenir Next", "Segoe UI", system-ui, sans-serif; letter-spacing: -.035em; }
 .panel-heading > span { color: var(--fg-muted); font-size: 10px; }
 .library-mode { flex: 0 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 3px; margin: 0 5px 11px; padding: 3px; border: 1px solid var(--edge); border-radius: 9px; background: rgba(255,255,255,.58); }
 .library-mode button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-width: 0; padding: 7px 4px; border: 0; border-radius: 6px; color: var(--fg-muted); background: transparent; font-size: 8px; font-weight: 800; cursor: pointer; }
@@ -493,7 +494,7 @@ button:disabled { cursor: wait; opacity: .64; }
 
 @media (max-width: 860px) {
   .workspace { grid-template-columns: 190px minmax(330px, 1fr) 270px; }
-  .panel-heading h1 { font-size: 19px; }
+  .panel-heading h2 { font-size: 19px; }
   .tag-filter button { padding: 4px 6px; }
   .asset-card { grid-template-columns: 20px 1fr; }
 }
@@ -504,7 +505,7 @@ button:disabled { cursor: wait; opacity: .64; }
   .ai-generate-trigger, .export-menu > summary { min-height: 44px; }
   .studio-shell .workspace { grid-template-columns: 1fr; grid-template-rows: minmax(300px, 1fr) minmax(238px, 38vh); }
   .studio-shell .library-panel { width: 100%; height: 126px; display: grid; align-self: start; grid-column: 1; grid-row: 1; grid-template-columns: minmax(0,1fr) 176px; grid-template-rows: 32px 30px minmax(0,1fr); gap: 4px 10px; padding: 6px 10px; overflow: hidden; border-top: 0; border-right: 0; border-bottom: 1px solid rgba(203,214,200,.92); background: rgba(248,251,246,.94); box-shadow: 0 9px 24px rgba(31,63,32,.08); backdrop-filter: blur(14px); }
-  .panel-heading { min-width: 0; align-self: center; padding: 0 2px; }.panel-heading p, .panel-heading > span { display: none; }.panel-heading h1 { overflow: hidden; margin: 0; font-size: 15px; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
+  .panel-heading { min-width: 0; align-self: center; padding: 0 2px; }.panel-heading p, .panel-heading > span { display: none; }.panel-heading h2 { overflow: hidden; margin: 0; font-size: 15px; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
   .library-mode { width: 176px; height: 32px; margin: 0; padding: 1px; }.library-mode button { min-height: 30px; padding-block: 3px; font-size: 8px; }
   .studio-shell .tag-filter { grid-column: 1 / -1; grid-row: 2; display: flex; flex-wrap: nowrap; gap: 5px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-inline: contain; padding: 0 0 1px; scroll-snap-type: x proximity; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
   .studio-shell .tag-filter::-webkit-scrollbar { display: none; }
@@ -553,7 +554,7 @@ button:disabled { cursor: wait; opacity: .64; }
   .studio-shell .workspace { grid-template-columns: minmax(300px,1fr) 290px; grid-template-rows: minmax(0,1fr); }
   .studio-shell .stage { grid-column: 1; grid-row: 1; }
   .studio-shell .library-panel { width: 100%; height: 112px; display: grid; grid-column: 1; grid-row: 1; align-self: start; grid-template-columns: minmax(0,1fr) 164px; grid-template-rows: 25px 24px minmax(0,1fr); gap: 3px 8px; padding: 5px 8px; border-top: 0; border-right: 0; border-bottom: 1px solid rgba(203,214,200,.92); }
-  .studio-shell .panel-heading { align-self: center; padding: 0 2px; }.studio-shell .panel-heading p, .studio-shell .panel-heading > span { display: none; }.studio-shell .panel-heading h1 { overflow: hidden; margin: 0; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+  .studio-shell .panel-heading { align-self: center; padding: 0 2px; }.studio-shell .panel-heading p, .studio-shell .panel-heading > span { display: none; }.studio-shell .panel-heading h2 { overflow: hidden; margin: 0; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
   .studio-shell .library-mode { width: 164px; height: 25px; margin: 0; padding: 1px; }.studio-shell .library-mode button { min-height: 23px; padding-block: 2px; }
   .studio-shell .tag-filter { grid-column: 1 / -1; grid-row: 2; display: flex; min-height: 0; flex-wrap: nowrap; gap: 5px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-inline: contain; padding: 0; scrollbar-width: none; -webkit-overflow-scrolling: touch; }.studio-shell .tag-filter button { flex: 0 0 auto; min-height: 23px; padding-inline: 8px; white-space: nowrap; }
   .studio-shell .asset-list { grid-column: 1 / -1; grid-row: 3; flex-direction: row; gap: 6px; overflow-x: auto; overflow-y: hidden; padding: 0; scroll-snap-type: x proximity; scrollbar-width: none; -webkit-overflow-scrolling: touch; }.studio-shell .asset-card { flex: 0 0 136px; width: 136px; height: 47px; min-height: 0; padding: 6px 8px; scroll-snap-align: start; }.studio-shell .asset-card small, .studio-shell .asset-tags { display: none; }.studio-shell .local-creation-card { flex: 0 0 160px; height: 47px; }.studio-shell .local-creation-main { min-height: 45px; }

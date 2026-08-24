@@ -1,23 +1,42 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import * as THREE from "three";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import {
-  ADAPTER_STANDARD,
-  createModel,
-  DEFAULT_OPTIONS,
-  disposeObject,
-  getDefaultShapeParameters,
-  MODEL_LIBRARY,
-  MODEL_TAGS,
-  type ModelId,
-  type ModelOptions,
-  type ModelTag,
+import type {
+  ModelDefinition,
+  ModelId,
+  ModelOptions,
+  ModelTag,
 } from "../lib/model-factory";
+
+export type LandingModel = Pick<
+  ModelDefinition,
+  "id" | "number" | "name" | "subtitle" | "parts" | "style" | "tags" | "defaults"
+> & {
+  shape: ModelOptions["shape"];
+};
+
+type LandingPageProps = {
+  models: LandingModel[];
+  adapterStandard: {
+    lowerDiameter: number;
+    upperDiameter: number;
+  };
+};
 
 const FEATURED_MODELS: ModelId[] = ["christmas-tree", "basil", "mushroom", "santa"];
 const INITIAL_GALLERY_MODELS: ModelId[] = ["cactus", "christmas-tree", "bamboo", "basil"];
+const MODEL_TAGS: ModelTag[] = [
+  "lowpoly",
+  "realistic",
+  "veggie",
+  "herbs",
+  "tree",
+  "fruit",
+  "flower",
+  "animal",
+  "christmas",
+  "other",
+];
 const TAG_LABELS: Record<ModelTag, string> = {
   lowpoly: "Low poly",
   realistic: "Realistic",
@@ -31,127 +50,172 @@ const TAG_LABELS: Record<ModelTag, string> = {
   other: "Other",
 };
 
-function optionsFor(modelId: ModelId): ModelOptions {
-  const definition = MODEL_LIBRARY.find((item) => item.id === modelId) ?? MODEL_LIBRARY[0];
+function optionsFor(modelId: ModelId, models: LandingModel[]): ModelOptions {
+  const definition = models.find((item) => item.id === modelId) ?? models[0];
   return {
-    ...DEFAULT_OPTIONS,
     modelId: definition.id,
     ...definition.defaults,
     faceted: definition.style === "lowpoly",
-    shape: getDefaultShapeParameters(definition),
+    shape: definition.shape,
   };
 }
 
-function LiveModel({ modelId, interactive = false }: { modelId: ModelId; interactive?: boolean }) {
+function LiveModel({
+  modelId,
+  models,
+  interactive = false,
+}: {
+  modelId: ModelId;
+  models: LandingModel[];
+  interactive?: boolean;
+}) {
   const mountRef = useRef<HTMLDivElement>(null);
+  const [shouldLoad, setShouldLoad] = useState(interactive);
+  const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
     const mount = mountRef.current;
-    if (!mount) return;
+    if (!mount || shouldLoad) return;
 
-    const build = createModel(optionsFor(modelId));
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(interactive ? 31 : 34, 1, 0.1, 600);
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setClearColor(0x000000, 0);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.08;
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFShadowMap;
-    mount.appendChild(renderer.domElement);
-
-    const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.075;
-    controls.enablePan = false;
-    controls.enableZoom = interactive;
-    controls.enabled = interactive;
-    controls.autoRotate = interactive;
-    controls.autoRotateSpeed = 0.55;
-
-    scene.add(new THREE.HemisphereLight("#fffdf5", "#607362", 2.9));
-    const key = new THREE.DirectionalLight("#fff8e7", 5.2);
-    key.position.set(55, 88, 58);
-    key.castShadow = true;
-    scene.add(key);
-    const fill = new THREE.DirectionalLight("#c6e5cb", 2.1);
-    fill.position.set(-45, 28, -34);
-    scene.add(fill);
-
-    scene.add(build.assembly);
-    const bounds = new THREE.Box3().setFromObject(build.assembly);
-    const center = bounds.getCenter(new THREE.Vector3());
-    const size = bounds.getSize(new THREE.Vector3());
-    const diameter = Math.max(size.x, size.y, size.z);
-    controls.target.copy(center);
-    camera.position.set(diameter * 1.45, center.y + diameter * 0.72, diameter * 1.7);
-    camera.lookAt(center);
-    controls.update();
-
-    const shadow = new THREE.Mesh(
-      new THREE.CircleGeometry(Math.max(size.x, size.z) * 0.8, 48),
-      new THREE.ShadowMaterial({ color: "#24472d", opacity: 0.14 }),
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting) return;
+        setShouldLoad(true);
+        observer.disconnect();
+      },
+      { rootMargin: "240px" },
     );
-    shadow.rotation.x = -Math.PI / 2;
-    shadow.position.y = -0.05;
-    shadow.receiveShadow = true;
-    scene.add(shadow);
-
-    const resize = () => {
-      const width = Math.max(mount.clientWidth, 1);
-      const height = Math.max(mount.clientHeight, 1);
-      renderer.setSize(width, height, false);
-      camera.aspect = width / height;
-      camera.updateProjectionMatrix();
-    };
-    const observer = new ResizeObserver(resize);
     observer.observe(mount);
-    resize();
+    return () => observer.disconnect();
+  }, [shouldLoad]);
 
-    let frame = 0;
-    const render = () => {
-      frame = window.requestAnimationFrame(render);
-      if (!interactive) build.assembly.rotation.y += 0.0032;
+  useEffect(() => {
+    const mount = mountRef.current;
+    if (!mount || !shouldLoad) return;
+
+    let cancelled = false;
+    let disposeScene: (() => void) | undefined;
+
+    void Promise.all([
+      import("three"),
+      import("three/examples/jsm/controls/OrbitControls.js"),
+      import("../lib/model-factory"),
+    ]).then(([THREE, { OrbitControls }, { createModel, disposeObject }]) => {
+      if (cancelled) return;
+
+      const build = createModel(optionsFor(modelId, models));
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(interactive ? 31 : 34, 1, 0.1, 600);
+      const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      renderer.setClearColor(0x000000, 0);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.08;
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFShadowMap;
+      mount.appendChild(renderer.domElement);
+
+      const controls = new OrbitControls(camera, renderer.domElement);
+      const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.075;
+      controls.enablePan = false;
+      controls.enableZoom = interactive;
+      controls.enabled = interactive;
+      controls.autoRotate = interactive && !reduceMotion;
+      controls.autoRotateSpeed = 0.55;
+
+      scene.add(new THREE.HemisphereLight("#fffdf5", "#607362", 2.9));
+      const key = new THREE.DirectionalLight("#fff8e7", 5.2);
+      key.position.set(55, 88, 58);
+      key.castShadow = true;
+      scene.add(key);
+      const fill = new THREE.DirectionalLight("#c6e5cb", 2.1);
+      fill.position.set(-45, 28, -34);
+      scene.add(fill);
+
+      scene.add(build.assembly);
+      const bounds = new THREE.Box3().setFromObject(build.assembly);
+      const center = bounds.getCenter(new THREE.Vector3());
+      const size = bounds.getSize(new THREE.Vector3());
+      const diameter = Math.max(size.x, size.y, size.z);
+      controls.target.copy(center);
+      camera.position.set(diameter * 1.45, center.y + diameter * 0.72, diameter * 1.7);
+      camera.lookAt(center);
       controls.update();
-      renderer.render(scene, camera);
-    };
-    render();
+
+      const shadow = new THREE.Mesh(
+        new THREE.CircleGeometry(Math.max(size.x, size.z) * 0.8, 48),
+        new THREE.ShadowMaterial({ color: "#24472d", opacity: 0.14 }),
+      );
+      shadow.rotation.x = -Math.PI / 2;
+      shadow.position.y = -0.05;
+      shadow.receiveShadow = true;
+      scene.add(shadow);
+
+      const resize = () => {
+        const width = Math.max(mount.clientWidth, 1);
+        const height = Math.max(mount.clientHeight, 1);
+        renderer.setSize(width, height, false);
+        camera.aspect = width / height;
+        camera.updateProjectionMatrix();
+      };
+      const observer = new ResizeObserver(resize);
+      observer.observe(mount);
+      resize();
+
+      let frame = 0;
+      const render = () => {
+        frame = window.requestAnimationFrame(render);
+        if (!interactive && !reduceMotion) build.assembly.rotation.y += 0.0032;
+        controls.update();
+        renderer.render(scene, camera);
+      };
+      render();
+      setIsReady(true);
+
+      disposeScene = () => {
+        window.cancelAnimationFrame(frame);
+        observer.disconnect();
+        controls.dispose();
+        renderer.dispose();
+        shadow.geometry.dispose();
+        shadow.material.dispose();
+        disposeObject(build.assembly);
+        renderer.domElement.remove();
+      };
+    }).catch(() => {
+      if (!cancelled) mount.setAttribute("data-preview-error", "true");
+    });
 
     return () => {
-      window.cancelAnimationFrame(frame);
-      observer.disconnect();
-      controls.dispose();
-      renderer.dispose();
-      shadow.geometry.dispose();
-      (shadow.material as THREE.Material).dispose();
-      disposeObject(build.assembly);
-      mount.removeChild(renderer.domElement);
+      cancelled = true;
+      disposeScene?.();
     };
-  }, [interactive, modelId]);
+  }, [interactive, modelId, models, shouldLoad]);
 
-  return <div className={`landing-model ${interactive ? "interactive" : ""}`} ref={mountRef} aria-label={`${modelId} live 3D preview`} />;
+  return <div className={`landing-model ${interactive ? "interactive" : ""}`} ref={mountRef} aria-label={`${modelId} live 3D preview`} aria-busy={!isReady} />;
 }
 
-export function LandingPage() {
+export function LandingPage({ models, adapterStandard }: LandingPageProps) {
   const [featuredId, setFeaturedId] = useState<ModelId>(FEATURED_MODELS[0]);
   const [navScrolled, setNavScrolled] = useState(false);
   const [galleryTag, setGalleryTag] = useState<"all" | ModelTag>("all");
   const [galleryQuery, setGalleryQuery] = useState("");
   const [galleryOrder, setGalleryOrder] = useState<ModelId[]>(INITIAL_GALLERY_MODELS);
   const featured = useMemo(
-    () => MODEL_LIBRARY.find((item) => item.id === featuredId) ?? MODEL_LIBRARY[0],
-    [featuredId],
+    () => models.find((item) => item.id === featuredId) ?? models[0],
+    [featuredId, models],
   );
   const filteredGalleryModels = useMemo(() => {
     const query = galleryQuery.trim().toLowerCase();
-    return MODEL_LIBRARY.filter((item) => {
+    return models.filter((item) => {
       const matchesTag = galleryTag === "all" || item.tags.includes(galleryTag);
       const searchText = [item.name, item.subtitle, item.style, ...item.tags].join(" ").toLowerCase();
       return matchesTag && (!query || searchText.includes(query));
     });
-  }, [galleryQuery, galleryTag]);
+  }, [galleryQuery, galleryTag, models]);
   const galleryModelIds = useMemo(() => {
     const availableIds = new Set(filteredGalleryModels.map((item) => item.id));
     const preferredIds = galleryOrder.filter((id) => availableIds.has(id));
@@ -209,7 +273,7 @@ export function LandingPage() {
             <a className="landing-secondary-cta" href="/studio">Start making</a>
           </div>
           <ul className="hero-facts" aria-label="Maker library highlights">
-            <li><b>{MODEL_LIBRARY.length} assets</b><span>Ready to explore</span></li>
+            <li><b>{models.length} assets</b><span>Ready to explore</span></li>
             <li><b>STL · OBJ · 3MF</b><span>Practical maker formats</span></li>
             <li><b>Modular by design</b><span>Built to remix</span></li>
           </ul>
@@ -218,7 +282,7 @@ export function LandingPage() {
         <div className="hero-product">
           <div className="hero-orbit" aria-hidden="true" />
           <div className="hero-preview-card">
-            <LiveModel key={featuredId} modelId={featuredId} interactive />
+            <LiveModel key={featuredId} modelId={featuredId} models={models} interactive />
             <div className="hero-model-meta">
               <span>LIVE PARAMETRIC MODEL · DRAG TO ROTATE</span>
               <div><h2>{featured.name}</h2><b>{featured.parts} detachable parts</b></div>
@@ -226,7 +290,7 @@ export function LandingPage() {
           </div>
           <div className="featured-switcher" aria-label="Choose featured model">
             {FEATURED_MODELS.map((modelId) => {
-              const item = MODEL_LIBRARY.find((model) => model.id === modelId)!;
+              const item = models.find((model) => model.id === modelId)!;
               return <button key={modelId} className={featuredId === modelId ? "active" : ""} onClick={() => setFeaturedId(modelId)}><span>{item.number}</span>{item.name}</button>;
             })}
           </div>
@@ -250,13 +314,13 @@ export function LandingPage() {
           <div className="system-icon adapter-icon" aria-hidden="true"><i /></div>
           <h3>Find a solid starting point</h3>
           <p>Browse real 3D assets by style or subject instead of starting from a blank canvas. Every result opens directly in the Maker Studio with its printable geometry intact.</p>
-          <b>{MODEL_LIBRARY.length} tested assets in the first collection</b>
+          <b>{models.length} tested assets in the first collection</b>
         </article>
         <article>
           <span className="system-number">02</span>
           <div className="system-icon connector-icon" aria-hidden="true"><i /></div>
           <h3>Remix a shared system</h3>
-          <p>A measured Ø{ADAPTER_STANDARD.lowerDiameter}/{ADAPTER_STANDARD.upperDiameter} mm adapter and reusable connector language keep today&apos;s pod collection compatible while leaving room for new accessory families.</p>
+          <p>A measured Ø{adapterStandard.lowerDiameter}/{adapterStandard.upperDiameter} mm adapter and reusable connector language keep today&apos;s pod collection compatible while leaving room for new accessory families.</p>
           <b>Change the idea without breaking the fit</b>
         </article>
         <article>
@@ -276,7 +340,7 @@ export function LandingPage() {
         </div>
         <div className="gallery-browser">
           <div className="gallery-browser-heading">
-            <div><span>LETPOT MAKER · COLLECTION 01</span><h3>What do you want to make?</h3><p>Explore {MODEL_LIBRARY.length} printable starting points, with more accessory types planned.</p></div>
+            <div><span>LETPOT MAKER · COLLECTION 01</span><h3>What do you want to make?</h3><p>Explore {models.length} printable starting points, with more accessory types planned.</p></div>
             <button type="button" onClick={randomizeGallery} disabled={!filteredGalleryModels.length} aria-label={galleryTag === "all" ? "Show random models" : `Show random ${TAG_LABELS[galleryTag].toLowerCase()} models`}><i aria-hidden="true">↝</i> Random pick</button>
           </div>
           <label className="gallery-search" htmlFor="asset-search">
@@ -284,19 +348,19 @@ export function LandingPage() {
             <div><i aria-hidden="true">⌕</i><input id="asset-search" type="search" value={galleryQuery} onChange={(event) => { setGalleryQuery(event.target.value); setGalleryOrder([]); }} placeholder="Try cactus, flower, animal, Christmas…" autoComplete="off" /></div>
           </label>
           <div className="gallery-tags" role="group" aria-label="Filter models by tag">
-            <button type="button" className={galleryTag === "all" ? "active" : ""} onClick={() => chooseGalleryTag("all")} aria-pressed={galleryTag === "all"}><span>All</span><b>{MODEL_LIBRARY.length}</b></button>
+            <button type="button" className={galleryTag === "all" ? "active" : ""} onClick={() => chooseGalleryTag("all")} aria-pressed={galleryTag === "all"}><span>All</span><b>{models.length}</b></button>
             {MODEL_TAGS.map((tag) => (
-              <button type="button" key={tag} className={galleryTag === tag ? "active" : ""} onClick={() => chooseGalleryTag(tag)} aria-pressed={galleryTag === tag}><span>{TAG_LABELS[tag]}</span><b>{MODEL_LIBRARY.filter((item) => item.tags.includes(tag)).length}</b></button>
+              <button type="button" key={tag} className={galleryTag === tag ? "active" : ""} onClick={() => chooseGalleryTag(tag)} aria-pressed={galleryTag === tag}><span>{TAG_LABELS[tag]}</span><b>{models.filter((item) => item.tags.includes(tag)).length}</b></button>
             ))}
           </div>
           <div className="gallery-result-note"><span>{galleryQuery ? `Results for “${galleryQuery}”` : galleryTag === "all" ? "All printable assets" : TAG_LABELS[galleryTag]}</span><b>{filteredGalleryModels.length ? `Showing ${galleryModelIds.length} of ${filteredGalleryModels.length}` : "No matching assets yet"}</b></div>
         </div>
         <div className="gallery-models">
           {galleryModelIds.map((modelId) => {
-            const item = MODEL_LIBRARY.find((model) => model.id === modelId)!;
+            const item = models.find((model) => model.id === modelId)!;
             return (
               <article key={modelId}>
-                <div className="gallery-live"><LiveModel modelId={modelId} /></div>
+                <div className="gallery-live"><LiveModel modelId={modelId} models={models} /></div>
                 <div className="gallery-card-copy">
                   <div><span>{item.number} · {item.style}</span><h3>{item.name}</h3><p>{item.subtitle}</p></div>
                   <a href={`/studio?model=${modelId}`} aria-label={`Open ${item.name} in Studio`}><span>Open</span>↗</a>
@@ -351,7 +415,7 @@ export function LandingPage() {
       <footer className="landing-footer">
         <a className="brand" href="/"><span className="brand-mark" aria-hidden="true" /><span><b>LetPot</b> Maker</span></a>
         <p>Open tools and printable assets for people who want more from their LetPot.<br />Independent community project; not an official LetPot product.</p>
-        <div><a href="#gallery">Library</a><a href="#workflow">Build guide</a><a href="/pod-styler">Pod Styler</a><a href="/studio">Maker Studio</a></div>
+        <div><a href="#gallery">Library</a><a href="#workflow">Build guide</a><a href="/pod-styler">Pod Styler</a><a href="/studio">Maker Studio</a><a href="https://github.com/linjiejim/letpot-maker">Source code</a></div>
       </footer>
     </main>
   );
