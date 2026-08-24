@@ -26,27 +26,51 @@ npm run docker:deploy
 
 The script waits for the container health check before returning. The default local endpoint is `http://127.0.0.1:3000` and the health endpoint is `http://127.0.0.1:3000/api/health`.
 
-## Published images
+## Branch and artifact policy
 
-GitHub Actions runs the complete repository checks and publishes a Linux AMD64 image to `ghcr.io/<owner>/letpot-maker` after successful `main` builds. Every image receives an immutable `sha-<full-commit-sha>` tag; `main` also updates `latest`.
+`main` is the integration branch. Pushes and pull requests run lint, type checks, tests, geometry validation, and a production application build, but they do not publish an image or contact a server. Keeping the production build as a check catches bundler, SSR, and static-resource failures that lint and TypeScript cannot detect.
 
-Image publication uses the workflow's repository-scoped `GITHUB_TOKEN`. It does not require a personal access token, SSH key, or custom Actions secret. AI provider credentials are runtime-only server settings and must never be added to the build workflow.
+`release` is the protected production branch. It accepts changes through pull requests and requires the `verify` status check. Each new `release` commit runs the same quality gate, then:
 
-GitHub creates a container package as private by default, including for a public repository. Choose one deployment policy before the first server pull:
+1. Builds a Linux AMD64 image with provenance and an SBOM.
+2. Publishes `sha-<full-commit-sha>` and `latest` to `ghcr.io/<owner>/letpot-maker`.
+3. Pulls the exact registry digest with the workflow-scoped `GITHUB_TOKEN`.
+4. Streams that image through a restricted deployment-only SSH key.
+5. Starts and checks an isolated candidate container before changing production.
+6. Replaces the loopback-only production container and rolls back if local health or canonical URL checks fail.
+7. Verifies the public HTTPS, health, canonical, robots, sitemap, and manifest endpoints.
+8. Creates generated GitHub Release notes after a successful deployment.
 
-- For a public image, an account administrator can open the package settings and change its visibility to **Public**. GitHub treats this as an irreversible account-level change, so the workflow does not automate it.
-- For a private image, authenticate the server to `ghcr.io` with a narrowly scoped classic token that has `read:packages`. Do not reuse a broad personal token.
+The GHCR image is the single deployment artifact. GitHub Releases contain the commit, image digest, production URL, and generated change summary, but no redundant zip or tar attachment. The server stores no GitHub PAT and does not need anonymous package access: the Actions runner authenticates with its short-lived repository token and transfers the verified image over SSH.
 
-For a server deployment, prefer an immutable SHA tag:
+## Production Environment
+
+The `production` GitHub Environment is restricted to the `release` branch and supplies these variables and secret:
+
+| Name | Kind | Purpose |
+| --- | --- | --- |
+| `LETPOT_DEPLOY_HOST` | variable | Production server IP or hostname |
+| `LETPOT_DEPLOY_PORT` | variable | SSH port |
+| `LETPOT_DEPLOY_USER` | variable | Dedicated forced-command account |
+| `LETPOT_DEPLOY_KNOWN_HOSTS` | variable | Pinned OpenSSH host-key line |
+| `LETPOT_DEPLOY_SSH_KEY` | secret | Dedicated private deploy key |
+
+The matching public key is installed with OpenSSH `restrict` and a forced command. It cannot request a shell, allocate a PTY, forward ports, or run arbitrary remote commands. The server-side command accepts only `deploy <full-commit-sha>`, verifies the image revision label and Linux AMD64 platform, and reads runtime settings from `/etc/letpot-maker/runtime.env`.
+
+Runtime credentials such as `AI_API_KEY` remain server-only and must never be added to image build jobs or GitHub release notes.
+
+## Manual immutable-image deployment
+
+The automatic release pipeline is preferred for production. For an operator-managed server that can authenticate to GHCR, an immutable image can still be deployed through Compose:
 
 ```bash
 export LETPOT_IMAGE=ghcr.io/<owner>/letpot-maker:sha-<full-commit-sha>
 export LETPOT_BIND_ADDRESS=127.0.0.1
-export LETPOT_PORT=18906
+export LETPOT_PORT=4020
 npm run docker:deploy-image
 ```
 
-The prebuilt-image script pulls the selected tag, starts only this Compose service without building on the server, and waits for its health check. Keep deployment from GitHub Actions disabled unless a dedicated, least-privilege server account and deploy key have been provisioned; do not upload a personal root SSH key as a repository secret.
+The prebuilt-image script pulls the selected tag, starts only this Compose service without building on the server, and waits for its health check. Do not reuse a personal root SSH key or broad personal access token for automation.
 
 ## Network exposure
 
@@ -56,13 +80,13 @@ The recommended layout is:
 Private network / HTTPS reverse proxy
                 │
                 ▼
-       127.0.0.1:3000
+       127.0.0.1:4020
                 │
                 ▼
        LetPot Maker container
 ```
 
-Use the reverse proxy to provide TLS, authentication, request limits, and an access policy appropriate for the server. If the container must listen on every interface, set `LETPOT_BIND_ADDRESS=0.0.0.0` deliberately and protect port 3000 with the server firewall.
+Use the reverse proxy to provide TLS, authentication, request limits, and an access policy appropriate for the server. Production binds to `127.0.0.1:4020` behind Caddy. If the container must listen on every interface, set `LETPOT_BIND_ADDRESS=0.0.0.0` deliberately and protect the selected port with the server firewall.
 
 ## Operations
 
@@ -85,7 +109,9 @@ Stop the service:
 npm run docker:down
 ```
 
-Compose uses `restart: unless-stopped`, so the service returns after a server reboot. The application currently stores no server-side user data, so no persistent application volume or backup job is required. Back up the repository, deployment `.env`, and any reverse-proxy configuration instead.
+Compose and the automated production container use `restart: unless-stopped`, so the service returns after a server reboot. The application currently stores no server-side user data, so no persistent application volume or backup job is required. Back up the deployment runtime environment and reverse-proxy configuration instead.
+
+The automated deployment keeps the current container until an isolated candidate passes health checks. During replacement the old container is renamed and retained until the new production container passes both its Docker health check and local canonical/health smoke checks. Any failure restores and restarts the old container. Successful deployments record the active SHA under the deployment account's state directory; previous immutable images remain in Docker for operator-directed rollback.
 
 ## Environment variables
 
