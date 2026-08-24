@@ -721,8 +721,8 @@ export function PodStyler() {
     renderer.toneMappingExposure = 1.02;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    renderer.domElement.setAttribute("aria-label", `Interactive 3D LetPot ${currentSpec.name} with ${currentSpec.podCount} selectable pod positions`);
-    renderer.domElement.tabIndex = 0;
+    renderer.domElement.setAttribute("role", "img");
+    renderer.domElement.setAttribute("aria-label", `Interactive 3D LetPot ${currentSpec.name} with ${currentSpec.podCount} pod positions. Select a pod in the preview, then choose a character below.`);
     mount.appendChild(renderer.domElement);
 
     const controls = new OrbitControls(camera, renderer.domElement);
@@ -917,6 +917,22 @@ export function PodStyler() {
     setAssignments(Array(spec.podCount).fill(null));
     setMessage(`All ${spec.name} pods cleared`);
   };
+  const selectPodFromPicker = (index: number, additive: boolean) => {
+    if (additive) {
+      setSelectedPods((current) => {
+        const next = current.includes(index) ? current.filter((podIndex) => podIndex !== index) : [...current, index];
+        const stableSelection = next.length ? next : [index];
+        setSelectedPod(stableSelection.at(-1) ?? index);
+        setMessage(`${spec.name} · ${stableSelection.length} pods selected · choose a character`);
+        return stableSelection;
+      });
+      return;
+    }
+
+    setSelectedPod(index);
+    setSelectedPods([index]);
+    setMessage(`${spec.name} pod ${String(index + 1).padStart(2, "0")} selected · choose a character`);
+  };
   const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     setDragging(false);
@@ -930,6 +946,7 @@ export function PodStyler() {
   return (
     <main className={styles.page}>
       <h1 className="sr-only">LetPot Pod Styler: preview printable accessories on your indoor garden</h1>
+      <a className={styles.skipLink} href="#pod-styler-workspace">Skip to Pod Styler workspace</a>
       <header className={styles.header}>
         <a className={styles.brand} href="/" aria-label="LetPot Maker home"><span className={styles.brandMark} aria-hidden="true" /><span><b>LetPot</b> Maker</span></a>
         <nav className={styles.machinePicker} aria-label="Choose LetPot model">
@@ -938,7 +955,7 @@ export function PodStyler() {
         <a className={styles.studioLink} href="/studio">Customize in Studio <span>↗</span></a>
       </header>
 
-      <section className={styles.workspace}>
+      <section className={styles.workspace} id="pod-styler-workspace">
         <section className={`${styles.stage} ${dragging ? styles.dragging : ""} ${lightOn ? styles.lightOn : ""}`}>
           <div className={styles.canvas} ref={mountRef} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; }} onDrop={handleDrop} aria-label="Device preview drop area" />
           {sceneError && <div className={styles.sceneError}><b>3D preview unavailable</b><span>Reload the page to reconnect the device preview.</span></div>}
@@ -950,6 +967,26 @@ export function PodStyler() {
           {dragging && <div className={styles.dropHint}><span>↓</span><b>Drop onto a pod</b></div>}
           <div className={styles.screenReaderStatus} role="status" aria-live="polite">{message}</div>
           <div className={styles.stageDock}>
+            <div className={styles.podPicker} role="group" aria-label={`Choose a ${spec.name} pod`}>
+              <span>Choose pod</span>
+              <div>
+                {Array.from({ length: spec.podCount }, (_, index) => {
+                  const assignedModel = MODEL_LIBRARY.find((model) => model.id === assignments[index]);
+                  return (
+                    <button
+                      type="button"
+                      key={index}
+                      className={selectedPods.includes(index) ? styles.activePod : ""}
+                      aria-pressed={selectedPods.includes(index)}
+                      aria-label={`Pod ${index + 1}${assignedModel ? `, ${assignedModel.name}` : ", empty"}`}
+                      onClick={(event) => selectPodFromPicker(index, event.metaKey || event.ctrlKey || event.shiftKey)}
+                    >
+                      {String(index + 1).padStart(2, "0")}{assignedModel && <i aria-hidden="true" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
             <div className={styles.stageActions}>
               <button type="button" onClick={() => assignModelToPods(selectedPods, null)} disabled={!selectedPodsWithContent.length}>{selectedPods.length > 1 ? "Clear selected" : "Clear pod"}</button>
               <button type="button" onClick={undo} disabled={!history.length}>↶ Undo</button>

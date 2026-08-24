@@ -101,7 +101,7 @@ bounded parameters -> Three.js assembly -> Manifold solidification
                                       -> STL / OBJ / 3MF / manifest exports
 ```
 
-See the [documentation index](docs/README.md) for architecture, AI integration, and Docker deployment details. Read [CONTRIBUTING.md](CONTRIBUTING.md) before changing a shared mechanical interface or adding a model.
+See the [documentation index](docs/README.md) for architecture, AI integration, Docker deployment, and the shared [design system](docs/design-system.md). Read [CONTRIBUTING.md](CONTRIBUTING.md) before changing a shared mechanical interface or adding a model.
 
 ## Printable interface and safety
 

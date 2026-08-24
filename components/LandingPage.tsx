@@ -70,12 +70,12 @@ function LiveModel({
   interactive?: boolean;
 }) {
   const mountRef = useRef<HTMLDivElement>(null);
-  const [shouldLoad, setShouldLoad] = useState(interactive);
+  const [shouldLoad, setShouldLoad] = useState(false);
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
     const mount = mountRef.current;
-    if (!mount || shouldLoad) return;
+    if (!mount || shouldLoad || interactive) return;
 
     const observer = new IntersectionObserver(
       ([entry]) => {
@@ -87,7 +87,24 @@ function LiveModel({
     );
     observer.observe(mount);
     return () => observer.disconnect();
-  }, [shouldLoad]);
+  }, [interactive, shouldLoad]);
+
+  useEffect(() => {
+    if (!interactive || shouldLoad) return;
+    const load = () => setShouldLoad(true);
+    const idleWindow = window as unknown as {
+      requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
+      cancelIdleCallback?: (handle: number) => void;
+    };
+
+    if (idleWindow.requestIdleCallback) {
+      const idle = idleWindow.requestIdleCallback(load, { timeout: 1200 });
+      return () => idleWindow.cancelIdleCallback?.(idle);
+    }
+
+    const timer = globalThis.setTimeout(load, 350);
+    return () => globalThis.clearTimeout(timer);
+  }, [interactive, shouldLoad]);
 
   useEffect(() => {
     const mount = mountRef.current;
@@ -195,7 +212,11 @@ function LiveModel({
     };
   }, [interactive, modelId, models, shouldLoad]);
 
-  return <div className={`landing-model ${interactive ? "interactive" : ""}`} ref={mountRef} aria-label={`${modelId} live 3D preview`} aria-busy={!isReady} />;
+  return (
+    <div className={`landing-model ${interactive ? "interactive" : ""}`} ref={mountRef} data-ready={isReady} aria-label={`${modelId} live 3D preview`} aria-busy={!isReady}>
+      <span className="landing-model-loading" aria-hidden="true">Loading 3D preview…</span>
+    </div>
+  );
 }
 
 export function LandingPage({ models, adapterStandard }: LandingPageProps) {

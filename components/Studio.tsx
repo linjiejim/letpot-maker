@@ -194,7 +194,7 @@ function ModelViewport({ build, view }: { build: ModelBuild; view: { name: ViewN
     controls.update();
   }, [build, view]);
 
-  return <div className="viewport" ref={mountRef} aria-label="Interactive 3D model preview" />;
+  return <div className="viewport" ref={mountRef} role="img" aria-label="Interactive 3D preview of the selected printable model. Use the Orbit, Front, and Top buttons to change the view." />;
 }
 
 function Slider({ label, value, min, max, step = 1, unit = "mm", onChange }: {
@@ -279,6 +279,8 @@ function AiGenerateModal({ open, onClose, onGenerated }: {
   const [step, setStep] = useState(0);
   const [error, setError] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
 
   const closeModal = useCallback(() => {
     setPhase("idle");
@@ -295,8 +297,38 @@ function AiGenerateModal({ open, onClose, onGenerated }: {
 
   useEffect(() => {
     if (!open) return;
+    previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    return () => {
+      const previousFocus = previousFocusRef.current;
+      window.requestAnimationFrame(() => previousFocus?.focus());
+      previousFocusRef.current = null;
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape" && phase !== "creating") closeModal();
+      if (event.key !== "Tab") return;
+      const dialog = dialogRef.current;
+      if (!dialog) return;
+      const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), input:not([disabled]), select:not([disabled]), summary, [tabindex]:not([tabindex="-1"])',
+      )).filter((element) => !element.hidden && element.getClientRects().length > 0);
+      if (!focusable.length) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable.at(-1)!;
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
@@ -343,8 +375,8 @@ function AiGenerateModal({ open, onClose, onGenerated }: {
 
   return (
     <div className="ai-modal-backdrop">
-      <section className="ai-modal" role="dialog" aria-modal="true" aria-label="AI model generator">
-        <button className="ai-close" aria-label="Close AI generator" onClick={closeModal} disabled={phase === "creating"}>×</button>
+      <section ref={dialogRef} className="ai-modal" role="dialog" aria-modal="true" aria-labelledby="ai-modal-title" aria-busy={phase === "creating"} tabIndex={-1}>
+        <button type="button" className="ai-close" aria-label="Close AI generator" onClick={closeModal} disabled={phase === "creating"}>×</button>
         {phase === "creating" || phase === "success" ? (
           <div className={`ai-creating ${phase === "success" ? "complete" : ""}`} aria-live="polite">
             <div className="ai-sculpture" aria-hidden="true">
@@ -356,7 +388,7 @@ function AiGenerateModal({ open, onClose, onGenerated }: {
               <i className="ai-orbit two" />
             </div>
             <p>{phase === "success" ? "MODEL READY" : "AI · CREATING"}</p>
-            <h2>{phase === "success" ? "Your idea is taking shape" : AI_CREATION_STEPS[step]}</h2>
+            <h2 id="ai-modal-title">{phase === "success" ? "Your idea is taking shape" : AI_CREATION_STEPS[step]}</h2>
             <span>{phase === "success" ? "Opening the new parametric design…" : "Building within proven print-safe limits"}</span>
             <div className="ai-progress"><i style={{ width: phase === "success" ? "100%" : `${18 + step * 17}%` }} /></div>
           </div>
@@ -398,6 +430,7 @@ export function Studio() {
   const [aiOpen, setAiOpen] = useState(false);
   const [aiCreations, setAiCreations] = useState<LocalAiCreation[]>([]);
   const [aiDesign, setAiDesign] = useState<ActiveAiDesign | null>(null);
+  const [mobilePanel, setMobilePanel] = useState<"preview" | "library" | "adjust">("preview");
   const build = useMemo(() => createModel(options), [options]);
   const definition = MODEL_LIBRARY.find((item) => item.id === options.modelId) ?? MODEL_LIBRARY[0];
   const designName = aiDesign?.name ?? definition.name;
@@ -466,6 +499,7 @@ export function Studio() {
     }));
     setAiDesign(null);
     setMessage(`${selected.name} loaded`);
+    setMobilePanel("preview");
   };
 
   const persistCreations = (creations: LocalAiCreation[]) => {
@@ -498,6 +532,7 @@ export function Studio() {
     setLibraryMode("mine");
     requestView("orbit");
     setMessage(`${recipe.name} generated and saved locally`);
+    setMobilePanel("preview");
   };
 
   const chooseAiCreation = (creation: LocalAiCreation) => {
@@ -515,6 +550,7 @@ export function Studio() {
     setAiDesign({ ...recipe, prompt: creation.prompt, localId: creation.id });
     requestView("orbit");
     setMessage(`${recipe.name} loaded from this browser`);
+    setMobilePanel("preview");
   };
 
   const removeAiCreation = (creation: LocalAiCreation) => {
@@ -747,13 +783,14 @@ export function Studio() {
   return (
     <main className="studio-shell">
       <h1 className="sr-only">LetPot Maker Studio: customize and export printable 3D accessories</h1>
+      <a className="skip-link studio-skip-link" href="#studio-workspace">Skip to Studio workspace</a>
       <header className="topbar">
         <a className="brand" href="/" aria-label="LetPot Maker home">
           <span className="brand-mark" aria-hidden="true" />
           <span><b>LetPot</b> Maker</span>
         </a>
         <div className="topbar-actions">
-        <button className="ai-generate-trigger" onClick={() => setAiOpen(true)}><span>✦</span> AI Generate</button>
+        <button className="ai-generate-trigger" aria-haspopup="dialog" aria-expanded={aiOpen} onClick={() => setAiOpen(true)}><span>✦</span> AI Generate</button>
         <details className="export-menu">
           <summary>{exporting ? "Preparing…" : "Export"}<span>↓</span></summary>
           <div className="export-popover">
@@ -771,8 +808,8 @@ export function Studio() {
         </div>
       </header>
 
-      <section className="workspace">
-        <aside className="library-panel" data-mode={libraryMode} aria-label="Maker Library">
+      <section className="workspace" id="studio-workspace" data-mobile-panel={mobilePanel}>
+        <aside className="library-panel" id="studio-library" data-mode={libraryMode} aria-label="Maker Library">
           <div className="panel-heading">
             <p>{libraryMode === "official" ? "OFFICIAL COLLECTION" : "LOCAL WORKSPACE"}</p>
             <h2>{libraryMode === "official" ? "Maker Library" : "My Creations"}</h2>
@@ -819,7 +856,7 @@ export function Studio() {
           </div>
         </aside>
 
-        <section className="stage">
+        <section className="stage" id="studio-preview" aria-label="3D model preview">
           <div className="view-tools" aria-label="View tools">
             {(["orbit", "front", "top"] as ViewName[]).map((name) => (
               <button key={name} className={view.name === name ? "active" : ""} onClick={() => requestView(name)}>{name[0].toUpperCase() + name.slice(1)}</button>
@@ -832,7 +869,7 @@ export function Studio() {
           {message && <div className="stage-toast" role="status" aria-live="polite">{message}</div>}
         </section>
 
-        <aside className="inspector-panel">
+        <aside className="inspector-panel" id="studio-adjustments" aria-label="Model adjustments">
           <div className="inspector-title">
             <div><p>{aiDesign ? "AI DESIGN" : `MODEL ${definition.number}`}</p><h2>{designName}</h2><span>{designSubtitle}</span></div>
             <span className="part-count">{definition.parts} PARTS</span>
@@ -897,6 +934,11 @@ export function Studio() {
           </div>
         </aside>
       </section>
+      <nav className="mobile-studio-tabs" aria-label="Mobile Studio workspace">
+        <button type="button" aria-controls="studio-preview" aria-pressed={mobilePanel === "preview"} onClick={() => setMobilePanel("preview")}><span aria-hidden="true">◇</span> Preview</button>
+        <button type="button" aria-controls="studio-library" aria-pressed={mobilePanel === "library"} onClick={() => setMobilePanel("library")}><span aria-hidden="true">▦</span> Library</button>
+        <button type="button" aria-controls="studio-adjustments" aria-pressed={mobilePanel === "adjust"} onClick={() => setMobilePanel("adjust")}><span aria-hidden="true">⌁</span> Adjust</button>
+      </nav>
       <AiGenerateModal open={aiOpen} onClose={() => setAiOpen(false)} onGenerated={applyAiDesign} />
     </main>
   );
