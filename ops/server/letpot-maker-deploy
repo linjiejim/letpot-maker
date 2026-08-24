@@ -1,0 +1,191 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+umask 077
+
+readonly service_name="letpot-maker"
+readonly candidate_name="letpot-maker-candidate"
+readonly previous_name="letpot-maker-previous"
+readonly image_repository="ghcr.io/linjiejim/letpot-maker"
+readonly runtime_env="/etc/letpot-maker/runtime.env"
+readonly state_dir="${HOME}/.local/state/letpot-maker"
+readonly health_attempts="${LETPOT_HEALTH_ATTEMPTS:-45}"
+
+log() {
+  printf '[letpot-maker-deploy] %s\n' "$*"
+}
+
+fail() {
+  printf '[letpot-maker-deploy] ERROR: %s\n' "$*" >&2
+  exit 1
+}
+
+container_exists() {
+  docker container inspect "$1" >/dev/null 2>&1
+}
+
+remove_container() {
+  if container_exists "$1"; then
+    docker rm --force "$1" >/dev/null
+  fi
+}
+
+wait_for_health() {
+  local container_name="$1"
+  local attempt=1
+  local health_status
+  local runtime_status
+
+  while (( attempt <= health_attempts )); do
+    runtime_status="$(docker inspect --format '{{.State.Status}}' "$container_name" 2>/dev/null || true)"
+    health_status="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$container_name" 2>/dev/null || true)"
+
+    case "$health_status" in
+      healthy)
+        return 0
+        ;;
+      unhealthy)
+        docker logs --tail 100 "$container_name" >&2 || true
+        return 1
+        ;;
+    esac
+
+    case "$runtime_status" in
+      running)
+        ;;
+      *)
+        docker logs --tail 100 "$container_name" >&2 || true
+        return 1
+        ;;
+    esac
+
+    sleep 2
+    attempt=$((attempt + 1))
+  done
+
+  docker logs --tail 100 "$container_name" >&2 || true
+  return 1
+}
+
+run_container() {
+  local container_name="$1"
+  local image="$2"
+  local release_sha="$3"
+  local publish_port="$4"
+  # The JavaScript health command contains commas inside one quoted array item.
+  # shellcheck disable=SC2054
+  local run_arguments=(
+    --detach
+    --name "$container_name"
+    --restart unless-stopped
+    --init
+    --read-only
+    --tmpfs /tmp:size=64m,mode=1777
+    --security-opt no-new-privileges:true
+    --env-file "$runtime_env"
+    --label "com.letpot-maker.commit=$release_sha"
+    --label "com.letpot-maker.managed-by=github-actions"
+    --health-cmd "node -e \"fetch('http://127.0.0.1:3000/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))\""
+    --health-interval 5s
+    --health-timeout 3s
+    --health-start-period 5s
+    --health-retries 12
+  )
+
+  if [[ "$publish_port" == "yes" ]]; then
+    run_arguments+=(--publish 127.0.0.1:4020:3000)
+  fi
+
+  docker run "${run_arguments[@]}" "$image" >/dev/null
+}
+
+restore_previous() {
+  log "Restoring the previous production container."
+  remove_container "$service_name"
+
+  if ! container_exists "$previous_name"; then
+    fail "The new container failed and no previous container is available."
+  fi
+
+  docker rename "$previous_name" "$service_name"
+  docker start "$service_name" >/dev/null
+  wait_for_health "$service_name" || fail "Rollback container did not become healthy."
+  fail "The new release failed verification and was rolled back."
+}
+
+deploy_release() {
+  local release_sha="$1"
+  local image="${image_repository}:sha-${release_sha}"
+  local image_revision
+  local image_architecture
+  local image_os
+  local site_url
+  local home_html
+  local state_file
+  local state_tmp
+
+  [[ -r "$runtime_env" ]] || fail "Runtime environment file is not readable: $runtime_env"
+
+  log "Receiving immutable image for $release_sha."
+  gzip --decompress --stdout | docker load
+
+  docker image inspect "$image" >/dev/null 2>&1 || fail "Expected image tag was not loaded: $image"
+  image_revision="$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$image")"
+  image_architecture="$(docker image inspect --format '{{.Architecture}}' "$image")"
+  image_os="$(docker image inspect --format '{{.Os}}' "$image")"
+
+  [[ "$image_revision" == "$release_sha" ]] || fail "Image revision label does not match the requested commit."
+  [[ "$image_architecture" == "amd64" && "$image_os" == "linux" ]] || fail "Image must target linux/amd64."
+
+  remove_container "$candidate_name"
+  log "Starting an isolated candidate container."
+  run_container "$candidate_name" "$image" "$release_sha" no
+
+  if ! wait_for_health "$candidate_name"; then
+    remove_container "$candidate_name"
+    fail "Candidate container failed its health check; production was not changed."
+  fi
+  remove_container "$candidate_name"
+
+  remove_container "$previous_name"
+  if container_exists "$service_name"; then
+    log "Stopping the current production container."
+    docker stop --time 20 "$service_name" >/dev/null
+    docker rename "$service_name" "$previous_name"
+  fi
+
+  log "Starting the new production container."
+  if ! run_container "$service_name" "$image" "$release_sha" yes; then
+    restore_previous
+  fi
+
+  if ! wait_for_health "$service_name"; then
+    restore_previous
+  fi
+
+  site_url="$(sed -n 's/^LETPOT_SITE_URL=//p' "$runtime_env" | tail -n 1)"
+  [[ "$site_url" =~ ^https://[^/]+$ ]] || restore_previous
+  home_html="$(curl --fail --silent --show-error --max-time 15 http://127.0.0.1:4020/)" || restore_previous
+  [[ "$home_html" == *"<link rel=\"canonical\" href=\"${site_url}\""* ]] || restore_previous
+  curl --fail --silent --show-error --max-time 15 http://127.0.0.1:4020/api/health >/dev/null || restore_previous
+
+  remove_container "$previous_name"
+  mkdir -p "$state_dir"
+  state_file="${state_dir}/current"
+  state_tmp="${state_file}.tmp"
+  printf 'sha=%s\nimage=%s\ndeployed_at=%s\n' \
+    "$release_sha" \
+    "$image" \
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$state_tmp"
+  mv "$state_tmp" "$state_file"
+
+  log "Production is healthy at $site_url using $image."
+}
+
+read -r deploy_command deploy_sha extra_argument <<< "${SSH_ORIGINAL_COMMAND:-}"
+
+[[ "$deploy_command" == "deploy" ]] || fail "Unsupported deployment command."
+[[ -z "${extra_argument:-}" ]] || fail "Unexpected deployment arguments."
+[[ "$deploy_sha" =~ ^[0-9a-f]{40}$ ]] || fail "A full lowercase Git commit SHA is required."
+
+deploy_release "$deploy_sha"
