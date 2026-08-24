@@ -721,8 +721,8 @@ export function PodStyler() {
     renderer.toneMappingExposure = 1.02;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    renderer.domElement.setAttribute("aria-label", `Interactive 3D LetPot ${currentSpec.name} with ${currentSpec.podCount} selectable pod positions`);
-    renderer.domElement.tabIndex = 0;
+    renderer.domElement.setAttribute("role", "img");
+    renderer.domElement.setAttribute("aria-label", `Interactive 3D LetPot ${currentSpec.name} with ${currentSpec.podCount} pod positions. Select a pod in the preview, then choose a character below.`);
     mount.appendChild(renderer.domElement);
 
     const controls = new OrbitControls(camera, renderer.domElement);
@@ -930,6 +930,7 @@ export function PodStyler() {
   return (
     <main className={styles.page}>
       <h1 className="sr-only">LetPot Pod Styler: preview printable accessories on your indoor garden</h1>
+      <a className={styles.skipLink} href="#pod-styler-workspace">Skip to Pod Styler workspace</a>
       <header className={styles.header}>
         <a className={styles.brand} href="/" aria-label="LetPot Maker home"><span className={styles.brandMark} aria-hidden="true" /><span><b>LetPot</b> Maker</span></a>
         <nav className={styles.machinePicker} aria-label="Choose LetPot model">
@@ -938,7 +939,7 @@ export function PodStyler() {
         <a className={styles.studioLink} href="/studio">Customize in Studio <span>↗</span></a>
       </header>
 
-      <section className={styles.workspace}>
+      <section className={styles.workspace} id="pod-styler-workspace">
         <section className={`${styles.stage} ${dragging ? styles.dragging : ""} ${lightOn ? styles.lightOn : ""}`}>
           <div className={styles.canvas} ref={mountRef} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; }} onDrop={handleDrop} aria-label="Device preview drop area" />
           {sceneError && <div className={styles.sceneError}><b>3D preview unavailable</b><span>Reload the page to reconnect the device preview.</span></div>}

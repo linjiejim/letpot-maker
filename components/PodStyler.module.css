@@ -157,3 +157,37 @@
 @media (prefers-reduced-motion: reduce) {
   .modelCard { transition: none; }
 }
+
+/* Round 1 readability and keyboard-accessible interaction floor. */
+.skipLink { position: fixed; z-index: 100; top: 12px; left: 12px; padding: 10px 14px; border-radius: 8px; color: white; background: var(--green-800); text-decoration: none; font-size: 13px; font-weight: 850; transform: translateY(-170%); transition: transform .2s ease; }
+.skipLink:focus { transform: translateY(0); }
+.page :where(a, button, canvas, [tabindex]):focus-visible { outline: 3px solid var(--green-500); outline-offset: 3px; }
+.brand { font-size: 16px; }
+.machinePicker button { min-width: 78px; height: 48px; grid-template-rows: 14px 1fr; }
+.machinePicker button small { color: #5f6c62; font-size: 12px; }
+.machinePicker button b { font-size: 13px; }
+.machinePicker button span { min-width: 22px; height: 22px; font-size: 12px; }
+.studioLink { font-size: 14px; }
+.canvas canvas { outline: revert; }
+.viewTools button { min-width: 44px; min-height: 44px; font-size: 13px; }
+.dropHint b, .sceneError span { font-size: 13px; }
+.stageActions button { min-height: 44px; font-size: 13px; }
+.librarySelection strong { font-size: 14px; }
+.librarySelection small, .multiSelectHint { color: #59675d; font-size: 12px; }
+.filters button { min-height: 44px; font-size: 13px; }
+.filters button b { font-size: 12px; }
+.modelCardCopy strong { font-size: 14px; }
+.modelCardCopy em { color: #556259; font-size: 12px; }
+
+@media (max-width: 760px) {
+  .brand { font-size: 14px; }
+  .machinePicker button { height: 44px; }
+  .machinePicker button b { font-size: 12px; }
+  .studioLink { font-size: 0; }
+  .studioLink span, .viewTools button span { font-size: 14px; }
+  .stageActions button { font-size: 12px; }
+  .modelPreview { height: calc(100% - 48px); }
+  .modelCardCopy { height: 48px; padding-block: 7px; }
+  .modelCardCopy strong { font-size: 13px; }
+  .modelCardCopy em { font-size: 12px; }
+}
