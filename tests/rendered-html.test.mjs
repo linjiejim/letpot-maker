@@ -35,6 +35,7 @@ test("renders the LetPot Maker homepage and searchable asset library", async () 
   assert.match(html, /"price":0,"priceCurrency":"USD"/);
   assert.match(html, /Make your LetPot/);
   assert.match(html, /Open Maker Studio/);
+  assert.match(html, /Loading 3D preview…/);
   assert.match(html, /BROWSE THE MAKER LIBRARY/);
   assert.match(html, /SEARCH THE LIBRARY/);
   assert.match(html, /THE MAKER ROADMAP/);
@@ -68,6 +69,10 @@ test("renders the separate parametric Studio", async () => {
   assert.match(html, /Export all/);
   assert.match(html, /Bambu 3MF/);
   assert.match(html, /AI Generate/);
+  assert.match(html, /Mobile Studio workspace/);
+  assert.match(html, /Preview/);
+  assert.match(html, /Library/);
+  assert.match(html, /Adjust/);
   assert.match(html, /SIGNATURE/);
   assert.match(html, /Base &amp; fit/);
   assert.match(html, /fixed standard/);
@@ -101,6 +106,8 @@ test("renders the interactive Pod Styler", async () => {
   assert.match(html, /LPH-AIR/);
   assert.match(html, /LPH-MINI/);
   assert.match(html, /Character selection/);
+  assert.match(html, /Choose a SE pod/);
+  assert.match(html, /Pod 1, /);
   assert.match(html, /Filter characters by tag/);
   assert.match(html, /Shift \+ click pods to select several/);
   assert.match(html, /Try a mix/);

@@ -917,6 +917,22 @@ export function PodStyler() {
     setAssignments(Array(spec.podCount).fill(null));
     setMessage(`All ${spec.name} pods cleared`);
   };
+  const selectPodFromPicker = (index: number, additive: boolean) => {
+    if (additive) {
+      setSelectedPods((current) => {
+        const next = current.includes(index) ? current.filter((podIndex) => podIndex !== index) : [...current, index];
+        const stableSelection = next.length ? next : [index];
+        setSelectedPod(stableSelection.at(-1) ?? index);
+        setMessage(`${spec.name} · ${stableSelection.length} pods selected · choose a character`);
+        return stableSelection;
+      });
+      return;
+    }
+
+    setSelectedPod(index);
+    setSelectedPods([index]);
+    setMessage(`${spec.name} pod ${String(index + 1).padStart(2, "0")} selected · choose a character`);
+  };
   const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     setDragging(false);
@@ -951,6 +967,26 @@ export function PodStyler() {
           {dragging && <div className={styles.dropHint}><span>↓</span><b>Drop onto a pod</b></div>}
           <div className={styles.screenReaderStatus} role="status" aria-live="polite">{message}</div>
           <div className={styles.stageDock}>
+            <div className={styles.podPicker} role="group" aria-label={`Choose a ${spec.name} pod`}>
+              <span>Choose pod</span>
+              <div>
+                {Array.from({ length: spec.podCount }, (_, index) => {
+                  const assignedModel = MODEL_LIBRARY.find((model) => model.id === assignments[index]);
+                  return (
+                    <button
+                      type="button"
+                      key={index}
+                      className={selectedPods.includes(index) ? styles.activePod : ""}
+                      aria-pressed={selectedPods.includes(index)}
+                      aria-label={`Pod ${index + 1}${assignedModel ? `, ${assignedModel.name}` : ", empty"}`}
+                      onClick={(event) => selectPodFromPicker(index, event.metaKey || event.ctrlKey || event.shiftKey)}
+                    >
+                      {String(index + 1).padStart(2, "0")}{assignedModel && <i aria-hidden="true" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
             <div className={styles.stageActions}>
               <button type="button" onClick={() => assignModelToPods(selectedPods, null)} disabled={!selectedPodsWithContent.length}>{selectedPods.length > 1 ? "Clear selected" : "Clear pod"}</button>
               <button type="button" onClick={undo} disabled={!history.length}>↶ Undo</button>

@@ -73,7 +73,15 @@
 .sceneError b { font-size: 13px; }
 .sceneError span { color: var(--muted); font-size: 9px; }
 
-.stageDock { position: absolute; z-index: 4; right: 18px; bottom: 14px; padding: 4px; border: 1px solid rgba(185, 205, 181, .9); border-radius: var(--radius-md); background: rgba(250, 253, 248, .88); box-shadow: var(--shadow-sm); backdrop-filter: blur(14px); }
+.stageDock { position: absolute; z-index: 4; right: 18px; bottom: 14px; width: min(720px, calc(100% - 36px)); display: grid; gap: 6px; padding: 6px; border: 1px solid rgba(185, 205, 181, .9); border-radius: var(--radius-md); background: rgba(250, 253, 248, .9); box-shadow: var(--shadow-sm); backdrop-filter: blur(14px); }
+.podPicker { min-width: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px; }
+.podPicker > span { padding-left: 5px; color: var(--muted); font-size: 12px; font-weight: 850; white-space: nowrap; }
+.podPicker > div { min-width: 0; display: flex; gap: 4px; overflow-x: auto; overscroll-behavior-inline: contain; padding: 2px 2px 5px; scrollbar-width: thin; scrollbar-color: var(--edge) transparent; }
+.podPicker button { position: relative; flex: 0 0 44px; width: 44px; height: 44px; border: 1px solid var(--edge); border-radius: var(--radius-sm); color: var(--muted); background: white; font: 800 12px/1 var(--font-mono); cursor: pointer; }
+.podPicker button:hover { border-color: var(--green-400); color: var(--green-800); }
+.podPicker .activePod { border-color: var(--green-600); color: white; background: var(--green-700); box-shadow: 0 0 0 2px rgba(46, 139, 61, .14); }
+.podPicker button i { position: absolute; top: 5px; right: 5px; width: 5px; height: 5px; border-radius: 50%; background: var(--green-400); }
+.podPicker .activePod i { background: white; }
 .stageActions { display: flex; gap: 5px; justify-content: flex-end; }
 .stageActions button { min-height: 32px; padding: 0 10px; border: 1px solid #cdd9ca; border-radius: 7px; color: #5f6b61; background: white; font-size: 7px; font-weight: 850; cursor: pointer; }
 .stageActions button:hover { border-color: #a9caa3; color: var(--green-800); }
@@ -126,7 +134,9 @@
   .viewTools button { width: 40px; height: 40px; justify-content: center; padding: 7px; font-size: 0; }
   .viewTools button span { font-size: 12px; }
   .workspace { grid-template-rows: minmax(0, 1fr) 188px; }
-  .stageDock { right: 9px; bottom: 9px; }
+  .stageDock { right: 9px; left: 9px; bottom: 9px; width: auto; }
+  .podPicker { grid-template-columns: minmax(0, 1fr); }
+  .podPicker > span { display: none; }
   .stageActions button { min-height: 40px; padding-inline: 9px; font-size: 7px; }
   .library { grid-template-rows: 42px minmax(0, 1fr); gap: 6px; padding: 8px 10px 6px; }
   .libraryToolbar { gap: 8px; }
@@ -178,6 +188,8 @@
 .filters button b { font-size: 12px; }
 .modelCardCopy strong { font-size: 14px; }
 .modelCardCopy em { color: #556259; font-size: 12px; }
+.filters { padding-bottom: 5px; scrollbar-width: thin; scrollbar-color: var(--edge) transparent; }
+.filters::-webkit-scrollbar { display: block; height: 6px; }
 
 @media (max-width: 760px) {
   .brand { font-size: 14px; }
@@ -186,6 +198,7 @@
   .studioLink { font-size: 0; }
   .studioLink span, .viewTools button span { font-size: 14px; }
   .stageActions button { font-size: 12px; }
+  .stageActions { flex-wrap: wrap; }
   .modelPreview { height: calc(100% - 48px); }
   .modelCardCopy { height: 48px; padding-block: 7px; }
   .modelCardCopy strong { font-size: 13px; }
