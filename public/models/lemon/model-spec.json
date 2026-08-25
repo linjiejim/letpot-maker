@@ -24,10 +24,13 @@
   },
   "options": {
     "modelId": "lemon",
+    "connectionMode": "detachable",
     "topperHeight": 33,
     "topperWidth": 30,
     "primaryColor": "#e1ba3d",
     "accentColor": "#d7d0bf",
+    "secondaryColor": "#d8a33e",
+    "detailColor": "#f4eee2",
     "faceted": false,
     "shape": {}
   },

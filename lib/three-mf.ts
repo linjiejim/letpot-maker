@@ -84,6 +84,7 @@ export interface ThreeMfPart {
   name: string;
   mesh: THREE.Mesh;
   color: string;
+  palette?: readonly string[];
 }
 
 interface MeshData {
@@ -91,6 +92,7 @@ interface MeshData {
   color: string;
   vertices: Array<[number, number, number]>;
   triangles: Array<[number, number, number]>;
+  faceColors?: string[];
   bounds: THREE.Box3;
 }
 
@@ -131,23 +133,31 @@ function meshData(part: ThreeMfPart): MeshData {
   }
 
   const triangles: Array<[number, number, number]> = [];
+  const colorRoles = geometry.getAttribute("aiColorRole");
+  const faceColors = part.palette && colorRoles ? [] as string[] : undefined;
+  const addTriangle = (v1: number, v2: number, v3: number) => {
+    triangles.push([v1, v2, v3]);
+    if (!faceColors || !part.palette || !colorRoles) return;
+    const role = Math.round((colorRoles.getX(v1) + colorRoles.getX(v2) + colorRoles.getX(v3)) / 3);
+    faceColors.push(part.palette[Math.max(0, Math.min(part.palette.length - 1, role))] ?? part.color);
+  };
   if (geometry.index) {
     for (let index = 0; index < geometry.index.count; index += 3) {
-      triangles.push([
+      addTriangle(
         geometry.index.getX(index),
         geometry.index.getX(index + 1),
         geometry.index.getX(index + 2),
-      ]);
+      );
     }
   } else {
     for (let index = 0; index < position.count; index += 3) {
-      triangles.push([index, index + 1, index + 2]);
+      addTriangle(index, index + 1, index + 2);
     }
   }
   geometry.computeBoundingBox();
   const bounds = geometry.boundingBox?.clone() ?? new THREE.Box3();
   geometry.dispose();
-  return { name: part.name, color: part.color, vertices, triangles, bounds };
+  return { name: part.name, color: part.color, vertices, triangles, faceColors, bounds };
 }
 
 function arrangeOnPlate(items: MeshData[], printer: BambuPrinterProfile) {
@@ -190,17 +200,24 @@ export async function buildBambuThreeMf(
   const items = parts.map(meshData);
   const placements = arrangeOnPlate(items, printer);
 
-  const materials = items.map((item) =>
-    `<base name="${escapeXml(item.name)}" displaycolor="${normalizeColor(item.color)}"/>`,
+  const projectColors = [...new Set(items.flatMap((item) => [item.color, ...(item.faceColors ?? [])]).map((color) => color.toLowerCase()))];
+  const colorIndex = (color: string) => Math.max(0, projectColors.indexOf(color.toLowerCase()));
+  const materials = projectColors.map((color, index) =>
+    `<base name="Material ${index + 1}" displaycolor="${normalizeColor(color)}"/>`,
   ).join("");
   const objects = items.map((item, index) => {
     const vertices = item.vertices.map(([x, y, z]) =>
       `<vertex x="${formatNumber(x)}" y="${formatNumber(y)}" z="${formatNumber(z)}"/>`,
     ).join("");
-    const triangles = item.triangles.map(([v1, v2, v3]) =>
-      `<triangle v1="${v1}" v2="${v2}" v3="${v3}"/>`,
+    const triangles = item.triangles.map(([v1, v2, v3], triangleIndex) => {
+      const faceColor = item.faceColors?.[triangleIndex];
+      const material = faceColor === undefined
+        ? ""
+        : ` pid="1" p1="${colorIndex(faceColor)}" p2="${colorIndex(faceColor)}" p3="${colorIndex(faceColor)}"`;
+      return `<triangle v1="${v1}" v2="${v2}" v3="${v3}"${material}/>`;
+    },
     ).join("");
-    return `<object id="${index + 2}" p:UUID="${bambuUuid(index + 1, "object")}" type="model" name="${escapeXml(item.name)}" pid="1" pindex="${index}"><mesh><vertices>${vertices}</vertices><triangles>${triangles}</triangles></mesh></object>`;
+    return `<object id="${index + 2}" p:UUID="${bambuUuid(index + 1, "object")}" type="model" name="${escapeXml(item.name)}" pid="1" pindex="${colorIndex(item.color)}"><mesh><vertices>${vertices}</vertices><triangles>${triangles}</triangles></mesh></object>`;
   }).join("");
   const buildItems = items.map((_, index) => {
     const placement = placements[index];
@@ -268,6 +285,7 @@ export async function buildBambuThreeMf(
     project: projectName,
     targetPrinter: printer,
     parts: items.map((item) => item.name),
+    materials: items.map((item) => ({ name: item.name, colors: [...new Set([item.color, ...(item.faceColors ?? [])])] })),
     units: "millimetres",
     status: "print-ready-preset",
     slicingPreset: { ...BAMBU_PROJECT_PROFILES[printerId], ...BAMBU_PRINT_PRESET },

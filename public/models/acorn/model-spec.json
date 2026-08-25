@@ -25,10 +25,13 @@
   },
   "options": {
     "modelId": "acorn",
+    "connectionMode": "detachable",
     "topperHeight": 34,
     "topperWidth": 27,
     "primaryColor": "#9a704c",
     "accentColor": "#d7d0bf",
+    "secondaryColor": "#d8a33e",
+    "detailColor": "#f4eee2",
     "faceted": true,
     "shape": {}
   },

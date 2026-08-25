@@ -62,10 +62,13 @@
   },
   "options": {
     "modelId": "cactus",
+    "connectionMode": "detachable",
     "topperHeight": 36,
     "topperWidth": 28,
     "primaryColor": "#527d59",
     "accentColor": "#d7d0bf",
+    "secondaryColor": "#d8a33e",
+    "detailColor": "#f4eee2",
     "faceted": true,
     "shape": {
       "armCount": 2,

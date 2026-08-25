@@ -35,7 +35,7 @@ Model definitions + parameters
 
 ## Geometry source of truth
 
-`lib/model-factory.ts` is the authoritative model catalog and geometry source. A definition contains identity, tags, defaults, bounded parameters, parts, and manufacturing guidance. `createModel()` turns those inputs into the Three.js assembly used everywhere else.
+`lib/model-factory.ts` is the authoritative model catalog and geometry source. A definition contains identity, tags, defaults, bounded parameters, parts, and manufacturing guidance. `createModel()` turns those inputs into the Three.js assembly used everywhere else. Its shared connection layer supports a flush detachable pin/socket embedded inside the subject and an optional one-piece adapter/topper union with a hidden internal core.
 
 The browser preview is not exported directly as overlapping display meshes. `lib/solidify.ts` converts meshes through Manifold boolean operations so each exported part is a connected watertight solid.
 
@@ -56,9 +56,9 @@ Validation scripts enforce:
 
 ## Optional AI path
 
-`app/api/ai-generate/route.ts` sends a short text prompt to a provider-neutral OpenAI chat-completions endpoint configured entirely through environment variables. `lib/ai-prompt-security.ts` normalizes and screens direct instruction-control attempts, then serializes accepted input as an untrusted JSON data record. The server prompt restricts the response to existing template families and bounded numeric parameters. `lib/ai-design.ts` validates and normalizes the returned recipe again before the Studio uses it.
+`app/api/ai-generate/route.ts` sends a short text prompt to a provider-neutral OpenAI chat-completions endpoint configured entirely through environment variables. `lib/ai-prompt-security.ts` normalizes and screens direct instruction-control attempts, then serializes accepted input as an untrusted JSON data record. The server prompt can choose any checked-in library model or return a bounded declarative shape program. `lib/ai-shape-program.ts` allowlists and normalizes geometry nodes; `lib/ai-design.ts` validates the surrounding recipe before the Studio uses it. `lib/model-factory.ts` compiles accepted nodes into connected Three.js solids around the locked adapter and selected connection mode. Semantic node colors, plus the integrated adapter color, are carried through Manifold and emitted as 3MF face materials.
 
-The endpoint returns a recipe, not arbitrary executable code or a mesh. Created recipes are stored only in the browser today.
+The endpoint returns a recipe, not arbitrary executable code or an opaque mesh. Created recipes are stored only in the browser today.
 
 See `docs/ai-generation.md` for the exact shape boundary, provider configuration, and prompt-injection threat boundary.
 

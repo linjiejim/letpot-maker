@@ -24,10 +24,13 @@
   },
   "options": {
     "modelId": "lotus",
+    "connectionMode": "detachable",
     "topperHeight": 38,
     "topperWidth": 29,
     "primaryColor": "#bf7d83",
     "accentColor": "#d7d0bf",
+    "secondaryColor": "#d8a33e",
+    "detailColor": "#f4eee2",
     "faceted": true,
     "shape": {}
   },

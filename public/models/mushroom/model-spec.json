@@ -62,10 +62,13 @@
   },
   "options": {
     "modelId": "mushroom",
+    "connectionMode": "detachable",
     "topperHeight": 34,
     "topperWidth": 32,
     "primaryColor": "#a95f49",
     "accentColor": "#e7ddc8",
+    "secondaryColor": "#d8a33e",
+    "detailColor": "#f4eee2",
     "faceted": true,
     "shape": {
       "capDiameter": 1,

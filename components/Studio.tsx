@@ -1,6 +1,16 @@
 "use client";
 
-import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type CSSProperties,
+  type FormEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import JSZip from "jszip";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
@@ -21,6 +31,7 @@ import {
   type ModelId,
   type ModelOptions,
   type ModelTag,
+  type ManufacturingProfile,
   type ShapeParameterKey,
 } from "../lib/model-factory";
 import { loadBrowserManifold, solidifyObject } from "../lib/solidify";
@@ -31,10 +42,19 @@ import {
   type ThreeMfPart,
 } from "../lib/three-mf";
 import { normalizeAiRecipe, type AiDesignRecipe } from "../lib/ai-design";
+import { AI_SCULPTURE_EXAMPLES } from "../lib/ai-shape-examples";
 
 type ViewName = "orbit" | "front" | "top";
+type PanelName = "library" | "inspector";
+type PanelWidths = Record<PanelName, number>;
 
 const COLORS = ["#769567", "#294e35", "#a75f46", "#d3c5a5", "#d66c45"];
+const DEFAULT_PANEL_WIDTHS = { library: 264, inspector: 336 } as const;
+const PANEL_WIDTH_BOUNDS = {
+  library: { min: 220, max: 380 },
+  inspector: { min: 300, max: 440 },
+} as const;
+const MIN_STAGE_WIDTH = 420;
 const TAG_LABELS: Record<ModelTag, string> = {
   lowpoly: "Low poly",
   realistic: "Realistic",
@@ -217,9 +237,9 @@ function Slider({ label, value, min, max, step = 1, unit = "mm", onChange }: {
 }
 
 const AI_EXAMPLES = [
-  "A compact three-arm desert cactus with a round body",
-  "A dense bamboo grove with five slender canes",
-  "A soft mushroom with a wide coral cap",
+  "A tiny cottage with a pitched roof, chimney, door and two windows",
+  "A friendly astronaut waving with a round helmet and sturdy boots",
+  "A sliced pomegranate with a round shell, visible chunky seed clusters, and a leafy crown",
 ];
 
 const AI_CREATION_STEPS = [
@@ -227,11 +247,26 @@ const AI_CREATION_STEPS = [
   "Choosing a printable structure",
   "Balancing the silhouette",
   "Checking joints and proportions",
-  "Preparing the parametric model",
+  "Compiling the bounded 3D model",
 ];
 
 const AI_CREATIONS_STORAGE_KEY = "letpot-maker:ai-creations:v1";
 const LEGACY_AI_CREATIONS_STORAGE_KEY = "letpot-garden-lab:ai-creations:v1";
+
+const AI_MANUFACTURING_PROFILE: ManufacturingProfile = {
+  status: "Prototype study",
+  orientation: "Body upright · connection mode selected in Studio",
+  supportStrategy: "Automatic snug support; inspect the sliced preview",
+  minWall: 1.2,
+  minFeature: 1.2,
+  batchMode: "Single prototype first",
+  stackMode: "Adapter stack only",
+  details: [
+    "Every AI node is range-limited and fused to a connected support graph",
+    "The locked adapter and embedded connection geometry are reused without AI modification",
+    "Manifold export is checked automatically; visual detail and overhangs still need review",
+  ],
+};
 
 type LocalAiCreation = {
   id: string;
@@ -389,7 +424,7 @@ function AiGenerateModal({ open, onClose, onGenerated }: {
             </div>
             <p>{phase === "success" ? "MODEL READY" : "AI · CREATING"}</p>
             <h2 id="ai-modal-title">{phase === "success" ? "Your idea is taking shape" : AI_CREATION_STEPS[step]}</h2>
-            <span>{phase === "success" ? "Opening the new parametric design…" : "Building within proven print-safe limits"}</span>
+            <span>{phase === "success" ? "Opening the new 3D design…" : "Building within proven print-safe limits"}</span>
             <div className="ai-progress"><i style={{ width: phase === "success" ? "100%" : `${18 + step * 17}%` }} /></div>
           </div>
         ) : (
@@ -397,7 +432,7 @@ function AiGenerateModal({ open, onClose, onGenerated }: {
             <div className="ai-modal-heading">
               <span className="ai-kicker">✦ AI ASSISTED</span>
               <h2 id="ai-modal-title">Generate a printable idea</h2>
-              <p>The configured AI turns your description into a constrained botanical recipe. The existing solid pipeline builds the model and keeps every parameter inside tested print limits.</p>
+              <p>The configured AI turns your description into a bounded 3D shape program. It can compose new objects and characters while the solid pipeline locks the adapter, size, connections and print limits.</p>
               <small>Usually 10–25 seconds</small>
             </div>
             <div className="ai-examples" aria-label="Example prompts">
@@ -406,12 +441,12 @@ function AiGenerateModal({ open, onClose, onGenerated }: {
             <label className="ai-prompt-field">
               <span>Describe your model</span>
               <div>
-                <input ref={inputRef} maxLength={280} value={prompt} onChange={(event) => { setPrompt(event.target.value); setError(""); setPhase("idle"); }} placeholder="e.g. A friendly round cactus with three upward arms" />
+                <input ref={inputRef} maxLength={280} value={prompt} onChange={(event) => { setPrompt(event.target.value); setError(""); setPhase("idle"); }} placeholder="e.g. A tiny cottage with a roof, chimney and windows" />
                 <button type="submit">Generate <span>→</span></button>
               </div>
             </label>
             {error && <p className="ai-error" role="alert">{error}</p>}
-            <div className="ai-safety-note"><i>✓</i><span><b>Print-safe, locally organized</b>Your description is sent to the configured AI provider to create a constrained recipe—never arbitrary mesh code. The finished recipe is cached in My Creations on this device.</span></div>
+            <div className="ai-safety-note"><i>✓</i><span><b>Bounded geometry, locally organized</b>Your description is sent to the configured AI provider to create an allowlisted shape program—never executable mesh code. The finished recipe is cached in Mine on this device.</span></div>
           </form>
         )}
       </section>
@@ -431,17 +466,42 @@ export function Studio() {
   const [aiCreations, setAiCreations] = useState<LocalAiCreation[]>([]);
   const [aiDesign, setAiDesign] = useState<ActiveAiDesign | null>(null);
   const [mobilePanel, setMobilePanel] = useState<"preview" | "library" | "adjust">("preview");
+  const [panelWidths, setPanelWidths] = useState<PanelWidths>({ ...DEFAULT_PANEL_WIDTHS });
+  const [resizingPanel, setResizingPanel] = useState<PanelName | null>(null);
+  const workspaceRef = useRef<HTMLElement>(null);
+  const resizeCleanupRef = useRef<(() => void) | null>(null);
   const build = useMemo(() => createModel(options), [options]);
   const definition = MODEL_LIBRARY.find((item) => item.id === options.modelId) ?? MODEL_LIBRARY[0];
+  const isAiSculpture = Boolean(aiDesign?.program && options.aiProgram);
+  const integrated = options.connectionMode === "integrated";
+  const designParts = integrated ? 1 : isAiSculpture ? 3 : definition.parts;
   const designName = aiDesign?.name ?? definition.name;
   const designSubtitle = aiDesign?.subtitle ?? definition.subtitle;
+  const detachablePrintNote = isAiSculpture
+    ? "Print the socketed sculpture upright with automatic snug supports. Inspect small color details and overhangs in the sliced preview before the first prototype."
+    : definition.printNote;
+  const designPrintNote = integrated
+    ? `One-piece mode: print upright on the Ø33 locator face; the adapter and topper are fused by a hidden internal core. ${detachablePrintNote}`
+    : detachablePrintNote;
   const visibleModels = useMemo(
     () => activeTag === "all" ? MODEL_LIBRARY : MODEL_LIBRARY.filter((item) => item.tags.includes(activeTag)),
     [activeTag],
   );
-  const manufacturing = getManufacturingProfile(options.modelId);
+  const baseManufacturing = isAiSculpture ? AI_MANUFACTURING_PROFILE : getManufacturingProfile(options.modelId);
+  const manufacturing = integrated ? {
+    ...baseManufacturing,
+    orientation: "One-piece upright · Ø33 locator face on bed",
+    batchMode: "Single-piece models · flat plate",
+    details: [
+      "The adapter and topper are fused through a hidden internal core",
+      "No loose connector pin or exposed socket collar is generated",
+      ...baseManufacturing.details,
+    ],
+  } : baseManufacturing;
 
   useEffect(() => () => disposeObject(build.assembly), [build]);
+
+  useEffect(() => () => resizeCleanupRef.current?.(), []);
 
   useEffect(() => {
     const load = () => setAiCreations(readLocalCreations());
@@ -455,7 +515,38 @@ export function Studio() {
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
-      const requestedModel = new URLSearchParams(window.location.search).get("model");
+      const search = new URLSearchParams(window.location.search);
+      const requestedExample = search.get("ai-example");
+      const example = AI_SCULPTURE_EXAMPLES.find((item) => item.slug === requestedExample);
+      if (example) {
+        const recipe = normalizeAiRecipe(example.recipe);
+        const localId = `example-${example.slug}`;
+        const creation: LocalAiCreation = {
+          id: localId,
+          createdAt: new Date().toISOString(),
+          prompt: example.prompt,
+          recipe,
+        };
+        setOptions((current) => ({
+          ...current,
+          modelId: recipe.templateId,
+          topperHeight: recipe.topperHeight,
+          topperWidth: recipe.topperWidth,
+          primaryColor: recipe.primaryColor,
+          accentColor: recipe.accentColor,
+          secondaryColor: recipe.secondaryColor,
+          detailColor: recipe.detailColor,
+          faceted: recipe.faceted,
+          shape: recipe.shape,
+          aiProgram: recipe.program,
+        }));
+        setAiCreations((current) => [creation, ...current.filter((item) => item.id !== localId)]);
+        setAiDesign({ ...recipe, prompt: example.prompt, localId });
+        setLibraryMode("mine");
+        setMessage(`${recipe.name} example loaded`);
+        return;
+      }
+      const requestedModel = search.get("model");
       const selected = MODEL_LIBRARY.find((item) => item.id === requestedModel);
       if (!selected) return;
       setOptions((current) => ({
@@ -464,6 +555,7 @@ export function Studio() {
         ...selected.defaults,
         faceted: selected.style === "lowpoly",
         shape: getDefaultShapeParameters(selected),
+        aiProgram: undefined,
       }));
       setLibraryMode("official");
       setActiveTag("all");
@@ -487,6 +579,61 @@ export function Studio() {
     setOptions((current) => ({ ...current, shape: { ...current.shape, [key]: value } }));
   };
 
+  const clampPanelWidth = useCallback((panel: PanelName, width: number, widths: PanelWidths) => {
+    const bounds = PANEL_WIDTH_BOUNDS[panel];
+    const workspaceWidth = workspaceRef.current?.getBoundingClientRect().width ?? Number.POSITIVE_INFINITY;
+    const otherWidth = panel === "library" ? widths.inspector : widths.library;
+    const availableMax = workspaceWidth - otherWidth - MIN_STAGE_WIDTH;
+    return Math.round(Math.min(Math.max(width, bounds.min), Math.max(bounds.min, Math.min(bounds.max, availableMax))));
+  }, []);
+
+  const beginPanelResize = useCallback((panel: PanelName, event: ReactPointerEvent<HTMLElement>) => {
+    if (window.matchMedia("(max-width: 1080px)").matches) return;
+    event.preventDefault();
+    resizeCleanupRef.current?.();
+    const startX = event.clientX;
+    const startWidths = panelWidths;
+    setResizingPanel(panel);
+    document.body.classList.add("studio-panel-resizing");
+
+    const handleMove = (moveEvent: PointerEvent) => {
+      const delta = moveEvent.clientX - startX;
+      const requestedWidth = panel === "library"
+        ? startWidths.library + delta
+        : startWidths.inspector - delta;
+      setPanelWidths({
+        ...startWidths,
+        [panel]: clampPanelWidth(panel, requestedWidth, startWidths),
+      });
+    };
+    const finish = () => {
+      window.removeEventListener("pointermove", handleMove);
+      window.removeEventListener("pointerup", finish);
+      window.removeEventListener("pointercancel", finish);
+      document.body.classList.remove("studio-panel-resizing");
+      setResizingPanel(null);
+      resizeCleanupRef.current = null;
+    };
+    resizeCleanupRef.current = finish;
+    window.addEventListener("pointermove", handleMove);
+    window.addEventListener("pointerup", finish);
+    window.addEventListener("pointercancel", finish);
+  }, [clampPanelWidth, panelWidths]);
+
+  const nudgePanelWidth = useCallback((panel: PanelName, direction: -1 | 1) => {
+    setPanelWidths((current) => {
+      const delta = panel === "library" ? direction * 12 : direction * -12;
+      return { ...current, [panel]: clampPanelWidth(panel, current[panel] + delta, current) };
+    });
+  }, [clampPanelWidth]);
+
+  const handleResizerKeyDown = (panel: PanelName, event: ReactKeyboardEvent<HTMLElement>) => {
+    if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+      event.preventDefault();
+      nudgePanelWidth(panel, event.key === "ArrowLeft" ? -1 : 1);
+    }
+  };
+
   const chooseModel = (modelId: ModelId) => {
     const selected = MODEL_LIBRARY.find((item) => item.id === modelId);
     if (!selected) return;
@@ -496,6 +643,7 @@ export function Studio() {
       ...selected.defaults,
       faceted: selected.style === "lowpoly",
       shape: getDefaultShapeParameters(selected),
+      aiProgram: undefined,
     }));
     setAiDesign(null);
     setMessage(`${selected.name} loaded`);
@@ -524,8 +672,11 @@ export function Studio() {
       topperWidth: recipe.topperWidth,
       primaryColor: recipe.primaryColor,
       accentColor: recipe.accentColor,
+      secondaryColor: recipe.secondaryColor,
+      detailColor: recipe.detailColor,
       faceted: recipe.faceted,
       shape: recipe.shape,
+      aiProgram: recipe.program,
     }));
     persistCreations([creation, ...aiCreations]);
     setAiDesign({ ...recipe, prompt, localId });
@@ -544,8 +695,11 @@ export function Studio() {
       topperWidth: recipe.topperWidth,
       primaryColor: recipe.primaryColor,
       accentColor: recipe.accentColor,
+      secondaryColor: recipe.secondaryColor,
+      detailColor: recipe.detailColor,
       faceted: recipe.faceted,
       shape: recipe.shape,
+      aiProgram: recipe.program,
     }));
     setAiDesign({ ...recipe, prompt: creation.prompt, localId: creation.id });
     requestView("orbit");
@@ -633,7 +787,7 @@ export function Studio() {
         manufacturing,
         warning: "Fixed Ø33/Ø41 pod-fit standard. Verify fit with a small adapter test before production.",
       }, null, 2));
-      root.file("PRINT-NOTES.txt", `${designName}\n\n${aiDesign ? `${aiDesign.creativeNote}\n\nGenerated from: ${aiDesign.prompt}\n\n` : ""}${definition.printNote}\n\nManufacturing status: ${manufacturing.status}.\nOrientation: ${manufacturing.orientation}.\nSupport: ${manufacturing.supportStrategy}.\nMinimum designed wall: ${manufacturing.minWall.toFixed(1)} mm.\nMinimum designed feature: ${manufacturing.minFeature.toFixed(1)} mm.\nBatch mode: ${manufacturing.batchMode}.\n\nEvery STL is a single connected, watertight solid. Every design is intentionally split into a universal adapter, a double-ended connector pin and a socketed body; mushroom and clover include one additional upper part.\n\nAdapter standard: Ø${ADAPTER_STANDARD.lowerDiameter.toFixed(2)} mm straight lower section × ${ADAPTER_STANDARD.lowerHeight.toFixed(2)} mm, then a ${ADAPTER_STANDARD.transitionHeight.toFixed(2)} mm transition to a Ø${ADAPTER_STANDARD.upperDiameter.toFixed(2)} mm × ${ADAPTER_STANDARD.upperBandHeight.toFixed(2)} mm vertical upper band; total height ${ADAPTER_STANDARD.totalHeight.toFixed(2)} mm. The STL is pre-oriented with the Ø${ADAPTER_STANDARD.upperDiameter.toFixed(2)} mm logo face on the print bed and the Ø${ADAPTER_STANDARD.lowerDiameter.toFixed(2)} mm side facing upward. Verify fit with a small test print before production.\n`);
+      root.file("PRINT-NOTES.txt", `${designName}\n\n${aiDesign ? `${aiDesign.creativeNote}\n\nGenerated from: ${aiDesign.prompt}\n\n` : ""}${designPrintNote}\n\nManufacturing status: ${manufacturing.status}.\nOrientation: ${manufacturing.orientation}.\nSupport: ${manufacturing.supportStrategy}.\nMinimum designed wall: ${manufacturing.minWall.toFixed(1)} mm.\nMinimum designed feature: ${manufacturing.minFeature.toFixed(1)} mm.\nBatch mode: ${manufacturing.batchMode}.\n\nEvery STL is a single connected, watertight solid. ${integrated ? "This export contains one fused adapter-and-topper part with no loose connector." : "The adapter and topper use a flush embedded socket plus a removable double-ended connector pin; mushroom and clover include one additional upper part."}\n\nAdapter standard: Ø${ADAPTER_STANDARD.lowerDiameter.toFixed(2)} mm straight lower section × ${ADAPTER_STANDARD.lowerHeight.toFixed(2)} mm, then a ${ADAPTER_STANDARD.transitionHeight.toFixed(2)} mm transition to a Ø${ADAPTER_STANDARD.upperDiameter.toFixed(2)} mm × ${ADAPTER_STANDARD.upperBandHeight.toFixed(2)} mm vertical upper band; total height ${ADAPTER_STANDARD.totalHeight.toFixed(2)} mm. ${integrated ? `Print the complete model upright with the Ø${ADAPTER_STANDARD.lowerDiameter.toFixed(2)} mm locator face on the bed.` : `The adapter STL is pre-oriented with the Ø${ADAPTER_STANDARD.upperDiameter.toFixed(2)} mm logo face on the print bed and the Ø${ADAPTER_STANDARD.lowerDiameter.toFixed(2)} mm side facing upward.`} Verify fit with a small test print before production.\n`);
       const archive = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
       downloadBlob(archive, `${slugify(designName)}-print-pack.zip`);
       disposeObject(solidAssembly);
@@ -655,7 +809,12 @@ export function Studio() {
       for (const part of build.parts) {
         const solid = await solidifyObject(wasm, part.object, { flipZ: part.printFlipZ });
         solids.push(solid);
-        projectParts.push({ name: part.label, mesh: solid, color: part.color });
+        projectParts.push({
+          name: part.label,
+          mesh: solid,
+          color: part.color,
+          palette: part.palette,
+        });
       }
       const project = await buildBambuThreeMf(projectParts, printerId, designName);
       downloadBlob(project, `${slugify(designName)}-${printerId}.3mf`);
@@ -794,7 +953,7 @@ export function Studio() {
         <details className="export-menu">
           <summary>{exporting ? "Preparing…" : "Export"}<span>↓</span></summary>
           <div className="export-popover">
-            <div className="export-heading"><b>Print handoff</b><span>{designName} · {definition.parts} parts</span></div>
+            <div className="export-heading"><b>Print handoff</b><span>{designName} · {designParts} parts</span></div>
             <label className="printer-field"><span>Target printer</span><select aria-label="Target Bambu printer" value={printerId} onChange={(event) => setPrinterId(event.target.value as BambuPrinterId)}>{Object.values(BAMBU_PRINTERS).map((printer) => <option key={printer.id} value={printer.id}>{printer.name}</option>)}</select></label>
             <button className="export-primary" onClick={exportBambuProject} disabled={exporting}>Bambu 3MF <span>Recommended</span></button>
             <button onClick={exportPack} disabled={exporting}>STL print pack <span>Individual manifold parts</span></button>
@@ -808,16 +967,26 @@ export function Studio() {
         </div>
       </header>
 
-      <section className="workspace" id="studio-workspace" data-mobile-panel={mobilePanel}>
+      <section
+        className="workspace"
+        id="studio-workspace"
+        data-mobile-panel={mobilePanel}
+        data-resizing={resizingPanel ?? undefined}
+        ref={workspaceRef}
+        style={{
+          "--library-width": `${panelWidths.library}px`,
+          "--inspector-width": `${panelWidths.inspector}px`,
+        } as CSSProperties}
+      >
         <aside className="library-panel" id="studio-library" data-mode={libraryMode} aria-label="Maker Library">
           <div className="panel-heading">
             <p>{libraryMode === "official" ? "OFFICIAL COLLECTION" : "LOCAL WORKSPACE"}</p>
-            <h2>{libraryMode === "official" ? "Maker Library" : "My Creations"}</h2>
+            <h2>{libraryMode === "official" ? "Maker Library" : "Mine"}</h2>
             <span>{libraryMode === "official" ? `${MODEL_LIBRARY.length} printable models` : `${aiCreations.length} saved on this device`}</span>
           </div>
           <div className="library-mode" aria-label="Choose model library">
             <button className={libraryMode === "official" ? "active" : ""} onClick={() => setLibraryMode("official")}>Official <span>{MODEL_LIBRARY.length}</span></button>
-            <button className={libraryMode === "mine" ? "active" : ""} onClick={() => setLibraryMode("mine")}>My Creations <span>{aiCreations.length}</span></button>
+            <button className={libraryMode === "mine" ? "active" : ""} onClick={() => setLibraryMode("mine")}>Mine <span>{aiCreations.length}</span></button>
           </div>
           {libraryMode === "official" && <div className="tag-filter" aria-label="Filter designs by tag">
             <button className={activeTag === "all" ? "active" : ""} onClick={() => setActiveTag("all")} aria-pressed={activeTag === "all"}>
@@ -834,20 +1003,19 @@ export function Studio() {
           </div>}
           <div className="asset-list">
             {libraryMode === "official" && visibleModels.map((item) => (
-              <button key={item.id} className={`asset-card ${item.style} ${item.id === options.modelId ? "active" : ""}`} onClick={() => chooseModel(item.id)}>
+              <button key={item.id} className={`asset-card ${item.style} ${item.id === options.modelId ? "active" : ""}`} title={item.name} onClick={() => chooseModel(item.id)}>
                 <span className="asset-number">{item.number}</span>
-                <span>
+                <span className="asset-copy">
                   <strong>{item.name}</strong>
-                  <small>{item.parts} detachable parts</small>
-                  <span className="asset-tags">{item.tags.slice(0, 3).map((tag) => <i key={tag}>{tag}</i>)}</span>
+                  <span className="asset-tags">{item.tags.slice(0, 3).map((tag) => <i key={tag}>{TAG_LABELS[tag]}</i>)}</span>
                 </span>
               </button>
             ))}
             {libraryMode === "mine" && aiCreations.map((creation, index) => (
               <div key={creation.id} className={`local-creation-card ${aiDesign?.localId === creation.id ? "active" : ""}`}>
-                <button className="local-creation-main" onClick={() => chooseAiCreation(creation)}>
+                <button className="local-creation-main" title={creation.recipe.name} onClick={() => chooseAiCreation(creation)}>
                   <span className="asset-number">AI{String(aiCreations.length - index).padStart(2, "0")}</span>
-                  <span><strong>{creation.recipe.name}</strong><small>{new Date(creation.createdAt).toLocaleDateString()} · {creation.recipe.templateId}</small><span className="asset-tags"><i>local</i><i>ai recipe</i></span></span>
+                  <span className="asset-copy"><strong>{creation.recipe.name}</strong><small>{creation.recipe.program ? "Custom shape" : "AI variation"}</small></span>
                 </button>
                 <button className="local-creation-remove" aria-label={`Remove ${creation.recipe.name}`} onClick={() => removeAiCreation(creation)}>×</button>
               </div>
@@ -855,6 +1023,22 @@ export function Studio() {
             {libraryMode === "mine" && aiCreations.length === 0 && <div className="local-empty-state"><span>✦</span><b>No local creations yet</b><p>Describe an idea and AI Generate will save its print-safe recipe only in this browser.</p><button onClick={() => setAiOpen(true)}>Generate your first model</button></div>}
           </div>
         </aside>
+
+        <button
+          type="button"
+          className="panel-resizer library-resizer"
+          role="slider"
+          aria-label="Resize model library"
+          aria-orientation="vertical"
+          aria-valuemin={PANEL_WIDTH_BOUNDS.library.min}
+          aria-valuemax={PANEL_WIDTH_BOUNDS.library.max}
+          aria-valuenow={panelWidths.library}
+          aria-valuetext={`${panelWidths.library} pixels wide`}
+          title="Drag to resize · Double-click to reset"
+          onPointerDown={(event) => beginPanelResize("library", event)}
+          onKeyDown={(event) => handleResizerKeyDown("library", event)}
+          onDoubleClick={() => setPanelWidths((current) => ({ ...current, library: DEFAULT_PANEL_WIDTHS.library }))}
+        />
 
         <section className="stage" id="studio-preview" aria-label="3D model preview">
           <div className="view-tools" aria-label="View tools">
@@ -869,10 +1053,26 @@ export function Studio() {
           {message && <div className="stage-toast" role="status" aria-live="polite">{message}</div>}
         </section>
 
+        <button
+          type="button"
+          className="panel-resizer inspector-resizer"
+          role="slider"
+          aria-label="Resize model adjustments"
+          aria-orientation="vertical"
+          aria-valuemin={PANEL_WIDTH_BOUNDS.inspector.min}
+          aria-valuemax={PANEL_WIDTH_BOUNDS.inspector.max}
+          aria-valuenow={panelWidths.inspector}
+          aria-valuetext={`${panelWidths.inspector} pixels wide`}
+          title="Drag to resize · Double-click to reset"
+          onPointerDown={(event) => beginPanelResize("inspector", event)}
+          onKeyDown={(event) => handleResizerKeyDown("inspector", event)}
+          onDoubleClick={() => setPanelWidths((current) => ({ ...current, inspector: DEFAULT_PANEL_WIDTHS.inspector }))}
+        />
+
         <aside className="inspector-panel" id="studio-adjustments" aria-label="Model adjustments">
           <div className="inspector-title">
             <div><p>{aiDesign ? "AI DESIGN" : `MODEL ${definition.number}`}</p><h2>{designName}</h2><span>{designSubtitle}</span></div>
-            <span className="part-count">{definition.parts} PARTS</span>
+            <span className="part-count">{designParts} {designParts === 1 ? "PART" : "PARTS"}</span>
           </div>
           <div className="inspector-content">
             <section className="inspector-section">
@@ -881,7 +1081,27 @@ export function Studio() {
               <Slider label="Topper width" value={options.topperWidth} min={20} max={40} step={0.5} onChange={(value) => update("topperWidth", value)} />
             </section>
 
-            {(definition.parameters?.length ?? 0) > 0 && <section className="inspector-section signature-section">
+            <section className="inspector-section connection-section">
+              <div className="section-heading"><div><p>CONNECTION</p><span>Flush fit or one-piece print</span></div></div>
+              <div className="control-group compact">
+                <label>
+                  <span>Assembly</span>
+                  <select
+                    aria-label="Connection mode"
+                    value={options.connectionMode}
+                    onChange={(event) => update("connectionMode", event.target.value as ModelOptions["connectionMode"])}
+                  >
+                    <option value="detachable">Flush detachable pin</option>
+                    <option value="integrated">One-piece print</option>
+                  </select>
+                </label>
+              </div>
+              <p className="parameter-note">{integrated
+                ? "Adapter and topper are fused by a hidden internal core; no pin or socket gap is exported."
+                : "The pin enters an embedded blind socket inside the object, without a raised outer collar."}</p>
+            </section>
+
+            {!isAiSculpture && (definition.parameters?.length ?? 0) > 0 && <section className="inspector-section signature-section">
               <div className="section-heading">
                 <div><p>SIGNATURE</p><span>{definition.parameters?.length} model-specific controls</span></div>
                 <div className="section-actions"><button onClick={randomizeShape}>Vary</button><button onClick={resetShape}>Reset</button></div>
@@ -902,9 +1122,11 @@ export function Studio() {
             </section>}
 
             <section className="inspector-section appearance-section">
-              <div className="section-heading"><div><p>APPEARANCE</p><span>{definition.style === "realistic" ? "Smooth realistic model" : "Faceted printable model"}</span></div></div>
-              {definition.style === "lowpoly" && <div className="control-group compact"><label><span>Surface style</span><select value={options.faceted ? "low" : "soft"} onChange={(event) => update("faceted", event.target.value === "low")}><option value="low">Low poly</option><option value="soft">Smooth faceted</option></select></label></div>}
+              <div className="section-heading"><div><p>APPEARANCE</p><span>{isAiSculpture ? "Three-role generated palette" : definition.style === "realistic" ? "Smooth realistic model" : "Faceted printable model"}</span></div></div>
+              {(isAiSculpture || definition.style === "lowpoly") && <div className="control-group compact"><label><span>Surface style</span><select value={options.faceted ? "low" : "soft"} onChange={(event) => update("faceted", event.target.value === "low")}><option value="low">Low poly</option><option value="soft">Smooth faceted</option></select></label></div>}
               <div className="control-group color-control"><span>{options.modelId === "mushroom" ? "Cap color" : "Topper color"}</span><div>{COLORS.map((color) => <button key={color} className={`swatch ${options.primaryColor === color ? "active" : ""}`} style={{ background: color }} aria-label={`Use ${color}`} onClick={() => update("primaryColor", color)} />)}<input className="color-input" aria-label="Custom topper color" type="color" value={options.primaryColor} onChange={(event) => update("primaryColor", event.target.value)} /></div></div>
+              {isAiSculpture && <div className="control-group color-control"><span>Secondary color</span><div><input className="color-input" aria-label="Custom secondary color" type="color" value={options.secondaryColor ?? "#d8a33e"} onChange={(event) => update("secondaryColor", event.target.value)} /></div></div>}
+              {isAiSculpture && <div className="control-group color-control"><span>Detail color</span><div><input className="color-input" aria-label="Custom detail color" type="color" value={options.detailColor ?? "#f4eee2"} onChange={(event) => update("detailColor", event.target.value)} /></div></div>}
               <div className="control-group color-control"><span>{options.modelId === "mushroom" ? "Stem + base color" : "Adapter color"}</span><div><button className={`swatch ${options.accentColor === "#d7d0bf" ? "active" : ""}`} style={{ background: "#d7d0bf" }} onClick={() => update("accentColor", "#d7d0bf")} aria-label="Warm stone" /><button className={`swatch ${options.accentColor === "#1f3f2e" ? "active" : ""}`} style={{ background: "#1f3f2e" }} onClick={() => update("accentColor", "#1f3f2e")} aria-label="LetPot green" /><input className="color-input" aria-label="Custom adapter color" type="color" value={options.accentColor} onChange={(event) => update("accentColor", event.target.value)} /></div></div>
             </section>
 
@@ -918,15 +1140,15 @@ export function Studio() {
                   <div><dt>Upper vertical band</dt><dd>Ø{ADAPTER_STANDARD.upperDiameter} × {ADAPTER_STANDARD.upperBandHeight.toFixed(1)} mm</dd></div>
                   <div><dt>Total height</dt><dd>{ADAPTER_STANDARD.totalHeight.toFixed(1)} mm</dd></div>
                   <div><dt>Logo</dt><dd>Outer rim · crown outward</dd></div>
-                  <div><dt>Connector pin</dt><dd>Hex R3.96 · 7.4 mm</dd></div>
+                  <div><dt>Connection</dt><dd>{integrated ? "Hidden fused core · one part" : "Flush hex pin R3.96 · 7.4 mm"}</dd></div>
                 </dl>
               </div>
             </details>
 
             <details className="inspector-disclosure readiness-disclosure">
-              <summary><span><b>Print readiness</b><small>{manufacturing.status} · {definition.parts} manifold parts</small></span><i className={manufacturing.status === "Production trial" ? "verified" : "review"}>{manufacturing.status === "Production trial" ? "✓" : "!"}</i></summary>
+              <summary><span><b>Print readiness</b><small>{manufacturing.status} · {designParts} manifold parts</small></span><i className={manufacturing.status === "Production trial" ? "verified" : "review"}>{manufacturing.status === "Production trial" ? "✓" : "!"}</i></summary>
               <div className="disclosure-content">
-                <p className="print-note">{definition.printNote}</p>
+                <p className="print-note">{designPrintNote}</p>
                 <dl className="compact-spec"><div><dt>Orientation</dt><dd>{manufacturing.orientation}</dd></div><div><dt>Support</dt><dd>{manufacturing.supportStrategy}</dd></div><div><dt>Minimum wall</dt><dd>{manufacturing.minWall.toFixed(1)} mm</dd></div><div><dt>Minimum feature</dt><dd>{manufacturing.minFeature.toFixed(1)} mm</dd></div><div><dt>Batch mode</dt><dd>{manufacturing.batchMode}</dd></div></dl>
                 <ul className="audit-list">{manufacturing.details.map((detail) => <li key={detail}>{detail}</li>)}</ul>
               </div>

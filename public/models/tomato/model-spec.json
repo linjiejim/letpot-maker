@@ -63,10 +63,13 @@
   },
   "options": {
     "modelId": "tomato",
+    "connectionMode": "detachable",
     "topperHeight": 39,
     "topperWidth": 34,
     "primaryColor": "#c94f43",
     "accentColor": "#d7d0bf",
+    "secondaryColor": "#d8a33e",
+    "detailColor": "#f4eee2",
     "faceted": false,
     "shape": {
       "fruitCount": 3,

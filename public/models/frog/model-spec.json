@@ -24,10 +24,13 @@
   },
   "options": {
     "modelId": "frog",
+    "connectionMode": "detachable",
     "topperHeight": 31,
     "topperWidth": 32,
     "primaryColor": "#638652",
     "accentColor": "#d7d0bf",
+    "secondaryColor": "#d8a33e",
+    "detailColor": "#f4eee2",
     "faceted": true,
     "shape": {}
   },

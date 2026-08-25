@@ -24,10 +24,13 @@
   },
   "options": {
     "modelId": "strawberry",
+    "connectionMode": "detachable",
     "topperHeight": 34,
     "topperWidth": 27,
     "primaryColor": "#b95048",
     "accentColor": "#d7d0bf",
+    "secondaryColor": "#d8a33e",
+    "detailColor": "#f4eee2",
     "faceted": true,
     "shape": {}
   },

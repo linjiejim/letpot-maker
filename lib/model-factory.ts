@@ -1,4 +1,6 @@
 import * as THREE from "three";
+import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
+import type { AiColorRole, AiShapeNode, AiShapeProgram } from "./ai-shape-program";
 
 export type ModelId =
   | "sprout"
@@ -87,12 +89,16 @@ export interface ShapeParameterDefinition {
 
 export interface ModelOptions {
   modelId: ModelId;
+  connectionMode: "detachable" | "integrated";
   topperHeight: number;
   topperWidth: number;
   primaryColor: string;
   accentColor: string;
+  secondaryColor?: string;
+  detailColor?: string;
   faceted: boolean;
   shape: Partial<Record<ShapeParameterKey, number>>;
+  aiProgram?: AiShapeProgram;
 }
 
 export interface PrintablePart {
@@ -100,6 +106,7 @@ export interface PrintablePart {
   label: string;
   object: THREE.Object3D;
   color: string;
+  palette?: readonly string[];
   printFlipZ?: boolean;
 }
 
@@ -748,10 +755,13 @@ export function getDefaultShapeParameters(definition: ModelDefinition) {
 
 export const DEFAULT_OPTIONS: ModelOptions = {
   modelId: "sprout",
+  connectionMode: "detachable",
   topperHeight: 35,
   topperWidth: 28,
   primaryColor: "#769567",
   accentColor: "#d7d0bf",
+  secondaryColor: "#d8a33e",
+  detailColor: "#f4eee2",
   faceted: true,
   shape: {
     leafPairs: 4,
@@ -955,6 +965,7 @@ function buildAdapter(options: ModelOptions, includeLogo = true) {
     baseMaterial,
   );
   locator.name = "locator_skirt";
+  locator.userData.aiColorRole = "adapter";
   group.add(locator);
 
   const transition = new THREE.Mesh(
@@ -967,6 +978,7 @@ function buildAdapter(options: ModelOptions, includeLogo = true) {
     baseMaterial,
   );
   transition.name = "pod_fit_transition_and_upper_band";
+  transition.userData.aiColorRole = "adapter";
   transition.position.y = ADAPTER_STANDARD.lowerHeight;
   group.add(transition);
 
@@ -979,6 +991,7 @@ function buildAdapter(options: ModelOptions, includeLogo = true) {
       material(detailColor(options.accentColor, -0.18), false),
     );
     logo.name = "letpot_icon_engraving_cutter";
+    logo.userData.aiColorRole = "adapter";
     logo.userData.booleanOperation = "subtract";
     logo.position.set(
       0,
@@ -1028,25 +1041,61 @@ function prepareTopper(options: ModelOptions, color = options.primaryColor) {
   const group = new THREE.Group();
   group.name = `${options.modelId}_topper`;
   const adapterTop = ADAPTER_STANDARD.totalHeight;
-  const socketBoss = mesh(
-    new THREE.CylinderGeometry(4.8, 5.3, 4.2, 10),
+  const connectorCore = mesh(
+    new THREE.CylinderGeometry(4.85, 5.25, 4.15, 12),
     color,
     options.faceted,
   );
-  socketBoss.name = "detachable_topper_socket_boss";
-  socketBoss.position.y = adapterTop + 2.1;
-  group.add(socketBoss);
+  connectorCore.name = "embedded_topper_connector_core";
+  // Start 0.05 mm above the subject's flat print face so the core is fully
+  // embedded instead of sharing a coplanar bottom with model-specific feet.
+  connectorCore.position.y = adapterTop + 4.15 / 2;
+  connectorCore.userData.aiColorRole = color.toLowerCase() === options.accentColor.toLowerCase()
+    ? "adapter"
+    : "primary";
+  group.add(connectorCore);
 
-  const socket = mesh(
-    new THREE.CylinderGeometry(KIT_TRUNK_SOCKET_RADIUS, KIT_TRUNK_SOCKET_RADIUS, KIT_TRUNK_SOCKET_DEPTH + 0.08, 6),
-    detailColor(color, -0.16),
+  if (options.connectionMode !== "integrated") {
+    const socket = mesh(
+      new THREE.CylinderGeometry(KIT_TRUNK_SOCKET_RADIUS, KIT_TRUNK_SOCKET_RADIUS, KIT_TRUNK_SOCKET_DEPTH + 0.08, 6),
+      detailColor(color, -0.16),
+      false,
+    );
+    socket.name = "embedded_topper_pin_socket_cutter";
+    socket.userData.booleanOperation = "subtract";
+    socket.position.y = adapterTop + KIT_TRUNK_SOCKET_DEPTH / 2 - 0.04;
+    group.add(socket);
+  }
+  return group;
+}
+
+function buildIntegratedBaseJoint(options: ModelOptions) {
+  const bottom = ADAPTER_STANDARD.lowerHeight * 0.52;
+  const top = ADAPTER_STANDARD.totalHeight + 2.75;
+  const joint = mesh(
+    new THREE.CylinderGeometry(SOCKET_RADIUS + 0.24, SOCKET_RADIUS + 0.24, top - bottom, 18),
+    options.primaryColor,
     false,
   );
-  socket.name = "detachable_topper_pin_socket_cutter";
-  socket.userData.booleanOperation = "subtract";
-  socket.position.y = adapterTop + KIT_TRUNK_SOCKET_DEPTH / 2 - 0.04;
-  group.add(socket);
-  return group;
+  joint.name = "integrated_hidden_base_joint";
+  joint.position.y = (bottom + top) / 2;
+  joint.userData.aiColorRole = "primary";
+  return joint;
+}
+
+function buildIntegratedJoint(
+  name: string,
+  bottom: number,
+  top: number,
+  radius: number,
+  color: string,
+  role: "primary" | "secondary" | "detail" | "adapter" = "primary",
+) {
+  const joint = mesh(new THREE.CylinderGeometry(radius, radius, top - bottom, 18), color, false);
+  joint.name = name;
+  joint.position.y = (bottom + top) / 2;
+  joint.userData.aiColorRole = role;
+  return joint;
 }
 
 function buildConnectorPin(options: ModelOptions, name = "double_ended_connector_pin") {
@@ -1111,6 +1160,323 @@ function cylinderBetween(
   result.position.copy(start).add(end).multiplyScalar(0.5);
   result.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.normalize());
   return result;
+}
+
+function aiRoleColor(options: ModelOptions, role: AiColorRole) {
+  if (role === "secondary") return options.secondaryColor ?? detailColor(options.primaryColor, 0.16);
+  if (role === "detail") return options.detailColor ?? detailColor(options.primaryColor, 0.28);
+  return options.primaryColor;
+}
+
+function centeredExtrudeGeometry(shape: THREE.Shape, segments: number) {
+  const geometry = new THREE.ExtrudeGeometry(shape, {
+    depth: 1,
+    steps: 1,
+    bevelEnabled: true,
+    bevelSegments: Math.min(3, Math.max(1, Math.round(segments / 6))),
+    bevelSize: 0.06,
+    bevelThickness: 0.06,
+    curveSegments: segments,
+  });
+  geometry.translate(0, 0, -0.5);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+function aiLeafGeometry(segments: number) {
+  const shape = new THREE.Shape();
+  shape.moveTo(0, -0.52);
+  shape.bezierCurveTo(0.45, -0.2, 0.45, 0.24, 0, 0.52);
+  shape.bezierCurveTo(-0.45, 0.24, -0.45, -0.2, 0, -0.52);
+  shape.closePath();
+  return centeredExtrudeGeometry(shape, segments);
+}
+
+function aiHeartGeometry(segments: number) {
+  const shape = new THREE.Shape();
+  shape.moveTo(0, -0.5);
+  shape.bezierCurveTo(-0.6, -0.08, -0.52, 0.48, -0.22, 0.48);
+  shape.bezierCurveTo(-0.06, 0.48, 0, 0.33, 0, 0.24);
+  shape.bezierCurveTo(0, 0.33, 0.06, 0.48, 0.22, 0.48);
+  shape.bezierCurveTo(0.52, 0.48, 0.6, -0.08, 0, -0.5);
+  shape.closePath();
+  return centeredExtrudeGeometry(shape, segments);
+}
+
+function aiStarGeometry(points: number, segments: number) {
+  const shape = new THREE.Shape();
+  const safePoints = Math.max(4, Math.min(9, points));
+  for (let index = 0; index < safePoints * 2; index += 1) {
+    const angle = Math.PI / 2 + index * Math.PI / safePoints;
+    const radius = index % 2 === 0 ? 0.5 : 0.23;
+    const x = Math.cos(angle) * radius;
+    const y = Math.sin(angle) * radius;
+    if (index === 0) shape.moveTo(x, y);
+    else shape.lineTo(x, y);
+  }
+  shape.closePath();
+  return centeredExtrudeGeometry(shape, segments);
+}
+
+function aiRoofGeometry(segments: number) {
+  const shape = new THREE.Shape();
+  shape.moveTo(-0.5, -0.5);
+  shape.lineTo(0.5, -0.5);
+  shape.lineTo(0, 0.5);
+  shape.closePath();
+  return centeredExtrudeGeometry(shape, segments);
+}
+
+function aiHalfDiscGeometry(segments: number) {
+  const shape = new THREE.Shape();
+  shape.moveTo(-0.5, -0.375);
+  shape.bezierCurveTo(-0.5, 0.12, -0.28, 0.375, 0, 0.375);
+  shape.bezierCurveTo(0.28, 0.375, 0.5, 0.12, 0.5, -0.375);
+  shape.lineTo(-0.5, -0.375);
+  shape.closePath();
+  return centeredExtrudeGeometry(shape, segments);
+}
+
+function aiDomeGeometry(segments: number) {
+  return closedLatheGeometry([
+    new THREE.Vector2(0, 0.5),
+    new THREE.Vector2(0.28, 0.24),
+    new THREE.Vector2(0.42, -0.08),
+    new THREE.Vector2(0.49, -0.34),
+    new THREE.Vector2(0.5, -0.5),
+    new THREE.Vector2(0, -0.5),
+  ], segments);
+}
+
+function aiDropGeometry(segments: number) {
+  return closedLatheGeometry([
+    new THREE.Vector2(0, 0.5),
+    new THREE.Vector2(0.16, 0.48),
+    new THREE.Vector2(0.38, 0.3),
+    new THREE.Vector2(0.5, 0.08),
+    new THREE.Vector2(0.48, -0.18),
+    new THREE.Vector2(0.28, -0.45),
+    new THREE.Vector2(0, -0.5),
+  ], segments);
+}
+
+function aiUnitGeometry(node: AiShapeNode) {
+  switch (node.kind) {
+    case "ellipsoid":
+      return new THREE.SphereGeometry(0.5, node.segments, Math.max(6, Math.round(node.segments * 0.7)));
+    case "rounded-box":
+      return new RoundedBoxGeometry(1, 1, 1, Math.min(4, Math.max(2, Math.round(node.segments / 5))), 0.14);
+    case "cylinder":
+      return new THREE.CylinderGeometry(0.5, 0.5, 1, node.segments, 1, false);
+    case "cone":
+      return new THREE.ConeGeometry(0.5, 1, node.segments, 1, false);
+    case "capsule":
+      return new THREE.CapsuleGeometry(0.32, 0.36, Math.min(8, node.segments), node.segments);
+    case "torus":
+      return new THREE.TorusGeometry(0.36, 0.14, Math.max(5, Math.round(node.segments / 2)), node.segments * 2);
+    case "roof":
+      return aiRoofGeometry(node.segments);
+    case "disc": {
+      const geometry = new THREE.CylinderGeometry(0.5, 0.5, 1, node.segments, 1, false);
+      geometry.rotateX(Math.PI / 2);
+      return geometry;
+    }
+    case "half-disc":
+      return aiHalfDiscGeometry(node.segments);
+    case "dome":
+      return aiDomeGeometry(node.segments);
+    case "drop":
+      return aiDropGeometry(node.segments);
+    case "leaf":
+      return aiLeafGeometry(node.segments);
+    case "star":
+      return aiStarGeometry(node.segments, node.segments);
+    case "heart":
+      return aiHeartGeometry(node.segments);
+  }
+}
+
+type ExpandedAiNode = AiShapeNode & { repeatedFrom?: string };
+
+function aiRadialSymmetry(symmetry: AiShapeNode["symmetry"]) {
+  const match = /^radial-(3|4|5|6|8)-(y|z)$/.exec(symmetry);
+  return match ? { count: Number(match[1]), axis: match[2] as "y" | "z" } : null;
+}
+
+function expandAiNodes(program: AiShapeProgram) {
+  const expanded: ExpandedAiNode[] = [];
+  const repeatedIds = new Map<string, string[]>();
+  for (const node of program.nodes) {
+    expanded.push(node);
+    if (node.operation !== "add" || node.symmetry === "none") continue;
+    const copies = [node.id];
+    if (node.symmetry === "mirror-x") {
+      const mirroredId = `${node.id}-mirror`;
+      const parentCopies = repeatedIds.get(node.attachTo);
+      const attachTo = parentCopies?.[1] ?? node.attachTo;
+      const position: [number, number, number] = [...node.position];
+      const rotation: [number, number, number] = [...node.rotation];
+      position[0] *= -1;
+      rotation[1] *= -1;
+      rotation[2] *= -1;
+      expanded.push({ ...node, id: mirroredId, attachTo, position, rotation, symmetry: "none", repeatedFrom: node.id });
+      copies.push(mirroredId);
+    } else if (node.symmetry === "mirror-z") {
+      const mirroredId = `${node.id}-mirror`;
+      const parentCopies = repeatedIds.get(node.attachTo);
+      const attachTo = parentCopies?.[1] ?? node.attachTo;
+      const position: [number, number, number] = [...node.position];
+      const rotation: [number, number, number] = [...node.rotation];
+      position[2] *= -1;
+      rotation[0] *= -1;
+      rotation[1] *= -1;
+      expanded.push({ ...node, id: mirroredId, attachTo, position, rotation, symmetry: "none", repeatedFrom: node.id });
+      copies.push(mirroredId);
+    } else {
+      const radial = aiRadialSymmetry(node.symmetry);
+      if (!radial) continue;
+      const parentCopies = repeatedIds.get(node.attachTo);
+      for (let index = 1; index < radial.count; index += 1) {
+        const angle = index * Math.PI * 2 / radial.count;
+        const degrees = index * 360 / radial.count;
+        const position: [number, number, number] = [...node.position];
+        const rotation: [number, number, number] = [...node.rotation];
+        if (radial.axis === "y") {
+          const x = node.position[0];
+          const z = node.position[2];
+          position[0] = x * Math.cos(angle) + z * Math.sin(angle);
+          position[2] = -x * Math.sin(angle) + z * Math.cos(angle);
+          rotation[1] += degrees;
+        } else {
+          const radius = node.position[0];
+          position[0] = radius * Math.cos(angle);
+          position[1] = node.position[1] + radius * Math.sin(angle);
+          rotation[2] += degrees;
+        }
+        const repeatedId = `${node.id}-r${index + 1}`;
+        const attachTo = parentCopies?.[index] ?? node.attachTo;
+        expanded.push({ ...node, id: repeatedId, attachTo, position, rotation, symmetry: "none", repeatedFrom: node.id });
+        copies.push(repeatedId);
+      }
+    }
+    repeatedIds.set(node.id, copies);
+  }
+  return expanded;
+}
+
+function aiNodeTransform(node: ExpandedAiNode, options: ModelOptions) {
+  const center = new THREE.Vector3(
+    node.position[0] * options.topperWidth,
+    node.position[1] * options.topperHeight,
+    node.position[2] * options.topperWidth,
+  );
+  const size = new THREE.Vector3(
+    node.size[0] * options.topperWidth,
+    node.size[1] * options.topperHeight,
+    node.size[2] * options.topperWidth,
+  );
+  const rotation = new THREE.Euler(
+    THREE.MathUtils.degToRad(node.rotation[0]),
+    THREE.MathUtils.degToRad(node.rotation[1]),
+    THREE.MathUtils.degToRad(node.rotation[2]),
+    "XYZ",
+  );
+  return { center, size, rotation };
+}
+
+function buildAiSculpture(options: ModelOptions, program: AiShapeProgram) {
+  const topper = prepareTopper(options);
+  const sculpture = new THREE.Group();
+  sculpture.name = "ai_shape_program_sculpture";
+  const centers = new Map<string, THREE.Vector3>();
+  const connectionPoints = new Map<string, THREE.Vector3>();
+  const nodeBounds = new Map<string, THREE.Box3>();
+  const nodeKinds = new Map<string, AiShapeNode["kind"]>();
+  const nodeColorRoles = new Map<string, AiColorRole>();
+  const expanded = expandAiNodes(program);
+
+  for (const node of expanded) {
+    const { center, size, rotation } = aiNodeTransform(node, options);
+    centers.set(node.id, center);
+    const geometry = aiUnitGeometry(node);
+    geometry.computeBoundingBox();
+    const unitSize = geometry.boundingBox?.getSize(new THREE.Vector3()) ?? new THREE.Vector3(1, 1, 1);
+    const color = aiRoleColor(options, node.color);
+    const nodeMesh = mesh(geometry, color, options.faceted);
+    nodeMesh.name = `ai_${node.operation}_${node.id}_${node.kind}`;
+    nodeMesh.position.copy(center);
+    nodeMesh.rotation.copy(rotation);
+    nodeMesh.scale.set(
+      size.x / Math.max(unitSize.x, 0.001),
+      size.y / Math.max(unitSize.y, 0.001),
+      size.z / Math.max(unitSize.z, 0.001),
+    );
+    nodeMesh.userData.aiColorRole = node.color;
+    if (node.operation === "subtract") nodeMesh.userData.booleanOperation = "subtract";
+    sculpture.add(nodeMesh);
+    nodeMesh.updateMatrixWorld(true);
+    nodeBounds.set(node.id, new THREE.Box3().setFromObject(nodeMesh));
+    nodeKinds.set(node.id, node.kind);
+    nodeColorRoles.set(node.id, node.color);
+
+    const connectionPoint = center.clone();
+    if (node.kind === "torus") {
+      connectionPoint.add(new THREE.Vector3(size.x * 0.34, 0, 0).applyEuler(rotation));
+    } else if (node.kind === "dome" || node.kind === "drop") {
+      // Rotational profiles meet on the centre axis. Aim the fusion link into
+      // the broad interior instead of ending on that welded pole, which gives
+      // Manifold a materially overlapping volume in both connection modes.
+      connectionPoint.add(new THREE.Vector3(size.x * 0.16, 0, 0).applyEuler(rotation));
+    }
+    connectionPoints.set(node.id, connectionPoint);
+    if (node.operation === "subtract") continue;
+
+    let start = new THREE.Vector3(0, 0, 0);
+    if (node.attachTo !== "core") {
+      const parentBounds = nodeBounds.get(node.attachTo);
+      if (parentBounds && nodeKinds.get(node.attachTo) !== "torus") {
+        const parentCenter = centers.get(node.attachTo) ?? parentBounds.getCenter(new THREE.Vector3());
+        const towardChild = connectionPoint.clone().sub(parentCenter);
+        const distance = towardChild.length();
+        const parentSize = parentBounds.getSize(new THREE.Vector3());
+        // Begin well inside the parent's conservative inscribed region. This
+        // is more reliable than bounding-box overlap for rotated capsules and
+        // tapered shapes, while still trimming most of a centre-to-centre rod.
+        const insetTravel = Math.min(distance * 0.24, Math.min(parentSize.x, parentSize.y, parentSize.z) * 0.16);
+        start.copy(parentCenter).add(towardChild.normalize().multiplyScalar(insetTravel));
+      } else {
+        start = connectionPoints.get(node.attachTo) ?? centers.get(node.attachTo) ?? start;
+      }
+    }
+    const end = connectionPoint;
+    const distance = start.distanceTo(end);
+    if (distance < 0.05) continue;
+    const linkRadius = THREE.MathUtils.clamp(Math.min(size.x, size.y, size.z) * 0.18, 0.9, 2.4);
+    const linkRole = node.attachTo === "core" ? "primary" : nodeColorRoles.get(node.attachTo) ?? "primary";
+    const link = cylinderBetween(start, end, linkRadius, linkRadius * 0.92, aiRoleColor(options, linkRole), options.faceted, Math.max(6, node.segments));
+    link.name = `ai_fusion_${node.attachTo}_to_${node.id}`;
+    link.userData.aiColorRole = linkRole;
+    sculpture.add(link);
+  }
+
+  sculpture.updateMatrixWorld(true);
+  const additiveBounds = new THREE.Box3();
+  sculpture.traverse((child) => {
+    if (child instanceof THREE.Mesh && child.userData.booleanOperation !== "subtract") {
+      additiveBounds.expandByObject(child);
+    }
+  });
+  const size = additiveBounds.getSize(new THREE.Vector3());
+  const lateralScale = Math.min(1, options.topperWidth / Math.max(size.x, size.z, 0.001));
+  const verticalScale = Math.min(1, options.topperHeight / Math.max(size.y, 0.001));
+  sculpture.scale.set(lateralScale, verticalScale, lateralScale);
+  // Seat the generated silhouette directly on the adapter face. The former
+  // 3.55 mm lift exposed the generic socket sleeve as a visible pedestal;
+  // the embedded connector core now remains inside the lowest generated mass.
+  sculpture.position.y = ADAPTER_STANDARD.totalHeight - 0.05 - additiveBounds.min.y * verticalScale;
+  topper.add(sculpture);
+  topper.userData.aiShapeProgram = program;
+  return topper;
 }
 
 function leafBladeGeometry(length: number, width: number, thickness: number) {
@@ -1559,7 +1925,9 @@ function buildCloverKit(options: ModelOptions) {
   const adapterTop = ADAPTER_STANDARD.totalHeight;
   const stemTop = 16.8 * heightScale;
 
-  const pinGroup = buildConnectorPin(options, "clover_double_ended_connector_pin");
+  const pinGroup = options.connectionMode === "integrated"
+    ? undefined
+    : buildConnectorPin(options, "clover_double_ended_connector_pin");
 
   const trunkGroup = new THREE.Group();
   trunkGroup.name = "clover_flat_bottom_trunk";
@@ -1590,15 +1958,17 @@ function buildCloverKit(options: ModelOptions) {
   stem.position.y = (stemBottom + stemTop) / 2;
   trunkGroup.add(stem);
 
-  const trunkSocket = mesh(
-    new THREE.CylinderGeometry(KIT_TRUNK_SOCKET_RADIUS, KIT_TRUNK_SOCKET_RADIUS, KIT_TRUNK_SOCKET_DEPTH + 0.08, 6),
-    detailColor(options.primaryColor, -0.16),
-    false,
-  );
-  trunkSocket.name = "clover_trunk_pin_socket_cutter";
-  trunkSocket.userData.booleanOperation = "subtract";
-  trunkSocket.position.y = KIT_TRUNK_SOCKET_DEPTH / 2 - 0.04;
-  trunkGroup.add(trunkSocket);
+  if (options.connectionMode !== "integrated") {
+    const trunkSocket = mesh(
+      new THREE.CylinderGeometry(KIT_TRUNK_SOCKET_RADIUS, KIT_TRUNK_SOCKET_RADIUS, KIT_TRUNK_SOCKET_DEPTH + 0.08, 6),
+      detailColor(options.primaryColor, -0.16),
+      false,
+    );
+    trunkSocket.name = "clover_trunk_pin_socket_cutter";
+    trunkSocket.userData.booleanOperation = "subtract";
+    trunkSocket.position.y = KIT_TRUNK_SOCKET_DEPTH / 2 - 0.04;
+    trunkGroup.add(trunkSocket);
+  }
 
   const crownPinHeight = KIT_CROWN_SOCKET_DEPTH + 0.35;
   const crownPin = mesh(
@@ -1623,15 +1993,17 @@ function buildCloverKit(options: ModelOptions) {
   crownHub.position.y = crownHubHeight / 2;
   crownGroup.add(crownHub);
 
-  const crownSocket = mesh(
-    new THREE.CylinderGeometry(KIT_CROWN_SOCKET_RADIUS, KIT_CROWN_SOCKET_RADIUS, KIT_CROWN_SOCKET_DEPTH + 0.08, 6),
-    detailColor(options.primaryColor, -0.16),
-    false,
-  );
-  crownSocket.name = "clover_crown_socket_cutter";
-  crownSocket.userData.booleanOperation = "subtract";
-  crownSocket.position.y = KIT_CROWN_SOCKET_DEPTH / 2 - 0.04;
-  crownGroup.add(crownSocket);
+  if (options.connectionMode !== "integrated") {
+    const crownSocket = mesh(
+      new THREE.CylinderGeometry(KIT_CROWN_SOCKET_RADIUS, KIT_CROWN_SOCKET_RADIUS, KIT_CROWN_SOCKET_DEPTH + 0.08, 6),
+      detailColor(options.primaryColor, -0.16),
+      false,
+    );
+    crownSocket.name = "clover_crown_socket_cutter";
+    crownSocket.userData.booleanOperation = "subtract";
+    crownSocket.position.y = KIT_CROWN_SOCKET_DEPTH / 2 - 0.04;
+    crownGroup.add(crownSocket);
+  }
 
   const leafDistance = 5.85 * widthScale;
   const leafCentreY = crownHubHeight + 2.75 * heightScale;
@@ -3022,32 +3394,100 @@ function buildMushroom(options: ModelOptions) {
   return { stemGroup, capGroup };
 }
 
+function markColorRole(object: THREE.Object3D, role: "primary" | "secondary" | "detail" | "adapter") {
+  object.traverse((child) => {
+    if (child instanceof THREE.Mesh) child.userData.aiColorRole = role;
+  });
+}
+
 export function createModel(options: ModelOptions): ModelBuild {
+  const integrated = options.connectionMode === "integrated";
   const assembly = new THREE.Group();
-  assembly.name = `${options.modelId}_assembly`;
+  assembly.name = options.aiProgram ? "ai_custom_assembly" : `${options.modelId}_assembly`;
+  const printableRoot = integrated ? new THREE.Group() : assembly;
+  if (integrated) {
+    printableRoot.name = `${options.modelId}_integrated_print`;
+    assembly.add(printableRoot);
+  }
   const adapter = buildAdapter(options);
-  assembly.add(adapter);
-  const parts: PrintablePart[] = [
+  printableRoot.add(adapter);
+  const parts: PrintablePart[] = integrated ? [] : [
     { id: "adapter", label: "Universal adapter · Ø41 face down", object: adapter, color: options.accentColor, printFlipZ: true },
   ];
 
-  if (options.modelId === "mushroom") {
-    const pinGroup = buildConnectorPin(options, "mushroom_double_ended_connector_pin");
+  if (options.aiProgram) {
+    const topper = buildAiSculpture(options, options.aiProgram);
+    if (integrated) {
+      printableRoot.add(buildIntegratedBaseJoint(options), topper);
+    } else {
+      const pinGroup = buildConnectorPin(options, "ai_custom_double_ended_connector_pin");
+      printableRoot.add(pinGroup, topper);
+      parts.push(
+        { id: "connector-pin", label: "Double-ended connector pin", object: pinGroup, color: options.primaryColor },
+        {
+          id: "topper",
+          label: "Flush socketed AI sculpture",
+          object: topper,
+          color: options.primaryColor,
+          palette: [options.primaryColor, options.secondaryColor ?? "#d8a33e", options.detailColor ?? "#f4eee2"],
+        },
+      );
+    }
+  } else if (options.modelId === "mushroom") {
     const { stemGroup, capGroup } = buildMushroom(options);
-    assembly.add(pinGroup, stemGroup, capGroup);
-    parts.push(
-      { id: "connector-pin", label: "Double-ended connector pin", object: pinGroup, color: options.primaryColor },
-      { id: "stem", label: "Socketed mushroom stem", object: stemGroup, color: options.accentColor },
-      { id: "cap", label: "Mushroom cap", object: capGroup, color: options.primaryColor },
-    );
+    if (integrated) {
+      const widthScale = options.topperWidth / 32;
+      const heightScale = options.topperHeight / 34;
+      const topY = ADAPTER_STANDARD.totalHeight - 0.05;
+      markColorRole(stemGroup, "adapter");
+      printableRoot.add(
+        buildIntegratedBaseJoint(options),
+        stemGroup,
+        capGroup,
+        buildIntegratedJoint(
+          "integrated_hidden_mushroom_cap_joint",
+          topY + 18.8 * heightScale,
+          topY + 24.45 * heightScale,
+          3.55 * widthScale,
+          options.accentColor,
+          "adapter",
+        ),
+      );
+    } else {
+      const pinGroup = buildConnectorPin(options, "mushroom_double_ended_connector_pin");
+      printableRoot.add(pinGroup, stemGroup, capGroup);
+      parts.push(
+        { id: "connector-pin", label: "Double-ended connector pin", object: pinGroup, color: options.primaryColor },
+        { id: "stem", label: "Flush socketed mushroom stem", object: stemGroup, color: options.accentColor },
+        { id: "cap", label: "Mushroom cap", object: capGroup, color: options.primaryColor },
+      );
+    }
   } else if (options.modelId === "clover") {
     const { pinGroup, trunkGroup, crownGroup } = buildCloverKit(options);
-    assembly.add(pinGroup, trunkGroup, crownGroup);
-    parts.push(
-      { id: "connector-pin", label: "Double-ended connector pin", object: pinGroup, color: options.primaryColor },
-      { id: "trunk", label: "Flat-bottom clover trunk", object: trunkGroup, color: options.primaryColor },
-      { id: "crown", label: "Rounded clover crown", object: crownGroup, color: options.primaryColor },
-    );
+    if (integrated) {
+      const stemTop = 16.8 * (options.topperHeight / 33);
+      const crownBase = ADAPTER_STANDARD.totalHeight + stemTop;
+      printableRoot.add(
+        buildIntegratedBaseJoint(options),
+        trunkGroup,
+        crownGroup,
+        buildIntegratedJoint(
+          "integrated_hidden_clover_crown_joint",
+          crownBase - 0.65,
+          crownBase + KIT_CROWN_SOCKET_DEPTH + 0.55,
+          KIT_CROWN_SOCKET_RADIUS + 0.25,
+          options.primaryColor,
+        ),
+      );
+    } else {
+      if (!pinGroup) throw new Error("Detachable clover connector is unavailable");
+      printableRoot.add(pinGroup, trunkGroup, crownGroup);
+      parts.push(
+        { id: "connector-pin", label: "Double-ended connector pin", object: pinGroup, color: options.primaryColor },
+        { id: "trunk", label: "Flat-bottom clover trunk", object: trunkGroup, color: options.primaryColor },
+        { id: "crown", label: "Rounded clover crown", object: crownGroup, color: options.primaryColor },
+      );
+    }
   } else {
     const builders: Record<Exclude<ModelId, "mushroom" | "clover">, (value: ModelOptions) => THREE.Group> = {
       sprout: buildSprout,
@@ -3083,13 +3523,32 @@ export function createModel(options: ModelOptions): ModelBuild {
       "candy-cane": buildCandyCane,
       "christmas-bell": buildChristmasBell,
     };
-    const pinGroup = buildConnectorPin(options);
     const topper = builders[options.modelId](options);
-    assembly.add(pinGroup, topper);
-    parts.push(
-      { id: "connector-pin", label: "Double-ended connector pin", object: pinGroup, color: options.primaryColor },
-      { id: "topper", label: `Socketed ${options.modelId} body`, object: topper, color: options.primaryColor },
-    );
+    if (integrated) {
+      printableRoot.add(buildIntegratedBaseJoint(options), topper);
+    } else {
+      const pinGroup = buildConnectorPin(options);
+      printableRoot.add(pinGroup, topper);
+      parts.push(
+        { id: "connector-pin", label: "Double-ended connector pin", object: pinGroup, color: options.primaryColor },
+        { id: "topper", label: `Flush socketed ${options.modelId} body`, object: topper, color: options.primaryColor },
+      );
+    }
+  }
+
+  if (integrated) {
+    parts.push({
+      id: "integrated",
+      label: "One-piece adapter and topper",
+      object: printableRoot,
+      color: options.primaryColor,
+      palette: [
+        options.primaryColor,
+        options.secondaryColor ?? "#d8a33e",
+        options.detailColor ?? "#f4eee2",
+        options.accentColor,
+      ],
+    });
   }
 
   assembly.traverse((child) => {

@@ -24,10 +24,13 @@
   },
   "options": {
     "modelId": "bonsai",
+    "connectionMode": "detachable",
     "topperHeight": 40,
     "topperWidth": 34,
     "primaryColor": "#477052",
     "accentColor": "#d7d0bf",
+    "secondaryColor": "#d8a33e",
+    "detailColor": "#f4eee2",
     "faceted": true,
     "shape": {}
   },

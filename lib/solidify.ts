@@ -63,9 +63,21 @@ function geometryToManifold(wasm: ManifoldToplevel, source: THREE.Mesh) {
     cleanTriangles.push(ia, ib, ic);
   }
 
+  const colorRole = source.userData.aiColorRole === "secondary"
+    ? 1
+    : source.userData.aiColorRole === "detail"
+      ? 2
+      : source.userData.aiColorRole === "adapter" ? 3 : 0;
+  const vertexProperties = new Float32Array(position.count * 4);
+  for (let vertex = 0; vertex < position.count; vertex += 1) {
+    vertexProperties[vertex * 4] = position.getX(vertex);
+    vertexProperties[vertex * 4 + 1] = position.getY(vertex);
+    vertexProperties[vertex * 4 + 2] = position.getZ(vertex);
+    vertexProperties[vertex * 4 + 3] = colorRole;
+  }
   const mesh = new wasm.Mesh({
-    numProp: 3,
-    vertProperties: Float32Array.from(position.array as ArrayLike<number>),
+    numProp: 4,
+    vertProperties: vertexProperties,
     triVerts: Uint32Array.from(cleanTriangles),
   });
   mesh.merge();
@@ -80,14 +92,34 @@ function geometryToManifold(wasm: ManifoldToplevel, source: THREE.Mesh) {
 function manifoldToGeometry(solid: Manifold) {
   const mesh = solid.getMesh();
   const positions = new Float32Array(mesh.numVert * 3);
+  const colorRoles = new Float32Array(mesh.numVert);
   for (let vertex = 0; vertex < mesh.numVert; vertex += 1) {
     positions[vertex * 3] = mesh.vertProperties[vertex * mesh.numProp];
     positions[vertex * 3 + 1] = mesh.vertProperties[vertex * mesh.numProp + 1];
     positions[vertex * 3 + 2] = mesh.vertProperties[vertex * mesh.numProp + 2];
+    colorRoles[vertex] = mesh.numProp > 3 ? mesh.vertProperties[vertex * mesh.numProp + 3] : 0;
   }
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-  geometry.setIndex(new THREE.BufferAttribute(Uint32Array.from(mesh.triVerts), 1));
+  geometry.setAttribute("aiColorRole", new THREE.BufferAttribute(colorRoles, 1));
+  const indices: number[] = [];
+  const distanceSquared = (first: number, second: number) => {
+    const ax = positions[first * 3] - positions[second * 3];
+    const ay = positions[first * 3 + 1] - positions[second * 3 + 1];
+    const az = positions[first * 3 + 2] - positions[second * 3 + 2];
+    return ax * ax + ay * ay + az * az;
+  };
+  for (let triangle = 0; triangle < mesh.triVerts.length; triangle += 3) {
+    const a = mesh.triVerts[triangle];
+    const b = mesh.triVerts[triangle + 1];
+    const c = mesh.triVerts[triangle + 2];
+    // Manifold may preserve a property seam as a triangle with two XYZ
+    // vertices less than one nanometre apart. Such a face has no printable
+    // area and collapses to a duplicate STL edge, so omit it at serialization.
+    if (distanceSquared(a, b) < 1e-12 || distanceSquared(b, c) < 1e-12 || distanceSquared(c, a) < 1e-12) continue;
+    indices.push(a, b, c);
+  }
+  geometry.setIndex(new THREE.BufferAttribute(Uint32Array.from(indices), 1));
   geometry.computeVertexNormals();
   geometry.computeBoundingBox();
   return geometry;
@@ -159,10 +191,23 @@ export async function solidifyObject(
 
   const components = solid.decompose();
   const componentCount = components.length;
+  const componentSizes = components.map((component) => {
+    const mesh = component.getMesh();
+    const min = [Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY];
+    const max = [Number.NEGATIVE_INFINITY, Number.NEGATIVE_INFINITY, Number.NEGATIVE_INFINITY];
+    for (let vertex = 0; vertex < mesh.numVert; vertex += 1) {
+      for (let axis = 0; axis < 3; axis += 1) {
+        const value = mesh.vertProperties[vertex * mesh.numProp + axis];
+        min[axis] = Math.min(min[axis], value);
+        max[axis] = Math.max(max[axis], value);
+      }
+    }
+    return max.map((value, axis) => Math.max(0, value - min[axis]).toFixed(1)).join("×");
+  });
   components.forEach((entry) => entry.delete());
   if (componentCount !== 1) {
     solid.delete();
-    throw new Error(`${object.name || "Part"} has ${componentCount} disconnected solids; exactly one is required`);
+    throw new Error(`${object.name || "Part"} has ${componentCount} disconnected solids (${componentSizes.join(", ")} mm); exactly one is required`);
   }
 
   const geometry = manifoldToGeometry(solid);

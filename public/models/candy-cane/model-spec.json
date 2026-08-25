@@ -25,10 +25,13 @@
   },
   "options": {
     "modelId": "candy-cane",
+    "connectionMode": "detachable",
     "topperHeight": 39,
     "topperWidth": 29,
     "primaryColor": "#c72f3b",
     "accentColor": "#d7d0bf",
+    "secondaryColor": "#d8a33e",
+    "detailColor": "#f4eee2",
     "faceted": false,
     "shape": {}
   },

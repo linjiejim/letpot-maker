@@ -24,10 +24,13 @@
   },
   "options": {
     "modelId": "sunflower",
+    "connectionMode": "detachable",
     "topperHeight": 40,
     "topperWidth": 34,
     "primaryColor": "#d5a62e",
     "accentColor": "#d7d0bf",
+    "secondaryColor": "#d8a33e",
+    "detailColor": "#f4eee2",
     "faceted": true,
     "shape": {}
   },
