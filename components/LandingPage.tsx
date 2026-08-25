@@ -54,6 +54,7 @@ function optionsFor(modelId: ModelId, models: LandingModel[]): ModelOptions {
   const definition = models.find((item) => item.id === modelId) ?? models[0];
   return {
     modelId: definition.id,
+    connectionMode: "detachable",
     ...definition.defaults,
     faceted: definition.style === "lowpoly",
     shape: definition.shape,

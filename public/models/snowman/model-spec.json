@@ -24,10 +24,13 @@
   },
   "options": {
     "modelId": "snowman",
+    "connectionMode": "detachable",
     "topperHeight": 46,
     "topperWidth": 34,
     "primaryColor": "#eef3ed",
     "accentColor": "#d7d0bf",
+    "secondaryColor": "#d8a33e",
+    "detailColor": "#f4eee2",
     "faceted": false,
     "shape": {}
   },

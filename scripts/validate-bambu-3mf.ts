@@ -20,8 +20,10 @@ let validatedProjects = 0;
 let validatedNestedArchive = false;
 
 for (const definition of MODEL_LIBRARY) {
+  for (const connectionMode of ["detachable", "integrated"] as const) {
   const build = createModel({
     ...DEFAULT_OPTIONS,
+    connectionMode,
     modelId: definition.id,
     ...definition.defaults,
     faceted: definition.style === "lowpoly",
@@ -29,16 +31,26 @@ for (const definition of MODEL_LIBRARY) {
   });
   const solids: ThreeMfPart["mesh"][] = [];
   const projectParts: ThreeMfPart[] = [];
+  assert.equal(build.parts.length === 1, connectionMode === "integrated");
+  let socketCutters = 0;
+  let hiddenJoints = 0;
+  build.assembly.traverse((child) => {
+    if (child.userData.booleanOperation === "subtract" && child.name.includes("socket")) socketCutters += 1;
+    if (child.name.startsWith("integrated_hidden_")) hiddenJoints += 1;
+  });
+  assert.equal(socketCutters === 0, connectionMode === "integrated");
+  assert.equal(hiddenJoints > 0, connectionMode === "integrated");
+  assert.equal(build.parts.some((part) => part.id === "connector-pin"), connectionMode === "detachable");
 
   try {
     for (const part of build.parts) {
       const solid = await solidifyObject(wasm, part.object, { flipZ: part.printFlipZ });
       solids.push(solid);
-      projectParts.push({ name: part.label, mesh: solid, color: part.color });
+      projectParts.push({ name: part.label, mesh: solid, color: part.color, palette: part.palette });
     }
 
     for (const printerId of Object.keys(BAMBU_PRINTERS) as BambuPrinterId[]) {
-      const project = await buildBambuThreeMf(projectParts, printerId, `Validation ${definition.name}`);
+      const project = await buildBambuThreeMf(projectParts, printerId, `Validation ${definition.name} ${connectionMode}`);
       const archive = await JSZip.loadAsync(await project.arrayBuffer());
       assert.ok(archive.file("[Content_Types].xml"));
       assert.ok(archive.file("_rels/.rels"));
@@ -84,6 +96,7 @@ for (const definition of MODEL_LIBRARY) {
     solids.forEach((solid) => disposeObject(solid));
     disposeObject(build.assembly);
   }
+  }
 }
 
-console.log(`Validated ${validatedProjects} Bambu 3MF projects across A1 mini and P1S.`);
+console.log(`Validated ${validatedProjects} detachable and one-piece Bambu 3MF projects across A1 mini and P1S.`);

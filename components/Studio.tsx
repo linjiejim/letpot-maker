@@ -237,7 +237,7 @@ const LEGACY_AI_CREATIONS_STORAGE_KEY = "letpot-garden-lab:ai-creations:v1";
 
 const AI_MANUFACTURING_PROFILE: ManufacturingProfile = {
   status: "Prototype study",
-  orientation: "Socketed body upright · connector pin vertical",
+  orientation: "Body upright · connection mode selected in Studio",
   supportStrategy: "Automatic snug support; inspect the sliced preview",
   minWall: 1.2,
   minFeature: 1.2,
@@ -245,7 +245,7 @@ const AI_MANUFACTURING_PROFILE: ManufacturingProfile = {
   stackMode: "Adapter stack only",
   details: [
     "Every AI node is range-limited and fused to a connected support graph",
-    "The locked adapter, pin and socket geometry is reused without AI modification",
+    "The locked adapter and embedded connection geometry are reused without AI modification",
     "Manifold export is checked automatically; visual detail and overhangs still need review",
   ],
 };
@@ -451,17 +451,31 @@ export function Studio() {
   const build = useMemo(() => createModel(options), [options]);
   const definition = MODEL_LIBRARY.find((item) => item.id === options.modelId) ?? MODEL_LIBRARY[0];
   const isAiSculpture = Boolean(aiDesign?.program && options.aiProgram);
-  const designParts = isAiSculpture ? 3 : definition.parts;
+  const integrated = options.connectionMode === "integrated";
+  const designParts = integrated ? 1 : isAiSculpture ? 3 : definition.parts;
   const designName = aiDesign?.name ?? definition.name;
   const designSubtitle = aiDesign?.subtitle ?? definition.subtitle;
-  const designPrintNote = isAiSculpture
+  const detachablePrintNote = isAiSculpture
     ? "Print the socketed sculpture upright with automatic snug supports. Inspect small color details and overhangs in the sliced preview before the first prototype."
     : definition.printNote;
+  const designPrintNote = integrated
+    ? `One-piece mode: print upright on the Ø33 locator face; the adapter and topper are fused by a hidden internal core. ${detachablePrintNote}`
+    : detachablePrintNote;
   const visibleModels = useMemo(
     () => activeTag === "all" ? MODEL_LIBRARY : MODEL_LIBRARY.filter((item) => item.tags.includes(activeTag)),
     [activeTag],
   );
-  const manufacturing = isAiSculpture ? AI_MANUFACTURING_PROFILE : getManufacturingProfile(options.modelId);
+  const baseManufacturing = isAiSculpture ? AI_MANUFACTURING_PROFILE : getManufacturingProfile(options.modelId);
+  const manufacturing = integrated ? {
+    ...baseManufacturing,
+    orientation: "One-piece upright · Ø33 locator face on bed",
+    batchMode: "Single-piece models · flat plate",
+    details: [
+      "The adapter and topper are fused through a hidden internal core",
+      "No loose connector pin or exposed socket collar is generated",
+      ...baseManufacturing.details,
+    ],
+  } : baseManufacturing;
 
   useEffect(() => () => disposeObject(build.assembly), [build]);
 
@@ -694,7 +708,7 @@ export function Studio() {
         manufacturing,
         warning: "Fixed Ø33/Ø41 pod-fit standard. Verify fit with a small adapter test before production.",
       }, null, 2));
-      root.file("PRINT-NOTES.txt", `${designName}\n\n${aiDesign ? `${aiDesign.creativeNote}\n\nGenerated from: ${aiDesign.prompt}\n\n` : ""}${designPrintNote}\n\nManufacturing status: ${manufacturing.status}.\nOrientation: ${manufacturing.orientation}.\nSupport: ${manufacturing.supportStrategy}.\nMinimum designed wall: ${manufacturing.minWall.toFixed(1)} mm.\nMinimum designed feature: ${manufacturing.minFeature.toFixed(1)} mm.\nBatch mode: ${manufacturing.batchMode}.\n\nEvery STL is a single connected, watertight solid. Every design is intentionally split into a universal adapter, a double-ended connector pin and a socketed body; mushroom and clover include one additional upper part.\n\nAdapter standard: Ø${ADAPTER_STANDARD.lowerDiameter.toFixed(2)} mm straight lower section × ${ADAPTER_STANDARD.lowerHeight.toFixed(2)} mm, then a ${ADAPTER_STANDARD.transitionHeight.toFixed(2)} mm transition to a Ø${ADAPTER_STANDARD.upperDiameter.toFixed(2)} mm × ${ADAPTER_STANDARD.upperBandHeight.toFixed(2)} mm vertical upper band; total height ${ADAPTER_STANDARD.totalHeight.toFixed(2)} mm. The STL is pre-oriented with the Ø${ADAPTER_STANDARD.upperDiameter.toFixed(2)} mm logo face on the print bed and the Ø${ADAPTER_STANDARD.lowerDiameter.toFixed(2)} mm side facing upward. Verify fit with a small test print before production.\n`);
+      root.file("PRINT-NOTES.txt", `${designName}\n\n${aiDesign ? `${aiDesign.creativeNote}\n\nGenerated from: ${aiDesign.prompt}\n\n` : ""}${designPrintNote}\n\nManufacturing status: ${manufacturing.status}.\nOrientation: ${manufacturing.orientation}.\nSupport: ${manufacturing.supportStrategy}.\nMinimum designed wall: ${manufacturing.minWall.toFixed(1)} mm.\nMinimum designed feature: ${manufacturing.minFeature.toFixed(1)} mm.\nBatch mode: ${manufacturing.batchMode}.\n\nEvery STL is a single connected, watertight solid. ${integrated ? "This export contains one fused adapter-and-topper part with no loose connector." : "The adapter and topper use a flush embedded socket plus a removable double-ended connector pin; mushroom and clover include one additional upper part."}\n\nAdapter standard: Ø${ADAPTER_STANDARD.lowerDiameter.toFixed(2)} mm straight lower section × ${ADAPTER_STANDARD.lowerHeight.toFixed(2)} mm, then a ${ADAPTER_STANDARD.transitionHeight.toFixed(2)} mm transition to a Ø${ADAPTER_STANDARD.upperDiameter.toFixed(2)} mm × ${ADAPTER_STANDARD.upperBandHeight.toFixed(2)} mm vertical upper band; total height ${ADAPTER_STANDARD.totalHeight.toFixed(2)} mm. ${integrated ? `Print the complete model upright with the Ø${ADAPTER_STANDARD.lowerDiameter.toFixed(2)} mm locator face on the bed.` : `The adapter STL is pre-oriented with the Ø${ADAPTER_STANDARD.upperDiameter.toFixed(2)} mm logo face on the print bed and the Ø${ADAPTER_STANDARD.lowerDiameter.toFixed(2)} mm side facing upward.`} Verify fit with a small test print before production.\n`);
       const archive = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
       downloadBlob(archive, `${slugify(designName)}-print-pack.zip`);
       disposeObject(solidAssembly);
@@ -720,9 +734,7 @@ export function Studio() {
           name: part.label,
           mesh: solid,
           color: part.color,
-          palette: options.aiProgram && part.id === "topper"
-            ? [options.primaryColor, options.secondaryColor ?? "#d8a33e", options.detailColor ?? "#f4eee2"]
-            : undefined,
+          palette: part.palette,
         });
       }
       const project = await buildBambuThreeMf(projectParts, printerId, designName);
@@ -949,6 +961,26 @@ export function Studio() {
               <Slider label="Topper width" value={options.topperWidth} min={20} max={40} step={0.5} onChange={(value) => update("topperWidth", value)} />
             </section>
 
+            <section className="inspector-section connection-section">
+              <div className="section-heading"><div><p>CONNECTION</p><span>Flush fit or one-piece print</span></div></div>
+              <div className="control-group compact">
+                <label>
+                  <span>Assembly</span>
+                  <select
+                    aria-label="Connection mode"
+                    value={options.connectionMode}
+                    onChange={(event) => update("connectionMode", event.target.value as ModelOptions["connectionMode"])}
+                  >
+                    <option value="detachable">Flush detachable pin</option>
+                    <option value="integrated">One-piece print</option>
+                  </select>
+                </label>
+              </div>
+              <p className="parameter-note">{integrated
+                ? "Adapter and topper are fused by a hidden internal core; no pin or socket gap is exported."
+                : "The pin enters an embedded blind socket inside the object, without a raised outer collar."}</p>
+            </section>
+
             {!isAiSculpture && (definition.parameters?.length ?? 0) > 0 && <section className="inspector-section signature-section">
               <div className="section-heading">
                 <div><p>SIGNATURE</p><span>{definition.parameters?.length} model-specific controls</span></div>
@@ -988,7 +1020,7 @@ export function Studio() {
                   <div><dt>Upper vertical band</dt><dd>Ø{ADAPTER_STANDARD.upperDiameter} × {ADAPTER_STANDARD.upperBandHeight.toFixed(1)} mm</dd></div>
                   <div><dt>Total height</dt><dd>{ADAPTER_STANDARD.totalHeight.toFixed(1)} mm</dd></div>
                   <div><dt>Logo</dt><dd>Outer rim · crown outward</dd></div>
-                  <div><dt>Connector pin</dt><dd>Hex R3.96 · 7.4 mm</dd></div>
+                  <div><dt>Connection</dt><dd>{integrated ? "Hidden fused core · one part" : "Flush hex pin R3.96 · 7.4 mm"}</dd></div>
                 </dl>
               </div>
             </details>

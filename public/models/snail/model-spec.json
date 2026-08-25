@@ -24,10 +24,13 @@
   },
   "options": {
     "modelId": "snail",
+    "connectionMode": "detachable",
     "topperHeight": 29,
     "topperWidth": 35,
     "primaryColor": "#9a7754",
     "accentColor": "#d7d0bf",
+    "secondaryColor": "#d8a33e",
+    "detailColor": "#f4eee2",
     "faceted": true,
     "shape": {}
   },

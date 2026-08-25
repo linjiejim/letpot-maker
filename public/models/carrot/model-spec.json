@@ -24,10 +24,13 @@
   },
   "options": {
     "modelId": "carrot",
+    "connectionMode": "detachable",
     "topperHeight": 38,
     "topperWidth": 27,
     "primaryColor": "#db7636",
     "accentColor": "#d7d0bf",
+    "secondaryColor": "#d8a33e",
+    "detailColor": "#f4eee2",
     "faceted": false,
     "shape": {}
   },

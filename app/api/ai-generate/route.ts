@@ -34,7 +34,7 @@ the envelope, keep the lowest main mass near Y=0.15, use no more than three colo
 spikes, thin sheets, narrow ankles, deep horizontal undersides, or cutters that split the body. Subtract nodes are only
 for shallow doors/windows/grooves above the connector. Prefer sturdy silhouettes and rising angles suitable for a 0.4 mm nozzle.
 
-The locked adapter, detachable connector pin, socket, final 20–40 mm width, 25–50 mm height, node count, ranges and
+The locked adapter, embedded connection core, optional detachable pin, final 20–40 mm width, 25–50 mm height, node count, ranges and
 manifold checks are applied by application code and cannot be changed by this recipe.
 The templateId MUST be exactly one of ${JSON.stringify(AI_TEMPLATE_IDS)}. In sculpture mode it is only the closest
 library reference for metadata; the program defines the geometry. Never put a family display name in templateId.

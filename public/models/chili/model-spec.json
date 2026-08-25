@@ -25,10 +25,13 @@
   },
   "options": {
     "modelId": "chili",
+    "connectionMode": "detachable",
     "topperHeight": 27,
     "topperWidth": 38,
     "primaryColor": "#c83f38",
     "accentColor": "#d7d0bf",
+    "secondaryColor": "#d8a33e",
+    "detailColor": "#f4eee2",
     "faceted": false,
     "shape": {}
   },

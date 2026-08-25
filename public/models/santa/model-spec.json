@@ -24,10 +24,13 @@
   },
   "options": {
     "modelId": "santa",
+    "connectionMode": "detachable",
     "topperHeight": 45,
     "topperWidth": 35,
     "primaryColor": "#b92f34",
     "accentColor": "#d7d0bf",
+    "secondaryColor": "#d8a33e",
+    "detailColor": "#f4eee2",
     "faceted": false,
     "shape": {}
   },

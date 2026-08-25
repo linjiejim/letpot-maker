@@ -28,7 +28,7 @@ Every sculpture recipe is normalized to a 25–50 mm topper height, 20–40 mm t
 - It can invent new low-poly topology by composing bounded primitives. It is strongest for iconic houses, toys, characters, fruit, flowers, animals and simple product silhouettes.
 - It does not synthesize a free-form neural mesh. Highly organic anatomy, realistic faces, cloth and intricate surface texture remain outside this lightweight path.
 - It currently makes small pod toppers around the locked LetPot adapter. It does not generate load-bearing mounts, replacement parts, enclosures, organizers, or device-specific mechanisms.
-- The adapter, detachable pin and socket are always code-owned. The AI cannot change their dimensions or remove them.
+- The adapter and connection geometry are always code-owned. The AI cannot change their dimensions. Studio offers a flush detachable mode, where the hex pin enters a blind socket embedded directly inside the subject, and a one-piece mode, where a hidden internal core fuses the adapter and topper into one exported manifold.
 - The three sculpture colors survive boolean solidification as face materials in Bambu 3MF. STL remains single-color because STL has no material model.
 - Export rejects disconnected or invalid solids, and automated fixtures cover houses, a character, complex fruit, a many-limbed animal and a vehicle. These checks do not prove real-world fit, material suitability, food-contact safety, strength, or support-free printing on every printer.
 - The prompt is 3–280 normalized characters. Recipes are saved in browser storage only; there are no accounts, server history, or community publishing.

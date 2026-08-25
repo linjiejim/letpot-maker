@@ -89,6 +89,7 @@ export interface ShapeParameterDefinition {
 
 export interface ModelOptions {
   modelId: ModelId;
+  connectionMode: "detachable" | "integrated";
   topperHeight: number;
   topperWidth: number;
   primaryColor: string;
@@ -105,6 +106,7 @@ export interface PrintablePart {
   label: string;
   object: THREE.Object3D;
   color: string;
+  palette?: readonly string[];
   printFlipZ?: boolean;
 }
 
@@ -753,6 +755,7 @@ export function getDefaultShapeParameters(definition: ModelDefinition) {
 
 export const DEFAULT_OPTIONS: ModelOptions = {
   modelId: "sprout",
+  connectionMode: "detachable",
   topperHeight: 35,
   topperWidth: 28,
   primaryColor: "#769567",
@@ -962,6 +965,7 @@ function buildAdapter(options: ModelOptions, includeLogo = true) {
     baseMaterial,
   );
   locator.name = "locator_skirt";
+  locator.userData.aiColorRole = "adapter";
   group.add(locator);
 
   const transition = new THREE.Mesh(
@@ -974,6 +978,7 @@ function buildAdapter(options: ModelOptions, includeLogo = true) {
     baseMaterial,
   );
   transition.name = "pod_fit_transition_and_upper_band";
+  transition.userData.aiColorRole = "adapter";
   transition.position.y = ADAPTER_STANDARD.lowerHeight;
   group.add(transition);
 
@@ -986,6 +991,7 @@ function buildAdapter(options: ModelOptions, includeLogo = true) {
       material(detailColor(options.accentColor, -0.18), false),
     );
     logo.name = "letpot_icon_engraving_cutter";
+    logo.userData.aiColorRole = "adapter";
     logo.userData.booleanOperation = "subtract";
     logo.position.set(
       0,
@@ -1035,25 +1041,61 @@ function prepareTopper(options: ModelOptions, color = options.primaryColor) {
   const group = new THREE.Group();
   group.name = `${options.modelId}_topper`;
   const adapterTop = ADAPTER_STANDARD.totalHeight;
-  const socketBoss = mesh(
-    new THREE.CylinderGeometry(4.8, 5.3, 4.2, 10),
+  const connectorCore = mesh(
+    new THREE.CylinderGeometry(4.85, 5.25, 4.15, 12),
     color,
     options.faceted,
   );
-  socketBoss.name = "detachable_topper_socket_boss";
-  socketBoss.position.y = adapterTop + 2.1;
-  group.add(socketBoss);
+  connectorCore.name = "embedded_topper_connector_core";
+  // Start 0.05 mm above the subject's flat print face so the core is fully
+  // embedded instead of sharing a coplanar bottom with model-specific feet.
+  connectorCore.position.y = adapterTop + 4.15 / 2;
+  connectorCore.userData.aiColorRole = color.toLowerCase() === options.accentColor.toLowerCase()
+    ? "adapter"
+    : "primary";
+  group.add(connectorCore);
 
-  const socket = mesh(
-    new THREE.CylinderGeometry(KIT_TRUNK_SOCKET_RADIUS, KIT_TRUNK_SOCKET_RADIUS, KIT_TRUNK_SOCKET_DEPTH + 0.08, 6),
-    detailColor(color, -0.16),
+  if (options.connectionMode !== "integrated") {
+    const socket = mesh(
+      new THREE.CylinderGeometry(KIT_TRUNK_SOCKET_RADIUS, KIT_TRUNK_SOCKET_RADIUS, KIT_TRUNK_SOCKET_DEPTH + 0.08, 6),
+      detailColor(color, -0.16),
+      false,
+    );
+    socket.name = "embedded_topper_pin_socket_cutter";
+    socket.userData.booleanOperation = "subtract";
+    socket.position.y = adapterTop + KIT_TRUNK_SOCKET_DEPTH / 2 - 0.04;
+    group.add(socket);
+  }
+  return group;
+}
+
+function buildIntegratedBaseJoint(options: ModelOptions) {
+  const bottom = ADAPTER_STANDARD.lowerHeight * 0.52;
+  const top = ADAPTER_STANDARD.totalHeight + 2.75;
+  const joint = mesh(
+    new THREE.CylinderGeometry(SOCKET_RADIUS + 0.24, SOCKET_RADIUS + 0.24, top - bottom, 18),
+    options.primaryColor,
     false,
   );
-  socket.name = "detachable_topper_pin_socket_cutter";
-  socket.userData.booleanOperation = "subtract";
-  socket.position.y = adapterTop + KIT_TRUNK_SOCKET_DEPTH / 2 - 0.04;
-  group.add(socket);
-  return group;
+  joint.name = "integrated_hidden_base_joint";
+  joint.position.y = (bottom + top) / 2;
+  joint.userData.aiColorRole = "primary";
+  return joint;
+}
+
+function buildIntegratedJoint(
+  name: string,
+  bottom: number,
+  top: number,
+  radius: number,
+  color: string,
+  role: "primary" | "secondary" | "detail" | "adapter" = "primary",
+) {
+  const joint = mesh(new THREE.CylinderGeometry(radius, radius, top - bottom, 18), color, false);
+  joint.name = name;
+  joint.position.y = (bottom + top) / 2;
+  joint.userData.aiColorRole = role;
+  return joint;
 }
 
 function buildConnectorPin(options: ModelOptions, name = "double_ended_connector_pin") {
@@ -1338,7 +1380,10 @@ function buildAiSculpture(options: ModelOptions, program: AiShapeProgram) {
   const lateralScale = Math.min(1, options.topperWidth / Math.max(size.x, size.z, 0.001));
   const verticalScale = Math.min(1, options.topperHeight / Math.max(size.y, 0.001));
   sculpture.scale.set(lateralScale, verticalScale, lateralScale);
-  sculpture.position.y = ADAPTER_STANDARD.totalHeight + 3.55 - additiveBounds.min.y * verticalScale;
+  // Seat the generated silhouette directly on the adapter face. The former
+  // 3.55 mm lift exposed the generic socket sleeve as a visible pedestal;
+  // the embedded connector core now remains inside the lowest generated mass.
+  sculpture.position.y = ADAPTER_STANDARD.totalHeight - 0.05 - additiveBounds.min.y * verticalScale;
   topper.add(sculpture);
   topper.userData.aiShapeProgram = program;
   return topper;
@@ -1790,7 +1835,9 @@ function buildCloverKit(options: ModelOptions) {
   const adapterTop = ADAPTER_STANDARD.totalHeight;
   const stemTop = 16.8 * heightScale;
 
-  const pinGroup = buildConnectorPin(options, "clover_double_ended_connector_pin");
+  const pinGroup = options.connectionMode === "integrated"
+    ? undefined
+    : buildConnectorPin(options, "clover_double_ended_connector_pin");
 
   const trunkGroup = new THREE.Group();
   trunkGroup.name = "clover_flat_bottom_trunk";
@@ -1821,15 +1868,17 @@ function buildCloverKit(options: ModelOptions) {
   stem.position.y = (stemBottom + stemTop) / 2;
   trunkGroup.add(stem);
 
-  const trunkSocket = mesh(
-    new THREE.CylinderGeometry(KIT_TRUNK_SOCKET_RADIUS, KIT_TRUNK_SOCKET_RADIUS, KIT_TRUNK_SOCKET_DEPTH + 0.08, 6),
-    detailColor(options.primaryColor, -0.16),
-    false,
-  );
-  trunkSocket.name = "clover_trunk_pin_socket_cutter";
-  trunkSocket.userData.booleanOperation = "subtract";
-  trunkSocket.position.y = KIT_TRUNK_SOCKET_DEPTH / 2 - 0.04;
-  trunkGroup.add(trunkSocket);
+  if (options.connectionMode !== "integrated") {
+    const trunkSocket = mesh(
+      new THREE.CylinderGeometry(KIT_TRUNK_SOCKET_RADIUS, KIT_TRUNK_SOCKET_RADIUS, KIT_TRUNK_SOCKET_DEPTH + 0.08, 6),
+      detailColor(options.primaryColor, -0.16),
+      false,
+    );
+    trunkSocket.name = "clover_trunk_pin_socket_cutter";
+    trunkSocket.userData.booleanOperation = "subtract";
+    trunkSocket.position.y = KIT_TRUNK_SOCKET_DEPTH / 2 - 0.04;
+    trunkGroup.add(trunkSocket);
+  }
 
   const crownPinHeight = KIT_CROWN_SOCKET_DEPTH + 0.35;
   const crownPin = mesh(
@@ -1854,15 +1903,17 @@ function buildCloverKit(options: ModelOptions) {
   crownHub.position.y = crownHubHeight / 2;
   crownGroup.add(crownHub);
 
-  const crownSocket = mesh(
-    new THREE.CylinderGeometry(KIT_CROWN_SOCKET_RADIUS, KIT_CROWN_SOCKET_RADIUS, KIT_CROWN_SOCKET_DEPTH + 0.08, 6),
-    detailColor(options.primaryColor, -0.16),
-    false,
-  );
-  crownSocket.name = "clover_crown_socket_cutter";
-  crownSocket.userData.booleanOperation = "subtract";
-  crownSocket.position.y = KIT_CROWN_SOCKET_DEPTH / 2 - 0.04;
-  crownGroup.add(crownSocket);
+  if (options.connectionMode !== "integrated") {
+    const crownSocket = mesh(
+      new THREE.CylinderGeometry(KIT_CROWN_SOCKET_RADIUS, KIT_CROWN_SOCKET_RADIUS, KIT_CROWN_SOCKET_DEPTH + 0.08, 6),
+      detailColor(options.primaryColor, -0.16),
+      false,
+    );
+    crownSocket.name = "clover_crown_socket_cutter";
+    crownSocket.userData.booleanOperation = "subtract";
+    crownSocket.position.y = KIT_CROWN_SOCKET_DEPTH / 2 - 0.04;
+    crownGroup.add(crownSocket);
+  }
 
   const leafDistance = 5.85 * widthScale;
   const leafCentreY = crownHubHeight + 2.75 * heightScale;
@@ -3253,40 +3304,100 @@ function buildMushroom(options: ModelOptions) {
   return { stemGroup, capGroup };
 }
 
+function markColorRole(object: THREE.Object3D, role: "primary" | "secondary" | "detail" | "adapter") {
+  object.traverse((child) => {
+    if (child instanceof THREE.Mesh) child.userData.aiColorRole = role;
+  });
+}
+
 export function createModel(options: ModelOptions): ModelBuild {
+  const integrated = options.connectionMode === "integrated";
   const assembly = new THREE.Group();
   assembly.name = options.aiProgram ? "ai_custom_assembly" : `${options.modelId}_assembly`;
+  const printableRoot = integrated ? new THREE.Group() : assembly;
+  if (integrated) {
+    printableRoot.name = `${options.modelId}_integrated_print`;
+    assembly.add(printableRoot);
+  }
   const adapter = buildAdapter(options);
-  assembly.add(adapter);
-  const parts: PrintablePart[] = [
+  printableRoot.add(adapter);
+  const parts: PrintablePart[] = integrated ? [] : [
     { id: "adapter", label: "Universal adapter · Ø41 face down", object: adapter, color: options.accentColor, printFlipZ: true },
   ];
 
   if (options.aiProgram) {
-    const pinGroup = buildConnectorPin(options, "ai_custom_double_ended_connector_pin");
     const topper = buildAiSculpture(options, options.aiProgram);
-    assembly.add(pinGroup, topper);
-    parts.push(
-      { id: "connector-pin", label: "Double-ended connector pin", object: pinGroup, color: options.primaryColor },
-      { id: "topper", label: "Socketed AI sculpture", object: topper, color: options.primaryColor },
-    );
+    if (integrated) {
+      printableRoot.add(buildIntegratedBaseJoint(options), topper);
+    } else {
+      const pinGroup = buildConnectorPin(options, "ai_custom_double_ended_connector_pin");
+      printableRoot.add(pinGroup, topper);
+      parts.push(
+        { id: "connector-pin", label: "Double-ended connector pin", object: pinGroup, color: options.primaryColor },
+        {
+          id: "topper",
+          label: "Flush socketed AI sculpture",
+          object: topper,
+          color: options.primaryColor,
+          palette: [options.primaryColor, options.secondaryColor ?? "#d8a33e", options.detailColor ?? "#f4eee2"],
+        },
+      );
+    }
   } else if (options.modelId === "mushroom") {
-    const pinGroup = buildConnectorPin(options, "mushroom_double_ended_connector_pin");
     const { stemGroup, capGroup } = buildMushroom(options);
-    assembly.add(pinGroup, stemGroup, capGroup);
-    parts.push(
-      { id: "connector-pin", label: "Double-ended connector pin", object: pinGroup, color: options.primaryColor },
-      { id: "stem", label: "Socketed mushroom stem", object: stemGroup, color: options.accentColor },
-      { id: "cap", label: "Mushroom cap", object: capGroup, color: options.primaryColor },
-    );
+    if (integrated) {
+      const widthScale = options.topperWidth / 32;
+      const heightScale = options.topperHeight / 34;
+      const topY = ADAPTER_STANDARD.totalHeight - 0.05;
+      markColorRole(stemGroup, "adapter");
+      printableRoot.add(
+        buildIntegratedBaseJoint(options),
+        stemGroup,
+        capGroup,
+        buildIntegratedJoint(
+          "integrated_hidden_mushroom_cap_joint",
+          topY + 18.8 * heightScale,
+          topY + 24.45 * heightScale,
+          3.55 * widthScale,
+          options.accentColor,
+          "adapter",
+        ),
+      );
+    } else {
+      const pinGroup = buildConnectorPin(options, "mushroom_double_ended_connector_pin");
+      printableRoot.add(pinGroup, stemGroup, capGroup);
+      parts.push(
+        { id: "connector-pin", label: "Double-ended connector pin", object: pinGroup, color: options.primaryColor },
+        { id: "stem", label: "Flush socketed mushroom stem", object: stemGroup, color: options.accentColor },
+        { id: "cap", label: "Mushroom cap", object: capGroup, color: options.primaryColor },
+      );
+    }
   } else if (options.modelId === "clover") {
     const { pinGroup, trunkGroup, crownGroup } = buildCloverKit(options);
-    assembly.add(pinGroup, trunkGroup, crownGroup);
-    parts.push(
-      { id: "connector-pin", label: "Double-ended connector pin", object: pinGroup, color: options.primaryColor },
-      { id: "trunk", label: "Flat-bottom clover trunk", object: trunkGroup, color: options.primaryColor },
-      { id: "crown", label: "Rounded clover crown", object: crownGroup, color: options.primaryColor },
-    );
+    if (integrated) {
+      const stemTop = 16.8 * (options.topperHeight / 33);
+      const crownBase = ADAPTER_STANDARD.totalHeight + stemTop;
+      printableRoot.add(
+        buildIntegratedBaseJoint(options),
+        trunkGroup,
+        crownGroup,
+        buildIntegratedJoint(
+          "integrated_hidden_clover_crown_joint",
+          crownBase - 0.65,
+          crownBase + KIT_CROWN_SOCKET_DEPTH + 0.55,
+          KIT_CROWN_SOCKET_RADIUS + 0.25,
+          options.primaryColor,
+        ),
+      );
+    } else {
+      if (!pinGroup) throw new Error("Detachable clover connector is unavailable");
+      printableRoot.add(pinGroup, trunkGroup, crownGroup);
+      parts.push(
+        { id: "connector-pin", label: "Double-ended connector pin", object: pinGroup, color: options.primaryColor },
+        { id: "trunk", label: "Flat-bottom clover trunk", object: trunkGroup, color: options.primaryColor },
+        { id: "crown", label: "Rounded clover crown", object: crownGroup, color: options.primaryColor },
+      );
+    }
   } else {
     const builders: Record<Exclude<ModelId, "mushroom" | "clover">, (value: ModelOptions) => THREE.Group> = {
       sprout: buildSprout,
@@ -3322,13 +3433,32 @@ export function createModel(options: ModelOptions): ModelBuild {
       "candy-cane": buildCandyCane,
       "christmas-bell": buildChristmasBell,
     };
-    const pinGroup = buildConnectorPin(options);
     const topper = builders[options.modelId](options);
-    assembly.add(pinGroup, topper);
-    parts.push(
-      { id: "connector-pin", label: "Double-ended connector pin", object: pinGroup, color: options.primaryColor },
-      { id: "topper", label: `Socketed ${options.modelId} body`, object: topper, color: options.primaryColor },
-    );
+    if (integrated) {
+      printableRoot.add(buildIntegratedBaseJoint(options), topper);
+    } else {
+      const pinGroup = buildConnectorPin(options);
+      printableRoot.add(pinGroup, topper);
+      parts.push(
+        { id: "connector-pin", label: "Double-ended connector pin", object: pinGroup, color: options.primaryColor },
+        { id: "topper", label: `Flush socketed ${options.modelId} body`, object: topper, color: options.primaryColor },
+      );
+    }
+  }
+
+  if (integrated) {
+    parts.push({
+      id: "integrated",
+      label: "One-piece adapter and topper",
+      object: printableRoot,
+      color: options.primaryColor,
+      palette: [
+        options.primaryColor,
+        options.secondaryColor ?? "#d8a33e",
+        options.detailColor ?? "#f4eee2",
+        options.accentColor,
+      ],
+    });
   }
 
   assembly.traverse((child) => {

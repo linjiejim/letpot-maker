@@ -65,7 +65,9 @@ function geometryToManifold(wasm: ManifoldToplevel, source: THREE.Mesh) {
 
   const colorRole = source.userData.aiColorRole === "secondary"
     ? 1
-    : source.userData.aiColorRole === "detail" ? 2 : 0;
+    : source.userData.aiColorRole === "detail"
+      ? 2
+      : source.userData.aiColorRole === "adapter" ? 3 : 0;
   const vertexProperties = new Float32Array(position.count * 4);
   for (let vertex = 0; vertex < position.count; vertex += 1) {
     vertexProperties[vertex * 4] = position.getX(vertex);
@@ -100,7 +102,24 @@ function manifoldToGeometry(solid: Manifold) {
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
   geometry.setAttribute("aiColorRole", new THREE.BufferAttribute(colorRoles, 1));
-  geometry.setIndex(new THREE.BufferAttribute(Uint32Array.from(mesh.triVerts), 1));
+  const indices: number[] = [];
+  const distanceSquared = (first: number, second: number) => {
+    const ax = positions[first * 3] - positions[second * 3];
+    const ay = positions[first * 3 + 1] - positions[second * 3 + 1];
+    const az = positions[first * 3 + 2] - positions[second * 3 + 2];
+    return ax * ax + ay * ay + az * az;
+  };
+  for (let triangle = 0; triangle < mesh.triVerts.length; triangle += 3) {
+    const a = mesh.triVerts[triangle];
+    const b = mesh.triVerts[triangle + 1];
+    const c = mesh.triVerts[triangle + 2];
+    // Manifold may preserve a property seam as a triangle with two XYZ
+    // vertices less than one nanometre apart. Such a face has no printable
+    // area and collapses to a duplicate STL edge, so omit it at serialization.
+    if (distanceSquared(a, b) < 1e-12 || distanceSquared(b, c) < 1e-12 || distanceSquared(c, a) < 1e-12) continue;
+    indices.push(a, b, c);
+  }
+  geometry.setIndex(new THREE.BufferAttribute(Uint32Array.from(indices), 1));
   geometry.computeVertexNormals();
   geometry.computeBoundingBox();
   return geometry;

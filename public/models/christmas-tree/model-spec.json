@@ -63,10 +63,13 @@
   },
   "options": {
     "modelId": "christmas-tree",
+    "connectionMode": "detachable",
     "topperHeight": 48,
     "topperWidth": 36,
     "primaryColor": "#23563b",
     "accentColor": "#d7d0bf",
+    "secondaryColor": "#d8a33e",
+    "detailColor": "#f4eee2",
     "faceted": false,
     "shape": {
       "tierCount": 5,

@@ -20,11 +20,15 @@ import { buildBambuThreeMf, type ThreeMfPart } from "../lib/three-mf";
 
 const wasm = await loadNodeManifold();
 
-async function validateRecipe(recipe: AiDesignRecipe) {
+async function validateRecipe(
+  recipe: AiDesignRecipe,
+  connectionMode: ModelOptions["connectionMode"] = "detachable",
+) {
   const definition = MODEL_LIBRARY.find((item) => item.id === recipe.templateId);
   if (!definition) throw new Error(`Unknown AI template ${recipe.templateId}`);
   const options: ModelOptions = {
     ...DEFAULT_OPTIONS,
+    connectionMode,
     modelId: recipe.templateId,
     topperHeight: recipe.topperHeight,
     topperWidth: recipe.topperWidth,
@@ -37,6 +41,7 @@ async function validateRecipe(recipe: AiDesignRecipe) {
     aiProgram: recipe.program,
   };
   const build = createModel(options);
+  assert.equal(build.parts.length === 1, connectionMode === "integrated");
   const solids: THREE.Mesh[] = [];
   try {
     for (const part of build.parts) {
@@ -47,9 +52,7 @@ async function validateRecipe(recipe: AiDesignRecipe) {
       name: build.parts[index].label,
       mesh: solid,
       color: build.parts[index].color,
-      palette: recipe.program && build.parts[index].id === "topper"
-        ? [recipe.primaryColor, recipe.secondaryColor, recipe.detailColor]
-        : undefined,
+      palette: build.parts[index].palette,
     }));
     const project = await buildBambuThreeMf(projectParts, "a1-mini", recipe.name);
     if (project.size < 10_000) throw new Error(`${recipe.name} produced an incomplete A1 mini project`);
@@ -62,6 +65,7 @@ async function validateRecipe(recipe: AiDesignRecipe) {
         recipe.primaryColor,
         ...(usedRoles.has("secondary") ? [recipe.secondaryColor] : []),
         ...(usedRoles.has("detail") ? [recipe.detailColor] : []),
+        ...(connectionMode === "integrated" ? [recipe.accentColor] : []),
       ];
       for (const expected of expectedColors) {
         assert.ok(modelXml.includes(expected.toUpperCase()), `${recipe.name} 3MF omitted palette color ${expected}`);
@@ -97,8 +101,9 @@ for (const templateId of AI_TEMPLATE_IDS) {
 
 for (const example of AI_SCULPTURE_EXAMPLES) {
   const recipe = normalizeAiRecipe(example.recipe);
-  await validateRecipe(recipe);
-  console.log(`Validated open sculpture fixture: ${recipe.name} (${recipe.program?.nodes.length ?? 0} nodes).`);
+  await validateRecipe(recipe, "detachable");
+  await validateRecipe(recipe, "integrated");
+  console.log(`Validated open sculpture fixture in both connection modes: ${recipe.name} (${recipe.program?.nodes.length ?? 0} nodes).`);
 }
 
 const liveFlag = process.argv.indexOf("--live");

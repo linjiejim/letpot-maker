@@ -62,10 +62,13 @@
   },
   "options": {
     "modelId": "sprout",
+    "connectionMode": "detachable",
     "topperHeight": 35,
     "topperWidth": 28,
     "primaryColor": "#769567",
     "accentColor": "#d7d0bf",
+    "secondaryColor": "#d8a33e",
+    "detailColor": "#f4eee2",
     "faceted": true,
     "shape": {
       "leafPairs": 4,
