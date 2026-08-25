@@ -1,6 +1,16 @@
 "use client";
 
-import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type CSSProperties,
+  type FormEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import JSZip from "jszip";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
@@ -35,8 +45,16 @@ import { normalizeAiRecipe, type AiDesignRecipe } from "../lib/ai-design";
 import { AI_SCULPTURE_EXAMPLES } from "../lib/ai-shape-examples";
 
 type ViewName = "orbit" | "front" | "top";
+type PanelName = "library" | "inspector";
+type PanelWidths = Record<PanelName, number>;
 
 const COLORS = ["#769567", "#294e35", "#a75f46", "#d3c5a5", "#d66c45"];
+const DEFAULT_PANEL_WIDTHS = { library: 264, inspector: 336 } as const;
+const PANEL_WIDTH_BOUNDS = {
+  library: { min: 220, max: 380 },
+  inspector: { min: 300, max: 440 },
+} as const;
+const MIN_STAGE_WIDTH = 420;
 const TAG_LABELS: Record<ModelTag, string> = {
   lowpoly: "Low poly",
   realistic: "Realistic",
@@ -428,7 +446,7 @@ function AiGenerateModal({ open, onClose, onGenerated }: {
               </div>
             </label>
             {error && <p className="ai-error" role="alert">{error}</p>}
-            <div className="ai-safety-note"><i>✓</i><span><b>Bounded geometry, locally organized</b>Your description is sent to the configured AI provider to create an allowlisted shape program—never executable mesh code. The finished recipe is cached in My Creations on this device.</span></div>
+            <div className="ai-safety-note"><i>✓</i><span><b>Bounded geometry, locally organized</b>Your description is sent to the configured AI provider to create an allowlisted shape program—never executable mesh code. The finished recipe is cached in Mine on this device.</span></div>
           </form>
         )}
       </section>
@@ -448,6 +466,10 @@ export function Studio() {
   const [aiCreations, setAiCreations] = useState<LocalAiCreation[]>([]);
   const [aiDesign, setAiDesign] = useState<ActiveAiDesign | null>(null);
   const [mobilePanel, setMobilePanel] = useState<"preview" | "library" | "adjust">("preview");
+  const [panelWidths, setPanelWidths] = useState<PanelWidths>({ ...DEFAULT_PANEL_WIDTHS });
+  const [resizingPanel, setResizingPanel] = useState<PanelName | null>(null);
+  const workspaceRef = useRef<HTMLElement>(null);
+  const resizeCleanupRef = useRef<(() => void) | null>(null);
   const build = useMemo(() => createModel(options), [options]);
   const definition = MODEL_LIBRARY.find((item) => item.id === options.modelId) ?? MODEL_LIBRARY[0];
   const isAiSculpture = Boolean(aiDesign?.program && options.aiProgram);
@@ -478,6 +500,8 @@ export function Studio() {
   } : baseManufacturing;
 
   useEffect(() => () => disposeObject(build.assembly), [build]);
+
+  useEffect(() => () => resizeCleanupRef.current?.(), []);
 
   useEffect(() => {
     const load = () => setAiCreations(readLocalCreations());
@@ -553,6 +577,61 @@ export function Studio() {
 
   const updateShape = (key: ShapeParameterKey, value: number) => {
     setOptions((current) => ({ ...current, shape: { ...current.shape, [key]: value } }));
+  };
+
+  const clampPanelWidth = useCallback((panel: PanelName, width: number, widths: PanelWidths) => {
+    const bounds = PANEL_WIDTH_BOUNDS[panel];
+    const workspaceWidth = workspaceRef.current?.getBoundingClientRect().width ?? Number.POSITIVE_INFINITY;
+    const otherWidth = panel === "library" ? widths.inspector : widths.library;
+    const availableMax = workspaceWidth - otherWidth - MIN_STAGE_WIDTH;
+    return Math.round(Math.min(Math.max(width, bounds.min), Math.max(bounds.min, Math.min(bounds.max, availableMax))));
+  }, []);
+
+  const beginPanelResize = useCallback((panel: PanelName, event: ReactPointerEvent<HTMLElement>) => {
+    if (window.matchMedia("(max-width: 1080px)").matches) return;
+    event.preventDefault();
+    resizeCleanupRef.current?.();
+    const startX = event.clientX;
+    const startWidths = panelWidths;
+    setResizingPanel(panel);
+    document.body.classList.add("studio-panel-resizing");
+
+    const handleMove = (moveEvent: PointerEvent) => {
+      const delta = moveEvent.clientX - startX;
+      const requestedWidth = panel === "library"
+        ? startWidths.library + delta
+        : startWidths.inspector - delta;
+      setPanelWidths({
+        ...startWidths,
+        [panel]: clampPanelWidth(panel, requestedWidth, startWidths),
+      });
+    };
+    const finish = () => {
+      window.removeEventListener("pointermove", handleMove);
+      window.removeEventListener("pointerup", finish);
+      window.removeEventListener("pointercancel", finish);
+      document.body.classList.remove("studio-panel-resizing");
+      setResizingPanel(null);
+      resizeCleanupRef.current = null;
+    };
+    resizeCleanupRef.current = finish;
+    window.addEventListener("pointermove", handleMove);
+    window.addEventListener("pointerup", finish);
+    window.addEventListener("pointercancel", finish);
+  }, [clampPanelWidth, panelWidths]);
+
+  const nudgePanelWidth = useCallback((panel: PanelName, direction: -1 | 1) => {
+    setPanelWidths((current) => {
+      const delta = panel === "library" ? direction * 12 : direction * -12;
+      return { ...current, [panel]: clampPanelWidth(panel, current[panel] + delta, current) };
+    });
+  }, [clampPanelWidth]);
+
+  const handleResizerKeyDown = (panel: PanelName, event: ReactKeyboardEvent<HTMLElement>) => {
+    if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+      event.preventDefault();
+      nudgePanelWidth(panel, event.key === "ArrowLeft" ? -1 : 1);
+    }
   };
 
   const chooseModel = (modelId: ModelId) => {
@@ -888,16 +967,26 @@ export function Studio() {
         </div>
       </header>
 
-      <section className="workspace" id="studio-workspace" data-mobile-panel={mobilePanel}>
+      <section
+        className="workspace"
+        id="studio-workspace"
+        data-mobile-panel={mobilePanel}
+        data-resizing={resizingPanel ?? undefined}
+        ref={workspaceRef}
+        style={{
+          "--library-width": `${panelWidths.library}px`,
+          "--inspector-width": `${panelWidths.inspector}px`,
+        } as CSSProperties}
+      >
         <aside className="library-panel" id="studio-library" data-mode={libraryMode} aria-label="Maker Library">
           <div className="panel-heading">
             <p>{libraryMode === "official" ? "OFFICIAL COLLECTION" : "LOCAL WORKSPACE"}</p>
-            <h2>{libraryMode === "official" ? "Maker Library" : "My Creations"}</h2>
+            <h2>{libraryMode === "official" ? "Maker Library" : "Mine"}</h2>
             <span>{libraryMode === "official" ? `${MODEL_LIBRARY.length} printable models` : `${aiCreations.length} saved on this device`}</span>
           </div>
           <div className="library-mode" aria-label="Choose model library">
             <button className={libraryMode === "official" ? "active" : ""} onClick={() => setLibraryMode("official")}>Official <span>{MODEL_LIBRARY.length}</span></button>
-            <button className={libraryMode === "mine" ? "active" : ""} onClick={() => setLibraryMode("mine")}>My Creations <span>{aiCreations.length}</span></button>
+            <button className={libraryMode === "mine" ? "active" : ""} onClick={() => setLibraryMode("mine")}>Mine <span>{aiCreations.length}</span></button>
           </div>
           {libraryMode === "official" && <div className="tag-filter" aria-label="Filter designs by tag">
             <button className={activeTag === "all" ? "active" : ""} onClick={() => setActiveTag("all")} aria-pressed={activeTag === "all"}>
@@ -916,10 +1005,9 @@ export function Studio() {
             {libraryMode === "official" && visibleModels.map((item) => (
               <button key={item.id} className={`asset-card ${item.style} ${item.id === options.modelId ? "active" : ""}`} onClick={() => chooseModel(item.id)}>
                 <span className="asset-number">{item.number}</span>
-                <span>
+                <span className="asset-copy">
                   <strong>{item.name}</strong>
-                  <small>{item.parts} detachable parts</small>
-                  <span className="asset-tags">{item.tags.slice(0, 3).map((tag) => <i key={tag}>{tag}</i>)}</span>
+                  <span className="asset-tags">{item.tags.slice(0, 3).map((tag) => <i key={tag}>{TAG_LABELS[tag]}</i>)}</span>
                 </span>
               </button>
             ))}
@@ -927,7 +1015,7 @@ export function Studio() {
               <div key={creation.id} className={`local-creation-card ${aiDesign?.localId === creation.id ? "active" : ""}`}>
                 <button className="local-creation-main" onClick={() => chooseAiCreation(creation)}>
                   <span className="asset-number">AI{String(aiCreations.length - index).padStart(2, "0")}</span>
-                  <span><strong>{creation.recipe.name}</strong><small>{new Date(creation.createdAt).toLocaleDateString()} · {creation.recipe.mode}</small><span className="asset-tags"><i>local</i><i>{creation.recipe.program ? "shape program" : "ai recipe"}</i></span></span>
+                  <span className="asset-copy"><strong>{creation.recipe.name}</strong><small>{creation.recipe.program ? "Custom shape" : "AI variation"}</small></span>
                 </button>
                 <button className="local-creation-remove" aria-label={`Remove ${creation.recipe.name}`} onClick={() => removeAiCreation(creation)}>×</button>
               </div>
@@ -935,6 +1023,22 @@ export function Studio() {
             {libraryMode === "mine" && aiCreations.length === 0 && <div className="local-empty-state"><span>✦</span><b>No local creations yet</b><p>Describe an idea and AI Generate will save its print-safe recipe only in this browser.</p><button onClick={() => setAiOpen(true)}>Generate your first model</button></div>}
           </div>
         </aside>
+
+        <button
+          type="button"
+          className="panel-resizer library-resizer"
+          role="slider"
+          aria-label="Resize model library"
+          aria-orientation="vertical"
+          aria-valuemin={PANEL_WIDTH_BOUNDS.library.min}
+          aria-valuemax={PANEL_WIDTH_BOUNDS.library.max}
+          aria-valuenow={panelWidths.library}
+          aria-valuetext={`${panelWidths.library} pixels wide`}
+          title="Drag to resize · Double-click to reset"
+          onPointerDown={(event) => beginPanelResize("library", event)}
+          onKeyDown={(event) => handleResizerKeyDown("library", event)}
+          onDoubleClick={() => setPanelWidths((current) => ({ ...current, library: DEFAULT_PANEL_WIDTHS.library }))}
+        />
 
         <section className="stage" id="studio-preview" aria-label="3D model preview">
           <div className="view-tools" aria-label="View tools">
@@ -949,10 +1053,26 @@ export function Studio() {
           {message && <div className="stage-toast" role="status" aria-live="polite">{message}</div>}
         </section>
 
+        <button
+          type="button"
+          className="panel-resizer inspector-resizer"
+          role="slider"
+          aria-label="Resize model adjustments"
+          aria-orientation="vertical"
+          aria-valuemin={PANEL_WIDTH_BOUNDS.inspector.min}
+          aria-valuemax={PANEL_WIDTH_BOUNDS.inspector.max}
+          aria-valuenow={panelWidths.inspector}
+          aria-valuetext={`${panelWidths.inspector} pixels wide`}
+          title="Drag to resize · Double-click to reset"
+          onPointerDown={(event) => beginPanelResize("inspector", event)}
+          onKeyDown={(event) => handleResizerKeyDown("inspector", event)}
+          onDoubleClick={() => setPanelWidths((current) => ({ ...current, inspector: DEFAULT_PANEL_WIDTHS.inspector }))}
+        />
+
         <aside className="inspector-panel" id="studio-adjustments" aria-label="Model adjustments">
           <div className="inspector-title">
             <div><p>{aiDesign ? "AI DESIGN" : `MODEL ${definition.number}`}</p><h2>{designName}</h2><span>{designSubtitle}</span></div>
-            <span className="part-count">{designParts} PARTS</span>
+            <span className="part-count">{designParts} {designParts === 1 ? "PART" : "PARTS"}</span>
           </div>
           <div className="inspector-content">
             <section className="inspector-section">
