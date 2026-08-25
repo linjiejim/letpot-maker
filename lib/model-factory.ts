@@ -1227,6 +1227,39 @@ function aiRoofGeometry(segments: number) {
   return centeredExtrudeGeometry(shape, segments);
 }
 
+function aiHalfDiscGeometry(segments: number) {
+  const shape = new THREE.Shape();
+  shape.moveTo(-0.5, -0.375);
+  shape.bezierCurveTo(-0.5, 0.12, -0.28, 0.375, 0, 0.375);
+  shape.bezierCurveTo(0.28, 0.375, 0.5, 0.12, 0.5, -0.375);
+  shape.lineTo(-0.5, -0.375);
+  shape.closePath();
+  return centeredExtrudeGeometry(shape, segments);
+}
+
+function aiDomeGeometry(segments: number) {
+  return closedLatheGeometry([
+    new THREE.Vector2(0, 0.5),
+    new THREE.Vector2(0.28, 0.24),
+    new THREE.Vector2(0.42, -0.08),
+    new THREE.Vector2(0.49, -0.34),
+    new THREE.Vector2(0.5, -0.5),
+    new THREE.Vector2(0, -0.5),
+  ], segments);
+}
+
+function aiDropGeometry(segments: number) {
+  return closedLatheGeometry([
+    new THREE.Vector2(0, 0.5),
+    new THREE.Vector2(0.16, 0.48),
+    new THREE.Vector2(0.38, 0.3),
+    new THREE.Vector2(0.5, 0.08),
+    new THREE.Vector2(0.48, -0.18),
+    new THREE.Vector2(0.28, -0.45),
+    new THREE.Vector2(0, -0.5),
+  ], segments);
+}
+
 function aiUnitGeometry(node: AiShapeNode) {
   switch (node.kind) {
     case "ellipsoid":
@@ -1243,6 +1276,17 @@ function aiUnitGeometry(node: AiShapeNode) {
       return new THREE.TorusGeometry(0.36, 0.14, Math.max(5, Math.round(node.segments / 2)), node.segments * 2);
     case "roof":
       return aiRoofGeometry(node.segments);
+    case "disc": {
+      const geometry = new THREE.CylinderGeometry(0.5, 0.5, 1, node.segments, 1, false);
+      geometry.rotateX(Math.PI / 2);
+      return geometry;
+    }
+    case "half-disc":
+      return aiHalfDiscGeometry(node.segments);
+    case "dome":
+      return aiDomeGeometry(node.segments);
+    case "drop":
+      return aiDropGeometry(node.segments);
     case "leaf":
       return aiLeafGeometry(node.segments);
     case "star":
@@ -1252,29 +1296,70 @@ function aiUnitGeometry(node: AiShapeNode) {
   }
 }
 
-type ExpandedAiNode = AiShapeNode & { mirroredFrom?: string };
+type ExpandedAiNode = AiShapeNode & { repeatedFrom?: string };
+
+function aiRadialSymmetry(symmetry: AiShapeNode["symmetry"]) {
+  const match = /^radial-(3|4|5|6|8)-(y|z)$/.exec(symmetry);
+  return match ? { count: Number(match[1]), axis: match[2] as "y" | "z" } : null;
+}
 
 function expandAiNodes(program: AiShapeProgram) {
   const expanded: ExpandedAiNode[] = [];
-  const mirroredIds = new Set<string>();
+  const repeatedIds = new Map<string, string[]>();
   for (const node of program.nodes) {
     expanded.push(node);
     if (node.operation !== "add" || node.symmetry === "none") continue;
-    const mirroredId = `${node.id}-mirror`;
-    const attachTo = mirroredIds.has(node.attachTo) ? `${node.attachTo}-mirror` : node.attachTo;
-    const position: [number, number, number] = [...node.position];
-    const rotation: [number, number, number] = [...node.rotation];
+    const copies = [node.id];
     if (node.symmetry === "mirror-x") {
+      const mirroredId = `${node.id}-mirror`;
+      const parentCopies = repeatedIds.get(node.attachTo);
+      const attachTo = parentCopies?.[1] ?? node.attachTo;
+      const position: [number, number, number] = [...node.position];
+      const rotation: [number, number, number] = [...node.rotation];
       position[0] *= -1;
       rotation[1] *= -1;
       rotation[2] *= -1;
-    } else {
+      expanded.push({ ...node, id: mirroredId, attachTo, position, rotation, symmetry: "none", repeatedFrom: node.id });
+      copies.push(mirroredId);
+    } else if (node.symmetry === "mirror-z") {
+      const mirroredId = `${node.id}-mirror`;
+      const parentCopies = repeatedIds.get(node.attachTo);
+      const attachTo = parentCopies?.[1] ?? node.attachTo;
+      const position: [number, number, number] = [...node.position];
+      const rotation: [number, number, number] = [...node.rotation];
       position[2] *= -1;
       rotation[0] *= -1;
       rotation[1] *= -1;
+      expanded.push({ ...node, id: mirroredId, attachTo, position, rotation, symmetry: "none", repeatedFrom: node.id });
+      copies.push(mirroredId);
+    } else {
+      const radial = aiRadialSymmetry(node.symmetry);
+      if (!radial) continue;
+      const parentCopies = repeatedIds.get(node.attachTo);
+      for (let index = 1; index < radial.count; index += 1) {
+        const angle = index * Math.PI * 2 / radial.count;
+        const degrees = index * 360 / radial.count;
+        const position: [number, number, number] = [...node.position];
+        const rotation: [number, number, number] = [...node.rotation];
+        if (radial.axis === "y") {
+          const x = node.position[0];
+          const z = node.position[2];
+          position[0] = x * Math.cos(angle) + z * Math.sin(angle);
+          position[2] = -x * Math.sin(angle) + z * Math.cos(angle);
+          rotation[1] += degrees;
+        } else {
+          const radius = node.position[0];
+          position[0] = radius * Math.cos(angle);
+          position[1] = node.position[1] + radius * Math.sin(angle);
+          rotation[2] += degrees;
+        }
+        const repeatedId = `${node.id}-r${index + 1}`;
+        const attachTo = parentCopies?.[index] ?? node.attachTo;
+        expanded.push({ ...node, id: repeatedId, attachTo, position, rotation, symmetry: "none", repeatedFrom: node.id });
+        copies.push(repeatedId);
+      }
     }
-    expanded.push({ ...node, id: mirroredId, attachTo, position, rotation, symmetry: "none", mirroredFrom: node.id });
-    mirroredIds.add(node.id);
+    repeatedIds.set(node.id, copies);
   }
   return expanded;
 }
@@ -1337,6 +1422,11 @@ function buildAiSculpture(options: ModelOptions, program: AiShapeProgram) {
     const connectionPoint = center.clone();
     if (node.kind === "torus") {
       connectionPoint.add(new THREE.Vector3(size.x * 0.34, 0, 0).applyEuler(rotation));
+    } else if (node.kind === "dome" || node.kind === "drop") {
+      // Rotational profiles meet on the centre axis. Aim the fusion link into
+      // the broad interior instead of ending on that welded pole, which gives
+      // Manifold a materially overlapping volume in both connection modes.
+      connectionPoint.add(new THREE.Vector3(size.x * 0.16, 0, 0).applyEuler(rotation));
     }
     connectionPoints.set(node.id, connectionPoint);
     if (node.operation === "subtract") continue;

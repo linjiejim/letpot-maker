@@ -221,7 +221,7 @@ function Slider({ label, value, min, max, step = 1, unit = "mm", onChange }: {
 const AI_EXAMPLES = [
   "A tiny cottage with a pitched roof, chimney, door and two windows",
   "A friendly astronaut waving with a round helmet and sturdy boots",
-  "A dragon fruit with layered leafy scales and a short stem",
+  "A sliced pomegranate with a round shell, visible chunky seed clusters, and a leafy crown",
 ];
 
 const AI_CREATION_STEPS = [

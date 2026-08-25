@@ -93,6 +93,35 @@ export const AI_SCULPTURE_EXAMPLES = [
     },
   },
   {
+    slug: "pomegranate-slice",
+    prompt: "A sliced pomegranate with a round shell, visible chunky seed clusters, and a leafy crown",
+    recipe: {
+      mode: "sculpture",
+      name: "Pomegranate Jewel",
+      subtitle: "An open ruby fruit with a clear seeded face and leafy crown",
+      templateId: "lemon",
+      topperHeight: 38,
+      topperWidth: 34,
+      primaryColor: "#b92f46",
+      secondaryColor: "#e86472",
+      detailColor: "#f3c1b8",
+      accentColor: "#d7d0bf",
+      faceted: false,
+      shape: {},
+      creativeNote: "Layered front-facing discs and radial seed rings make the cut face readable without fragile loose pieces.",
+      program: {
+        version: 1,
+        nodes: [
+          { id: "rind", kind: "disc", operation: "add", attachTo: "core", position: [0, 0.47, 0], size: [0.72, 0.72, 0.28], rotation: [0, 0, 0], color: "primary", symmetry: "none", segments: 16 },
+          { id: "flesh", kind: "disc", operation: "add", attachTo: "rind", position: [0, 0.47, 0.11], size: [0.6, 0.6, 0.18], rotation: [0, 0, 0], color: "secondary", symmetry: "none", segments: 16 },
+          { id: "outer-seed", kind: "disc", operation: "add", attachTo: "flesh", position: [0.19, 0.47, 0.18], size: [0.12, 0.15, 0.12], rotation: [0, 0, 0], color: "detail", symmetry: "radial-6-z", segments: 10 },
+          { id: "inner-seed", kind: "disc", operation: "add", attachTo: "flesh", position: [0.09, 0.47, 0.185], size: [0.1, 0.12, 0.1], rotation: [0, 0, 0], color: "detail", symmetry: "radial-5-z", segments: 10 },
+          { id: "crown-center", kind: "leaf", operation: "add", attachTo: "rind", position: [0, 0.82, 0], size: [0.19, 0.25, 0.12], rotation: [0, 0, 0], color: "primary", symmetry: "none", segments: 9 },
+        ],
+      },
+    },
+  },
+  {
     slug: "octopus",
     prompt: "A cheerful octopus with eight chunky curling arms and big eyes",
     recipe: {

@@ -8,6 +8,11 @@ import {
 } from "../lib/ai-design";
 import { AI_SCULPTURE_EXAMPLES } from "../lib/ai-shape-examples";
 import {
+  aiNodeCopyCount,
+  normalizeAiShapeProgram,
+  type AiShapeKind,
+} from "../lib/ai-shape-program";
+import {
   createModel,
   DEFAULT_OPTIONS,
   disposeObject,
@@ -19,6 +24,34 @@ import { loadNodeManifold, solidifyObject } from "../lib/solidify";
 import { buildBambuThreeMf, type ThreeMfPart } from "../lib/three-mf";
 
 const wasm = await loadNodeManifold();
+
+const repairedAttachmentProgram = normalizeAiShapeProgram({
+  version: 1,
+  nodes: [
+    { id: "body", kind: "drop", operation: "add", attachTo: "core", position: [0, 0.45, 0], size: [0.6, 0.7, 0.5], symmetry: "none" },
+    { id: "eye", kind: "disc", operation: "add", attachTo: "core", position: [0.16, 0.62, 0.28], size: [0.12, 0.12, 0.07], symmetry: "mirror-x" },
+    { id: "seed", kind: "ellipsoid", operation: "add", attachTo: "missing-face", position: [0.14, 0.48, 0.3], size: [0.08, 0.11, 0.07], symmetry: "radial-6-z" },
+  ],
+});
+assert.equal(repairedAttachmentProgram.nodes[1].attachTo, "body", "Elevated core details should attach to the nearest earlier solid");
+assert.equal(repairedAttachmentProgram.nodes[2].attachTo, "eye", "Unknown detail parents should resolve to the nearest earlier solid");
+assert.equal(aiNodeCopyCount(repairedAttachmentProgram.nodes[2].symmetry), 6);
+
+const boundedRingProgram = normalizeAiShapeProgram({
+  version: 1,
+  nodes: [
+    { id: "body", kind: "rounded-box", operation: "add", attachTo: "core", position: [0, 0.4, 0], size: [0.5, 0.5, 0.4] },
+    ...Array.from({ length: 5 }, (_, index) => ({
+      id: `ring-${index}`,
+      kind: "torus",
+      operation: "add",
+      attachTo: "body",
+      position: [0, 0.45 + index * 0.04, 0.22],
+      size: [0.2, 0.2, 0.08],
+    })),
+  ],
+});
+assert.equal(boundedRingProgram.nodes.filter((node) => node.kind === "torus").length, 2, "Decorative ring spam must be bounded");
 
 async function validateRecipe(
   recipe: AiDesignRecipe,
@@ -104,6 +137,42 @@ for (const example of AI_SCULPTURE_EXAMPLES) {
   await validateRecipe(recipe, "detachable");
   await validateRecipe(recipe, "integrated");
   console.log(`Validated open sculpture fixture in both connection modes: ${recipe.name} (${recipe.program?.nodes.length ?? 0} nodes).`);
+}
+
+for (const kind of ["half-disc", "dome", "drop"] satisfies AiShapeKind[]) {
+  const recipe = normalizeAiRecipe({
+    mode: "sculpture",
+    name: `Vocabulary ${kind}`,
+    subtitle: "Closed-solid vocabulary validation",
+    templateId: "sprout",
+    topperHeight: 34,
+    topperWidth: 30,
+    primaryColor: "#769567",
+    secondaryColor: "#d8a33e",
+    detailColor: "#f4eee2",
+    accentColor: "#d7d0bf",
+    faceted: false,
+    shape: {},
+    creativeNote: "Validate every new shape kind through the production solid pipeline.",
+    program: {
+      version: 1,
+      nodes: [{
+        id: kind,
+        kind,
+        operation: "add",
+        attachTo: "core",
+        position: [0, 0.42, 0],
+        size: [0.62, 0.62, 0.5],
+        rotation: [0, 0, 0],
+        color: "primary",
+        symmetry: "none",
+        segments: 14,
+      }],
+    },
+  });
+  await validateRecipe(recipe, "detachable");
+  await validateRecipe(recipe, "integrated");
+  console.log(`Validated closed shape vocabulary in both connection modes: ${kind}.`);
 }
 
 const liveFlag = process.argv.indexOf("--live");
