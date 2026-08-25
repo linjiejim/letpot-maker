@@ -21,6 +21,7 @@ import {
   type ModelId,
   type ModelOptions,
   type ModelTag,
+  type ManufacturingProfile,
   type ShapeParameterKey,
 } from "../lib/model-factory";
 import { loadBrowserManifold, solidifyObject } from "../lib/solidify";
@@ -31,6 +32,7 @@ import {
   type ThreeMfPart,
 } from "../lib/three-mf";
 import { normalizeAiRecipe, type AiDesignRecipe } from "../lib/ai-design";
+import { AI_SCULPTURE_EXAMPLES } from "../lib/ai-shape-examples";
 
 type ViewName = "orbit" | "front" | "top";
 
@@ -217,9 +219,9 @@ function Slider({ label, value, min, max, step = 1, unit = "mm", onChange }: {
 }
 
 const AI_EXAMPLES = [
-  "A compact three-arm desert cactus with a round body",
-  "A dense bamboo grove with five slender canes",
-  "A soft mushroom with a wide coral cap",
+  "A tiny cottage with a pitched roof, chimney, door and two windows",
+  "A friendly astronaut waving with a round helmet and sturdy boots",
+  "A dragon fruit with layered leafy scales and a short stem",
 ];
 
 const AI_CREATION_STEPS = [
@@ -227,11 +229,26 @@ const AI_CREATION_STEPS = [
   "Choosing a printable structure",
   "Balancing the silhouette",
   "Checking joints and proportions",
-  "Preparing the parametric model",
+  "Compiling the bounded 3D model",
 ];
 
 const AI_CREATIONS_STORAGE_KEY = "letpot-maker:ai-creations:v1";
 const LEGACY_AI_CREATIONS_STORAGE_KEY = "letpot-garden-lab:ai-creations:v1";
+
+const AI_MANUFACTURING_PROFILE: ManufacturingProfile = {
+  status: "Prototype study",
+  orientation: "Socketed body upright · connector pin vertical",
+  supportStrategy: "Automatic snug support; inspect the sliced preview",
+  minWall: 1.2,
+  minFeature: 1.2,
+  batchMode: "Single prototype first",
+  stackMode: "Adapter stack only",
+  details: [
+    "Every AI node is range-limited and fused to a connected support graph",
+    "The locked adapter, pin and socket geometry is reused without AI modification",
+    "Manifold export is checked automatically; visual detail and overhangs still need review",
+  ],
+};
 
 type LocalAiCreation = {
   id: string;
@@ -389,7 +406,7 @@ function AiGenerateModal({ open, onClose, onGenerated }: {
             </div>
             <p>{phase === "success" ? "MODEL READY" : "AI · CREATING"}</p>
             <h2 id="ai-modal-title">{phase === "success" ? "Your idea is taking shape" : AI_CREATION_STEPS[step]}</h2>
-            <span>{phase === "success" ? "Opening the new parametric design…" : "Building within proven print-safe limits"}</span>
+            <span>{phase === "success" ? "Opening the new 3D design…" : "Building within proven print-safe limits"}</span>
             <div className="ai-progress"><i style={{ width: phase === "success" ? "100%" : `${18 + step * 17}%` }} /></div>
           </div>
         ) : (
@@ -397,7 +414,7 @@ function AiGenerateModal({ open, onClose, onGenerated }: {
             <div className="ai-modal-heading">
               <span className="ai-kicker">✦ AI ASSISTED</span>
               <h2 id="ai-modal-title">Generate a printable idea</h2>
-              <p>The configured AI turns your description into a constrained botanical recipe. The existing solid pipeline builds the model and keeps every parameter inside tested print limits.</p>
+              <p>The configured AI turns your description into a bounded 3D shape program. It can compose new objects and characters while the solid pipeline locks the adapter, size, connections and print limits.</p>
               <small>Usually 10–25 seconds</small>
             </div>
             <div className="ai-examples" aria-label="Example prompts">
@@ -406,12 +423,12 @@ function AiGenerateModal({ open, onClose, onGenerated }: {
             <label className="ai-prompt-field">
               <span>Describe your model</span>
               <div>
-                <input ref={inputRef} maxLength={280} value={prompt} onChange={(event) => { setPrompt(event.target.value); setError(""); setPhase("idle"); }} placeholder="e.g. A friendly round cactus with three upward arms" />
+                <input ref={inputRef} maxLength={280} value={prompt} onChange={(event) => { setPrompt(event.target.value); setError(""); setPhase("idle"); }} placeholder="e.g. A tiny cottage with a roof, chimney and windows" />
                 <button type="submit">Generate <span>→</span></button>
               </div>
             </label>
             {error && <p className="ai-error" role="alert">{error}</p>}
-            <div className="ai-safety-note"><i>✓</i><span><b>Print-safe, locally organized</b>Your description is sent to the configured AI provider to create a constrained recipe—never arbitrary mesh code. The finished recipe is cached in My Creations on this device.</span></div>
+            <div className="ai-safety-note"><i>✓</i><span><b>Bounded geometry, locally organized</b>Your description is sent to the configured AI provider to create an allowlisted shape program—never executable mesh code. The finished recipe is cached in My Creations on this device.</span></div>
           </form>
         )}
       </section>
@@ -433,13 +450,18 @@ export function Studio() {
   const [mobilePanel, setMobilePanel] = useState<"preview" | "library" | "adjust">("preview");
   const build = useMemo(() => createModel(options), [options]);
   const definition = MODEL_LIBRARY.find((item) => item.id === options.modelId) ?? MODEL_LIBRARY[0];
+  const isAiSculpture = Boolean(aiDesign?.program && options.aiProgram);
+  const designParts = isAiSculpture ? 3 : definition.parts;
   const designName = aiDesign?.name ?? definition.name;
   const designSubtitle = aiDesign?.subtitle ?? definition.subtitle;
+  const designPrintNote = isAiSculpture
+    ? "Print the socketed sculpture upright with automatic snug supports. Inspect small color details and overhangs in the sliced preview before the first prototype."
+    : definition.printNote;
   const visibleModels = useMemo(
     () => activeTag === "all" ? MODEL_LIBRARY : MODEL_LIBRARY.filter((item) => item.tags.includes(activeTag)),
     [activeTag],
   );
-  const manufacturing = getManufacturingProfile(options.modelId);
+  const manufacturing = isAiSculpture ? AI_MANUFACTURING_PROFILE : getManufacturingProfile(options.modelId);
 
   useEffect(() => () => disposeObject(build.assembly), [build]);
 
@@ -455,7 +477,38 @@ export function Studio() {
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
-      const requestedModel = new URLSearchParams(window.location.search).get("model");
+      const search = new URLSearchParams(window.location.search);
+      const requestedExample = search.get("ai-example");
+      const example = AI_SCULPTURE_EXAMPLES.find((item) => item.slug === requestedExample);
+      if (example) {
+        const recipe = normalizeAiRecipe(example.recipe);
+        const localId = `example-${example.slug}`;
+        const creation: LocalAiCreation = {
+          id: localId,
+          createdAt: new Date().toISOString(),
+          prompt: example.prompt,
+          recipe,
+        };
+        setOptions((current) => ({
+          ...current,
+          modelId: recipe.templateId,
+          topperHeight: recipe.topperHeight,
+          topperWidth: recipe.topperWidth,
+          primaryColor: recipe.primaryColor,
+          accentColor: recipe.accentColor,
+          secondaryColor: recipe.secondaryColor,
+          detailColor: recipe.detailColor,
+          faceted: recipe.faceted,
+          shape: recipe.shape,
+          aiProgram: recipe.program,
+        }));
+        setAiCreations((current) => [creation, ...current.filter((item) => item.id !== localId)]);
+        setAiDesign({ ...recipe, prompt: example.prompt, localId });
+        setLibraryMode("mine");
+        setMessage(`${recipe.name} example loaded`);
+        return;
+      }
+      const requestedModel = search.get("model");
       const selected = MODEL_LIBRARY.find((item) => item.id === requestedModel);
       if (!selected) return;
       setOptions((current) => ({
@@ -464,6 +517,7 @@ export function Studio() {
         ...selected.defaults,
         faceted: selected.style === "lowpoly",
         shape: getDefaultShapeParameters(selected),
+        aiProgram: undefined,
       }));
       setLibraryMode("official");
       setActiveTag("all");
@@ -496,6 +550,7 @@ export function Studio() {
       ...selected.defaults,
       faceted: selected.style === "lowpoly",
       shape: getDefaultShapeParameters(selected),
+      aiProgram: undefined,
     }));
     setAiDesign(null);
     setMessage(`${selected.name} loaded`);
@@ -524,8 +579,11 @@ export function Studio() {
       topperWidth: recipe.topperWidth,
       primaryColor: recipe.primaryColor,
       accentColor: recipe.accentColor,
+      secondaryColor: recipe.secondaryColor,
+      detailColor: recipe.detailColor,
       faceted: recipe.faceted,
       shape: recipe.shape,
+      aiProgram: recipe.program,
     }));
     persistCreations([creation, ...aiCreations]);
     setAiDesign({ ...recipe, prompt, localId });
@@ -544,8 +602,11 @@ export function Studio() {
       topperWidth: recipe.topperWidth,
       primaryColor: recipe.primaryColor,
       accentColor: recipe.accentColor,
+      secondaryColor: recipe.secondaryColor,
+      detailColor: recipe.detailColor,
       faceted: recipe.faceted,
       shape: recipe.shape,
+      aiProgram: recipe.program,
     }));
     setAiDesign({ ...recipe, prompt: creation.prompt, localId: creation.id });
     requestView("orbit");
@@ -633,7 +694,7 @@ export function Studio() {
         manufacturing,
         warning: "Fixed Ø33/Ø41 pod-fit standard. Verify fit with a small adapter test before production.",
       }, null, 2));
-      root.file("PRINT-NOTES.txt", `${designName}\n\n${aiDesign ? `${aiDesign.creativeNote}\n\nGenerated from: ${aiDesign.prompt}\n\n` : ""}${definition.printNote}\n\nManufacturing status: ${manufacturing.status}.\nOrientation: ${manufacturing.orientation}.\nSupport: ${manufacturing.supportStrategy}.\nMinimum designed wall: ${manufacturing.minWall.toFixed(1)} mm.\nMinimum designed feature: ${manufacturing.minFeature.toFixed(1)} mm.\nBatch mode: ${manufacturing.batchMode}.\n\nEvery STL is a single connected, watertight solid. Every design is intentionally split into a universal adapter, a double-ended connector pin and a socketed body; mushroom and clover include one additional upper part.\n\nAdapter standard: Ø${ADAPTER_STANDARD.lowerDiameter.toFixed(2)} mm straight lower section × ${ADAPTER_STANDARD.lowerHeight.toFixed(2)} mm, then a ${ADAPTER_STANDARD.transitionHeight.toFixed(2)} mm transition to a Ø${ADAPTER_STANDARD.upperDiameter.toFixed(2)} mm × ${ADAPTER_STANDARD.upperBandHeight.toFixed(2)} mm vertical upper band; total height ${ADAPTER_STANDARD.totalHeight.toFixed(2)} mm. The STL is pre-oriented with the Ø${ADAPTER_STANDARD.upperDiameter.toFixed(2)} mm logo face on the print bed and the Ø${ADAPTER_STANDARD.lowerDiameter.toFixed(2)} mm side facing upward. Verify fit with a small test print before production.\n`);
+      root.file("PRINT-NOTES.txt", `${designName}\n\n${aiDesign ? `${aiDesign.creativeNote}\n\nGenerated from: ${aiDesign.prompt}\n\n` : ""}${designPrintNote}\n\nManufacturing status: ${manufacturing.status}.\nOrientation: ${manufacturing.orientation}.\nSupport: ${manufacturing.supportStrategy}.\nMinimum designed wall: ${manufacturing.minWall.toFixed(1)} mm.\nMinimum designed feature: ${manufacturing.minFeature.toFixed(1)} mm.\nBatch mode: ${manufacturing.batchMode}.\n\nEvery STL is a single connected, watertight solid. Every design is intentionally split into a universal adapter, a double-ended connector pin and a socketed body; mushroom and clover include one additional upper part.\n\nAdapter standard: Ø${ADAPTER_STANDARD.lowerDiameter.toFixed(2)} mm straight lower section × ${ADAPTER_STANDARD.lowerHeight.toFixed(2)} mm, then a ${ADAPTER_STANDARD.transitionHeight.toFixed(2)} mm transition to a Ø${ADAPTER_STANDARD.upperDiameter.toFixed(2)} mm × ${ADAPTER_STANDARD.upperBandHeight.toFixed(2)} mm vertical upper band; total height ${ADAPTER_STANDARD.totalHeight.toFixed(2)} mm. The STL is pre-oriented with the Ø${ADAPTER_STANDARD.upperDiameter.toFixed(2)} mm logo face on the print bed and the Ø${ADAPTER_STANDARD.lowerDiameter.toFixed(2)} mm side facing upward. Verify fit with a small test print before production.\n`);
       const archive = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
       downloadBlob(archive, `${slugify(designName)}-print-pack.zip`);
       disposeObject(solidAssembly);
@@ -655,7 +716,14 @@ export function Studio() {
       for (const part of build.parts) {
         const solid = await solidifyObject(wasm, part.object, { flipZ: part.printFlipZ });
         solids.push(solid);
-        projectParts.push({ name: part.label, mesh: solid, color: part.color });
+        projectParts.push({
+          name: part.label,
+          mesh: solid,
+          color: part.color,
+          palette: options.aiProgram && part.id === "topper"
+            ? [options.primaryColor, options.secondaryColor ?? "#d8a33e", options.detailColor ?? "#f4eee2"]
+            : undefined,
+        });
       }
       const project = await buildBambuThreeMf(projectParts, printerId, designName);
       downloadBlob(project, `${slugify(designName)}-${printerId}.3mf`);
@@ -794,7 +862,7 @@ export function Studio() {
         <details className="export-menu">
           <summary>{exporting ? "Preparing…" : "Export"}<span>↓</span></summary>
           <div className="export-popover">
-            <div className="export-heading"><b>Print handoff</b><span>{designName} · {definition.parts} parts</span></div>
+            <div className="export-heading"><b>Print handoff</b><span>{designName} · {designParts} parts</span></div>
             <label className="printer-field"><span>Target printer</span><select aria-label="Target Bambu printer" value={printerId} onChange={(event) => setPrinterId(event.target.value as BambuPrinterId)}>{Object.values(BAMBU_PRINTERS).map((printer) => <option key={printer.id} value={printer.id}>{printer.name}</option>)}</select></label>
             <button className="export-primary" onClick={exportBambuProject} disabled={exporting}>Bambu 3MF <span>Recommended</span></button>
             <button onClick={exportPack} disabled={exporting}>STL print pack <span>Individual manifold parts</span></button>
@@ -847,7 +915,7 @@ export function Studio() {
               <div key={creation.id} className={`local-creation-card ${aiDesign?.localId === creation.id ? "active" : ""}`}>
                 <button className="local-creation-main" onClick={() => chooseAiCreation(creation)}>
                   <span className="asset-number">AI{String(aiCreations.length - index).padStart(2, "0")}</span>
-                  <span><strong>{creation.recipe.name}</strong><small>{new Date(creation.createdAt).toLocaleDateString()} · {creation.recipe.templateId}</small><span className="asset-tags"><i>local</i><i>ai recipe</i></span></span>
+                  <span><strong>{creation.recipe.name}</strong><small>{new Date(creation.createdAt).toLocaleDateString()} · {creation.recipe.mode}</small><span className="asset-tags"><i>local</i><i>{creation.recipe.program ? "shape program" : "ai recipe"}</i></span></span>
                 </button>
                 <button className="local-creation-remove" aria-label={`Remove ${creation.recipe.name}`} onClick={() => removeAiCreation(creation)}>×</button>
               </div>
@@ -872,7 +940,7 @@ export function Studio() {
         <aside className="inspector-panel" id="studio-adjustments" aria-label="Model adjustments">
           <div className="inspector-title">
             <div><p>{aiDesign ? "AI DESIGN" : `MODEL ${definition.number}`}</p><h2>{designName}</h2><span>{designSubtitle}</span></div>
-            <span className="part-count">{definition.parts} PARTS</span>
+            <span className="part-count">{designParts} PARTS</span>
           </div>
           <div className="inspector-content">
             <section className="inspector-section">
@@ -881,7 +949,7 @@ export function Studio() {
               <Slider label="Topper width" value={options.topperWidth} min={20} max={40} step={0.5} onChange={(value) => update("topperWidth", value)} />
             </section>
 
-            {(definition.parameters?.length ?? 0) > 0 && <section className="inspector-section signature-section">
+            {!isAiSculpture && (definition.parameters?.length ?? 0) > 0 && <section className="inspector-section signature-section">
               <div className="section-heading">
                 <div><p>SIGNATURE</p><span>{definition.parameters?.length} model-specific controls</span></div>
                 <div className="section-actions"><button onClick={randomizeShape}>Vary</button><button onClick={resetShape}>Reset</button></div>
@@ -902,9 +970,11 @@ export function Studio() {
             </section>}
 
             <section className="inspector-section appearance-section">
-              <div className="section-heading"><div><p>APPEARANCE</p><span>{definition.style === "realistic" ? "Smooth realistic model" : "Faceted printable model"}</span></div></div>
-              {definition.style === "lowpoly" && <div className="control-group compact"><label><span>Surface style</span><select value={options.faceted ? "low" : "soft"} onChange={(event) => update("faceted", event.target.value === "low")}><option value="low">Low poly</option><option value="soft">Smooth faceted</option></select></label></div>}
+              <div className="section-heading"><div><p>APPEARANCE</p><span>{isAiSculpture ? "Three-role generated palette" : definition.style === "realistic" ? "Smooth realistic model" : "Faceted printable model"}</span></div></div>
+              {(isAiSculpture || definition.style === "lowpoly") && <div className="control-group compact"><label><span>Surface style</span><select value={options.faceted ? "low" : "soft"} onChange={(event) => update("faceted", event.target.value === "low")}><option value="low">Low poly</option><option value="soft">Smooth faceted</option></select></label></div>}
               <div className="control-group color-control"><span>{options.modelId === "mushroom" ? "Cap color" : "Topper color"}</span><div>{COLORS.map((color) => <button key={color} className={`swatch ${options.primaryColor === color ? "active" : ""}`} style={{ background: color }} aria-label={`Use ${color}`} onClick={() => update("primaryColor", color)} />)}<input className="color-input" aria-label="Custom topper color" type="color" value={options.primaryColor} onChange={(event) => update("primaryColor", event.target.value)} /></div></div>
+              {isAiSculpture && <div className="control-group color-control"><span>Secondary color</span><div><input className="color-input" aria-label="Custom secondary color" type="color" value={options.secondaryColor ?? "#d8a33e"} onChange={(event) => update("secondaryColor", event.target.value)} /></div></div>}
+              {isAiSculpture && <div className="control-group color-control"><span>Detail color</span><div><input className="color-input" aria-label="Custom detail color" type="color" value={options.detailColor ?? "#f4eee2"} onChange={(event) => update("detailColor", event.target.value)} /></div></div>}
               <div className="control-group color-control"><span>{options.modelId === "mushroom" ? "Stem + base color" : "Adapter color"}</span><div><button className={`swatch ${options.accentColor === "#d7d0bf" ? "active" : ""}`} style={{ background: "#d7d0bf" }} onClick={() => update("accentColor", "#d7d0bf")} aria-label="Warm stone" /><button className={`swatch ${options.accentColor === "#1f3f2e" ? "active" : ""}`} style={{ background: "#1f3f2e" }} onClick={() => update("accentColor", "#1f3f2e")} aria-label="LetPot green" /><input className="color-input" aria-label="Custom adapter color" type="color" value={options.accentColor} onChange={(event) => update("accentColor", event.target.value)} /></div></div>
             </section>
 
@@ -924,9 +994,9 @@ export function Studio() {
             </details>
 
             <details className="inspector-disclosure readiness-disclosure">
-              <summary><span><b>Print readiness</b><small>{manufacturing.status} · {definition.parts} manifold parts</small></span><i className={manufacturing.status === "Production trial" ? "verified" : "review"}>{manufacturing.status === "Production trial" ? "✓" : "!"}</i></summary>
+              <summary><span><b>Print readiness</b><small>{manufacturing.status} · {designParts} manifold parts</small></span><i className={manufacturing.status === "Production trial" ? "verified" : "review"}>{manufacturing.status === "Production trial" ? "✓" : "!"}</i></summary>
               <div className="disclosure-content">
-                <p className="print-note">{definition.printNote}</p>
+                <p className="print-note">{designPrintNote}</p>
                 <dl className="compact-spec"><div><dt>Orientation</dt><dd>{manufacturing.orientation}</dd></div><div><dt>Support</dt><dd>{manufacturing.supportStrategy}</dd></div><div><dt>Minimum wall</dt><dd>{manufacturing.minWall.toFixed(1)} mm</dd></div><div><dt>Minimum feature</dt><dd>{manufacturing.minFeature.toFixed(1)} mm</dd></div><div><dt>Batch mode</dt><dd>{manufacturing.batchMode}</dd></div></dl>
                 <ul className="audit-list">{manufacturing.details.map((detail) => <li key={detail}>{detail}</li>)}</ul>
               </div>

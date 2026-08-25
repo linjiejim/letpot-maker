@@ -1,4 +1,6 @@
 import * as THREE from "three";
+import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
+import type { AiColorRole, AiShapeNode, AiShapeProgram } from "./ai-shape-program";
 
 export type ModelId =
   | "sprout"
@@ -91,8 +93,11 @@ export interface ModelOptions {
   topperWidth: number;
   primaryColor: string;
   accentColor: string;
+  secondaryColor?: string;
+  detailColor?: string;
   faceted: boolean;
   shape: Partial<Record<ShapeParameterKey, number>>;
+  aiProgram?: AiShapeProgram;
 }
 
 export interface PrintablePart {
@@ -752,6 +757,8 @@ export const DEFAULT_OPTIONS: ModelOptions = {
   topperWidth: 28,
   primaryColor: "#769567",
   accentColor: "#d7d0bf",
+  secondaryColor: "#d8a33e",
+  detailColor: "#f4eee2",
   faceted: true,
   shape: {
     leafPairs: 4,
@@ -1111,6 +1118,230 @@ function cylinderBetween(
   result.position.copy(start).add(end).multiplyScalar(0.5);
   result.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.normalize());
   return result;
+}
+
+function aiRoleColor(options: ModelOptions, role: AiColorRole) {
+  if (role === "secondary") return options.secondaryColor ?? detailColor(options.primaryColor, 0.16);
+  if (role === "detail") return options.detailColor ?? detailColor(options.primaryColor, 0.28);
+  return options.primaryColor;
+}
+
+function centeredExtrudeGeometry(shape: THREE.Shape, segments: number) {
+  const geometry = new THREE.ExtrudeGeometry(shape, {
+    depth: 1,
+    steps: 1,
+    bevelEnabled: true,
+    bevelSegments: Math.min(3, Math.max(1, Math.round(segments / 6))),
+    bevelSize: 0.06,
+    bevelThickness: 0.06,
+    curveSegments: segments,
+  });
+  geometry.translate(0, 0, -0.5);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+function aiLeafGeometry(segments: number) {
+  const shape = new THREE.Shape();
+  shape.moveTo(0, -0.52);
+  shape.bezierCurveTo(0.45, -0.2, 0.45, 0.24, 0, 0.52);
+  shape.bezierCurveTo(-0.45, 0.24, -0.45, -0.2, 0, -0.52);
+  shape.closePath();
+  return centeredExtrudeGeometry(shape, segments);
+}
+
+function aiHeartGeometry(segments: number) {
+  const shape = new THREE.Shape();
+  shape.moveTo(0, -0.5);
+  shape.bezierCurveTo(-0.6, -0.08, -0.52, 0.48, -0.22, 0.48);
+  shape.bezierCurveTo(-0.06, 0.48, 0, 0.33, 0, 0.24);
+  shape.bezierCurveTo(0, 0.33, 0.06, 0.48, 0.22, 0.48);
+  shape.bezierCurveTo(0.52, 0.48, 0.6, -0.08, 0, -0.5);
+  shape.closePath();
+  return centeredExtrudeGeometry(shape, segments);
+}
+
+function aiStarGeometry(points: number, segments: number) {
+  const shape = new THREE.Shape();
+  const safePoints = Math.max(4, Math.min(9, points));
+  for (let index = 0; index < safePoints * 2; index += 1) {
+    const angle = Math.PI / 2 + index * Math.PI / safePoints;
+    const radius = index % 2 === 0 ? 0.5 : 0.23;
+    const x = Math.cos(angle) * radius;
+    const y = Math.sin(angle) * radius;
+    if (index === 0) shape.moveTo(x, y);
+    else shape.lineTo(x, y);
+  }
+  shape.closePath();
+  return centeredExtrudeGeometry(shape, segments);
+}
+
+function aiRoofGeometry(segments: number) {
+  const shape = new THREE.Shape();
+  shape.moveTo(-0.5, -0.5);
+  shape.lineTo(0.5, -0.5);
+  shape.lineTo(0, 0.5);
+  shape.closePath();
+  return centeredExtrudeGeometry(shape, segments);
+}
+
+function aiUnitGeometry(node: AiShapeNode) {
+  switch (node.kind) {
+    case "ellipsoid":
+      return new THREE.SphereGeometry(0.5, node.segments, Math.max(6, Math.round(node.segments * 0.7)));
+    case "rounded-box":
+      return new RoundedBoxGeometry(1, 1, 1, Math.min(4, Math.max(2, Math.round(node.segments / 5))), 0.14);
+    case "cylinder":
+      return new THREE.CylinderGeometry(0.5, 0.5, 1, node.segments, 1, false);
+    case "cone":
+      return new THREE.ConeGeometry(0.5, 1, node.segments, 1, false);
+    case "capsule":
+      return new THREE.CapsuleGeometry(0.32, 0.36, Math.min(8, node.segments), node.segments);
+    case "torus":
+      return new THREE.TorusGeometry(0.36, 0.14, Math.max(5, Math.round(node.segments / 2)), node.segments * 2);
+    case "roof":
+      return aiRoofGeometry(node.segments);
+    case "leaf":
+      return aiLeafGeometry(node.segments);
+    case "star":
+      return aiStarGeometry(node.segments, node.segments);
+    case "heart":
+      return aiHeartGeometry(node.segments);
+  }
+}
+
+type ExpandedAiNode = AiShapeNode & { mirroredFrom?: string };
+
+function expandAiNodes(program: AiShapeProgram) {
+  const expanded: ExpandedAiNode[] = [];
+  const mirroredIds = new Set<string>();
+  for (const node of program.nodes) {
+    expanded.push(node);
+    if (node.operation !== "add" || node.symmetry === "none") continue;
+    const mirroredId = `${node.id}-mirror`;
+    const attachTo = mirroredIds.has(node.attachTo) ? `${node.attachTo}-mirror` : node.attachTo;
+    const position: [number, number, number] = [...node.position];
+    const rotation: [number, number, number] = [...node.rotation];
+    if (node.symmetry === "mirror-x") {
+      position[0] *= -1;
+      rotation[1] *= -1;
+      rotation[2] *= -1;
+    } else {
+      position[2] *= -1;
+      rotation[0] *= -1;
+      rotation[1] *= -1;
+    }
+    expanded.push({ ...node, id: mirroredId, attachTo, position, rotation, symmetry: "none", mirroredFrom: node.id });
+    mirroredIds.add(node.id);
+  }
+  return expanded;
+}
+
+function aiNodeTransform(node: ExpandedAiNode, options: ModelOptions) {
+  const center = new THREE.Vector3(
+    node.position[0] * options.topperWidth,
+    node.position[1] * options.topperHeight,
+    node.position[2] * options.topperWidth,
+  );
+  const size = new THREE.Vector3(
+    node.size[0] * options.topperWidth,
+    node.size[1] * options.topperHeight,
+    node.size[2] * options.topperWidth,
+  );
+  const rotation = new THREE.Euler(
+    THREE.MathUtils.degToRad(node.rotation[0]),
+    THREE.MathUtils.degToRad(node.rotation[1]),
+    THREE.MathUtils.degToRad(node.rotation[2]),
+    "XYZ",
+  );
+  return { center, size, rotation };
+}
+
+function buildAiSculpture(options: ModelOptions, program: AiShapeProgram) {
+  const topper = prepareTopper(options);
+  const sculpture = new THREE.Group();
+  sculpture.name = "ai_shape_program_sculpture";
+  const centers = new Map<string, THREE.Vector3>();
+  const connectionPoints = new Map<string, THREE.Vector3>();
+  const nodeBounds = new Map<string, THREE.Box3>();
+  const nodeKinds = new Map<string, AiShapeNode["kind"]>();
+  const nodeColorRoles = new Map<string, AiColorRole>();
+  const expanded = expandAiNodes(program);
+
+  for (const node of expanded) {
+    const { center, size, rotation } = aiNodeTransform(node, options);
+    centers.set(node.id, center);
+    const geometry = aiUnitGeometry(node);
+    geometry.computeBoundingBox();
+    const unitSize = geometry.boundingBox?.getSize(new THREE.Vector3()) ?? new THREE.Vector3(1, 1, 1);
+    const color = aiRoleColor(options, node.color);
+    const nodeMesh = mesh(geometry, color, options.faceted);
+    nodeMesh.name = `ai_${node.operation}_${node.id}_${node.kind}`;
+    nodeMesh.position.copy(center);
+    nodeMesh.rotation.copy(rotation);
+    nodeMesh.scale.set(
+      size.x / Math.max(unitSize.x, 0.001),
+      size.y / Math.max(unitSize.y, 0.001),
+      size.z / Math.max(unitSize.z, 0.001),
+    );
+    nodeMesh.userData.aiColorRole = node.color;
+    if (node.operation === "subtract") nodeMesh.userData.booleanOperation = "subtract";
+    sculpture.add(nodeMesh);
+    nodeMesh.updateMatrixWorld(true);
+    nodeBounds.set(node.id, new THREE.Box3().setFromObject(nodeMesh));
+    nodeKinds.set(node.id, node.kind);
+    nodeColorRoles.set(node.id, node.color);
+
+    const connectionPoint = center.clone();
+    if (node.kind === "torus") {
+      connectionPoint.add(new THREE.Vector3(size.x * 0.34, 0, 0).applyEuler(rotation));
+    }
+    connectionPoints.set(node.id, connectionPoint);
+    if (node.operation === "subtract") continue;
+
+    let start = new THREE.Vector3(0, 0, 0);
+    if (node.attachTo !== "core") {
+      const parentBounds = nodeBounds.get(node.attachTo);
+      if (parentBounds && nodeKinds.get(node.attachTo) !== "torus") {
+        const parentCenter = centers.get(node.attachTo) ?? parentBounds.getCenter(new THREE.Vector3());
+        const towardChild = connectionPoint.clone().sub(parentCenter);
+        const distance = towardChild.length();
+        const parentSize = parentBounds.getSize(new THREE.Vector3());
+        // Begin well inside the parent's conservative inscribed region. This
+        // is more reliable than bounding-box overlap for rotated capsules and
+        // tapered shapes, while still trimming most of a centre-to-centre rod.
+        const insetTravel = Math.min(distance * 0.24, Math.min(parentSize.x, parentSize.y, parentSize.z) * 0.16);
+        start.copy(parentCenter).add(towardChild.normalize().multiplyScalar(insetTravel));
+      } else {
+        start = connectionPoints.get(node.attachTo) ?? centers.get(node.attachTo) ?? start;
+      }
+    }
+    const end = connectionPoint;
+    const distance = start.distanceTo(end);
+    if (distance < 0.05) continue;
+    const linkRadius = THREE.MathUtils.clamp(Math.min(size.x, size.y, size.z) * 0.18, 0.9, 2.4);
+    const linkRole = node.attachTo === "core" ? "primary" : nodeColorRoles.get(node.attachTo) ?? "primary";
+    const link = cylinderBetween(start, end, linkRadius, linkRadius * 0.92, aiRoleColor(options, linkRole), options.faceted, Math.max(6, node.segments));
+    link.name = `ai_fusion_${node.attachTo}_to_${node.id}`;
+    link.userData.aiColorRole = linkRole;
+    sculpture.add(link);
+  }
+
+  sculpture.updateMatrixWorld(true);
+  const additiveBounds = new THREE.Box3();
+  sculpture.traverse((child) => {
+    if (child instanceof THREE.Mesh && child.userData.booleanOperation !== "subtract") {
+      additiveBounds.expandByObject(child);
+    }
+  });
+  const size = additiveBounds.getSize(new THREE.Vector3());
+  const lateralScale = Math.min(1, options.topperWidth / Math.max(size.x, size.z, 0.001));
+  const verticalScale = Math.min(1, options.topperHeight / Math.max(size.y, 0.001));
+  sculpture.scale.set(lateralScale, verticalScale, lateralScale);
+  sculpture.position.y = ADAPTER_STANDARD.totalHeight + 3.55 - additiveBounds.min.y * verticalScale;
+  topper.add(sculpture);
+  topper.userData.aiShapeProgram = program;
+  return topper;
 }
 
 function leafBladeGeometry(length: number, width: number, thickness: number) {
@@ -3024,14 +3255,22 @@ function buildMushroom(options: ModelOptions) {
 
 export function createModel(options: ModelOptions): ModelBuild {
   const assembly = new THREE.Group();
-  assembly.name = `${options.modelId}_assembly`;
+  assembly.name = options.aiProgram ? "ai_custom_assembly" : `${options.modelId}_assembly`;
   const adapter = buildAdapter(options);
   assembly.add(adapter);
   const parts: PrintablePart[] = [
     { id: "adapter", label: "Universal adapter · Ø41 face down", object: adapter, color: options.accentColor, printFlipZ: true },
   ];
 
-  if (options.modelId === "mushroom") {
+  if (options.aiProgram) {
+    const pinGroup = buildConnectorPin(options, "ai_custom_double_ended_connector_pin");
+    const topper = buildAiSculpture(options, options.aiProgram);
+    assembly.add(pinGroup, topper);
+    parts.push(
+      { id: "connector-pin", label: "Double-ended connector pin", object: pinGroup, color: options.primaryColor },
+      { id: "topper", label: "Socketed AI sculpture", object: topper, color: options.primaryColor },
+    );
+  } else if (options.modelId === "mushroom") {
     const pinGroup = buildConnectorPin(options, "mushroom_double_ended_connector_pin");
     const { stemGroup, capGroup } = buildMushroom(options);
     assembly.add(pinGroup, stemGroup, capGroup);

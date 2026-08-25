@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { POST } from "../app/api/ai-generate/route";
+import { normalizeAiRecipe } from "../lib/ai-design";
 import { assessAiPrompt, buildUntrustedIdeaMessage } from "../lib/ai-prompt-security";
 import { acquireAiRequest, resetAiRateLimitState } from "../lib/ai-rate-limit";
 
@@ -32,6 +33,50 @@ assert.deepEqual(
   JSON.parse(buildUntrustedIdeaMessage("A tiny cactus")),
   { kind: "untrusted_printable_idea", idea: "A tiny cactus" },
 );
+
+const hostileProgramRecipe = normalizeAiRecipe({
+  mode: "sculpture",
+  name: "Bounded object",
+  subtitle: "Security boundary fixture",
+  templateId: "sprout",
+  topperHeight: 999,
+  topperWidth: -999,
+  primaryColor: "#769567",
+  accentColor: "#d7d0bf",
+  secondaryColor: "#d8a33e",
+  detailColor: "#f4eee2",
+  faceted: true,
+  shape: {},
+  creativeNote: "Untrusted program normalization.",
+  execute: "arbitrary-code()",
+  program: {
+    version: 999,
+    nodes: [
+      { id: "bad", kind: "shell-command", code: "rm -rf /" },
+      ...Array.from({ length: 30 }, (_, index) => ({
+        id: `node-${index}`,
+        kind: "ellipsoid",
+        operation: index > 0 && index < 8 ? "subtract" : "add",
+        attachTo: index === 0 ? "future-node" : "node-0",
+        position: [99, -99, Number.NaN],
+        size: [0, 99, 0],
+        rotation: [999, -999, 0],
+        color: "arbitrary-material",
+        symmetry: "execute-twice",
+        segments: 999,
+        code: "arbitrary-code()",
+      })),
+    ],
+  },
+});
+assert.equal(hostileProgramRecipe.mode, "sculpture");
+assert.equal(hostileProgramRecipe.topperHeight, 50);
+assert.equal(hostileProgramRecipe.topperWidth, 20);
+assert.ok((hostileProgramRecipe.program?.nodes.length ?? 0) <= 24);
+assert.ok((hostileProgramRecipe.program?.nodes.filter((node) => node.operation === "subtract").length ?? 0) <= 5);
+assert.equal(hostileProgramRecipe.program?.nodes[0].attachTo, "core");
+assert.equal("execute" in hostileProgramRecipe, false);
+assert.equal("code" in (hostileProgramRecipe.program?.nodes[0] as unknown as Record<string, unknown>), false);
 
 const envKeys = [
   "AI_API_KEY",
