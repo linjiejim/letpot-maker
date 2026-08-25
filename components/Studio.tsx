@@ -1003,7 +1003,7 @@ export function Studio() {
           </div>}
           <div className="asset-list">
             {libraryMode === "official" && visibleModels.map((item) => (
-              <button key={item.id} className={`asset-card ${item.style} ${item.id === options.modelId ? "active" : ""}`} onClick={() => chooseModel(item.id)}>
+              <button key={item.id} className={`asset-card ${item.style} ${item.id === options.modelId ? "active" : ""}`} title={item.name} onClick={() => chooseModel(item.id)}>
                 <span className="asset-number">{item.number}</span>
                 <span className="asset-copy">
                   <strong>{item.name}</strong>
@@ -1013,7 +1013,7 @@ export function Studio() {
             ))}
             {libraryMode === "mine" && aiCreations.map((creation, index) => (
               <div key={creation.id} className={`local-creation-card ${aiDesign?.localId === creation.id ? "active" : ""}`}>
-                <button className="local-creation-main" onClick={() => chooseAiCreation(creation)}>
+                <button className="local-creation-main" title={creation.recipe.name} onClick={() => chooseAiCreation(creation)}>
                   <span className="asset-number">AI{String(aiCreations.length - index).padStart(2, "0")}</span>
                   <span className="asset-copy"><strong>{creation.recipe.name}</strong><small>{creation.recipe.program ? "Custom shape" : "AI variation"}</small></span>
                 </button>

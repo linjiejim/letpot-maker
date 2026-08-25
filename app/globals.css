@@ -130,8 +130,9 @@ body.studio-panel-resizing { cursor: col-resize; user-select: none; }
 .asset-card:hover { opacity: 1; border-color: var(--primary-200); background: rgba(255,255,255,.82); box-shadow: 0 4px 12px rgba(31,63,32,.06); transform: translateY(-1px); }
 .asset-card.active { border-color: var(--primary-300); background: var(--raised); box-shadow: inset 3px 0 var(--primary-500), 0 4px 14px rgba(31,63,32,.07); }
 .asset-number { align-self: flex-start; font: 8px/1 monospace; padding-top: 2px; color: var(--fg-muted); }
-.asset-copy { min-width: 0; }
+.asset-copy { min-width: 0; overflow: hidden; }
 .asset-card strong { color: var(--fg); font: 750 11px/1.2 var(--font-display); }
+.asset-card strong, .local-creation-main strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .asset-card small { font-size: 8px; margin-top: 2px; color: var(--fg-muted); }
 .asset-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
 .asset-tags i { padding: 2px 5px; border: 1px solid rgba(203,214,200,.72); border-radius: 99px; font: normal 9px/1.1 ui-monospace, SFMono-Regular, Menlo, monospace; text-transform: uppercase; letter-spacing: .025em; color: var(--fg-muted); background: rgba(235,241,232,.9); }
