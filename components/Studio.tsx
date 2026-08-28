@@ -29,6 +29,7 @@ import {
   STACK_TRIAL_GAPS,
   TOPPER_SIZE_LIMITS,
   type ModelBuild,
+  type ModelDefinition,
   type ModelId,
   type ModelOptions,
   type ModelTag,
@@ -56,6 +57,7 @@ import {
 import {
   generateTripoMesh,
   parseTripoGlb,
+  TRIPO_LOCAL_MESH_FACE_LIMIT,
   TRIPO_MODEL_OPTIONS,
   TRIPO_REGION_OPTIONS,
   tripoErrorMessage,
@@ -75,6 +77,9 @@ const PANEL_WIDTH_BOUNDS = {
   inspector: { min: 300, max: 440 },
 } as const;
 const MIN_STAGE_WIDTH = 420;
+const MAX_LOCAL_GLB_BYTES = 40 * 1024 * 1024;
+const DEFAULT_IMPORTED_TOPPER_SIZE = { width: 70, height: 100 } as const;
+const officialMeshBuffers = new Map<string, Promise<ArrayBuffer>>();
 const TAG_LABELS: Record<ModelTag, string> = {
   lowpoly: "Low poly",
   realistic: "Realistic",
@@ -87,6 +92,29 @@ const TAG_LABELS: Record<ModelTag, string> = {
   christmas: "Christmas",
   other: "Other",
 };
+
+async function loadOfficialMesh(definition: ModelDefinition) {
+  const asset = definition.officialMesh;
+  if (!asset) throw new Error(`${definition.name} has no bundled mesh asset.`);
+  let pending = officialMeshBuffers.get(asset.assetPath);
+  if (!pending) {
+    pending = fetch(asset.assetPath, { cache: "force-cache" }).then(async (response) => {
+      if (!response.ok) throw new Error(`Bundled mesh returned HTTP ${response.status}.`);
+      const data = await response.arrayBuffer();
+      if (!data.byteLength || data.byteLength > MAX_LOCAL_GLB_BYTES) throw new Error("Bundled mesh has an invalid file size.");
+      return data;
+    });
+    officialMeshBuffers.set(asset.assetPath, pending);
+    void pending.catch(() => officialMeshBuffers.delete(asset.assetPath));
+  }
+  const parsed = await parseTripoGlb((await pending).slice(0), { maxFaceCount: TRIPO_LOCAL_MESH_FACE_LIMIT });
+  if (parsed.faceCount !== asset.faceCount) {
+    disposeObject(parsed.object);
+    throw new Error(`Bundled mesh face count changed (${parsed.faceCount.toLocaleString()} instead of ${asset.faceCount.toLocaleString()}).`);
+  }
+  parsed.object.name = `official_${definition.id}_source`;
+  return parsed;
+}
 
 function slugify(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
@@ -537,6 +565,7 @@ function AiGenerateModal({ open, onClose, onGenerated, onMeshGenerated }: {
           byteLength: generated.data.byteLength,
           meshCount: parsed.meshCount,
           faceCount: parsed.faceCount,
+          source: "tripo",
         };
         const record: LocalTripoMeshRecord = { ...metadata, glb: generated.data };
         await putLocalTripoMesh(record);
@@ -653,19 +682,32 @@ export function Studio() {
   const [panelWidths, setPanelWidths] = useState<PanelWidths>({ ...DEFAULT_PANEL_WIDTHS });
   const [resizingPanel, setResizingPanel] = useState<PanelName | null>(null);
   const workspaceRef = useRef<HTMLElement>(null);
+  const glbInputRef = useRef<HTMLInputElement>(null);
+  const officialLoadRef = useRef(0);
   const resizeCleanupRef = useRef<(() => void) | null>(null);
   const build = useMemo(() => createModel(options), [options]);
+  useEffect(() => {
+    const source = options.externalMesh;
+    return () => {
+      if (source) disposeObject(source);
+    };
+  }, [options.externalMesh]);
   const definition = MODEL_LIBRARY.find((item) => item.id === options.modelId) ?? MODEL_LIBRARY[0];
   const isAiSculpture = Boolean(aiDesign?.program && options.aiProgram);
   const isTripoMesh = Boolean(tripoDesign && options.externalMesh);
+  const isOfficialMesh = Boolean(definition.officialMesh && options.externalMesh && !tripoDesign);
+  const isExternalMesh = isTripoMesh || isOfficialMesh;
   const integrated = options.connectionMode === "integrated";
-  const designParts = integrated ? 1 : isAiSculpture || isTripoMesh ? 3 : definition.parts;
+  const designParts = integrated ? 1 : isAiSculpture || isExternalMesh ? 3 : definition.parts;
   const designName = tripoDesign?.name ?? aiDesign?.name ?? definition.name;
   const designSubtitle = tripoDesign
-    ? `Direct Tripo mesh · ${tripoDesign.faceCount.toLocaleString()} faces · local only`
-    : aiDesign?.subtitle ?? definition.subtitle;
+    ? `${tripoDesign.source === "local-file" ? "Imported GLB" : "Direct Tripo mesh"} · ${tripoDesign.faceCount.toLocaleString()} faces · local only`
+    : isOfficialMesh
+      ? `${definition.subtitle} · ${definition.officialMesh!.faceCount.toLocaleString()} faces · bundled asset`
+      : aiDesign?.subtitle ?? definition.subtitle;
   const detachablePrintNote = isTripoMesh
     ? "Print the socketed mesh upright with automatic snug supports. Neural meshes can contain thin walls, islands or non-manifold edges; validate the export and sliced preview before printing."
+    : isOfficialMesh ? definition.printNote
     : isAiSculpture
     ? "Print the socketed sculpture upright with automatic snug supports. Inspect small color details and overhangs in the sliced preview before the first prototype."
     : definition.printNote;
@@ -676,7 +718,7 @@ export function Studio() {
     () => activeTag === "all" ? MODEL_LIBRARY : MODEL_LIBRARY.filter((item) => item.tags.includes(activeTag)),
     [activeTag],
   );
-  const baseManufacturing = isTripoMesh
+  const baseManufacturing = isExternalMesh
     ? TRIPO_MANUFACTURING_PROFILE
     : isAiSculpture ? AI_MANUFACTURING_PROFILE : getManufacturingProfile(options.modelId);
   const manufacturing = integrated ? {
@@ -749,20 +791,9 @@ export function Studio() {
       const requestedModel = search.get("model");
       const selected = MODEL_LIBRARY.find((item) => item.id === requestedModel);
       if (!selected) return;
-      setOptions((current) => ({
-        ...current,
-        modelId: selected.id,
-        ...selected.defaults,
-        faceted: selected.style === "lowpoly",
-        shape: getDefaultShapeParameters(selected),
-        aiProgram: undefined,
-        externalMesh: undefined,
-      }));
+      chooseModel(selected.id);
       setLibraryMode("official");
       setActiveTag("all");
-      setAiDesign(null);
-      setTripoDesign(null);
-      setMessage(`${selected.name} loaded`);
     });
     return () => window.cancelAnimationFrame(frame);
   }, []);
@@ -836,9 +867,11 @@ export function Studio() {
     }
   };
 
-  const chooseModel = (modelId: ModelId) => {
+  function chooseModel(modelId: ModelId) {
     const selected = MODEL_LIBRARY.find((item) => item.id === modelId);
     if (!selected) return;
+    const loadId = officialLoadRef.current + 1;
+    officialLoadRef.current = loadId;
     setOptions((current) => ({
       ...current,
       modelId,
@@ -850,9 +883,25 @@ export function Studio() {
     }));
     setAiDesign(null);
     setTripoDesign(null);
-    setMessage(`${selected.name} loaded`);
+    setMessage(selected.officialMesh ? `Loading bundled ${selected.name} mesh…` : `${selected.name} loaded`);
     setMobilePanel("preview");
-  };
+    if (selected.officialMesh) {
+      void loadOfficialMesh(selected).then((parsed) => {
+        if (officialLoadRef.current !== loadId) {
+          disposeObject(parsed.object);
+          return;
+        }
+        setOptions((current) => current.modelId === selected.id
+          ? { ...current, externalMesh: parsed.object }
+          : current);
+        setMessage(`${selected.name} official mesh loaded · ${parsed.faceCount.toLocaleString()} faces`);
+      }).catch((error) => {
+        if (officialLoadRef.current === loadId) {
+          setMessage(error instanceof Error ? error.message : "The bundled official mesh could not be loaded");
+        }
+      });
+    }
+  }
 
   const persistCreations = (creations: LocalAiCreation[]) => {
     const next = creations.slice(0, 24);
@@ -867,6 +916,7 @@ export function Studio() {
   const requestView = (name: ViewName) => setView((current) => ({ name, nonce: current.nonce + 1 }));
 
   const applyAiDesign = (recipe: AiDesignRecipe, prompt: string) => {
+    officialLoadRef.current += 1;
     const localId = window.crypto.randomUUID();
     const creation: LocalAiCreation = { id: localId, createdAt: new Date().toISOString(), prompt, recipe };
     setOptions((current) => ({
@@ -893,6 +943,7 @@ export function Studio() {
   };
 
   const chooseAiCreation = (creation: LocalAiCreation) => {
+    officialLoadRef.current += 1;
     const recipe = normalizeAiRecipe(creation.recipe);
     setOptions((current) => ({
       ...current,
@@ -916,6 +967,7 @@ export function Studio() {
   };
 
   const applyTripoDesign = (metadata: LocalTripoMeshMetadata, parsed: ParsedTripoMesh) => {
+    officialLoadRef.current += 1;
     setOptions((current) => ({
       ...current,
       modelId: "sprout",
@@ -940,11 +992,49 @@ export function Studio() {
     try {
       const record = await getLocalTripoMesh(metadata.id);
       if (!record) throw new Error("This local mesh is no longer available.");
-      const parsed = await parseTripoGlb(record.glb.slice(0));
+      const parsed = await parseTripoGlb(record.glb.slice(0), {
+        maxFaceCount: metadata.source === "local-file" ? TRIPO_LOCAL_MESH_FACE_LIMIT : undefined,
+      });
       applyTripoDesign(metadata, parsed);
       setMessage(`${metadata.name} loaded from this browser`);
     } catch (loadError) {
       setMessage(loadError instanceof Error ? loadError.message : "The local mesh could not be loaded");
+    }
+  };
+
+  const importLocalGlb = async (file?: File) => {
+    if (!file) return;
+    setMessage(`Checking ${file.name} locally…`);
+    let parsed: ParsedTripoMesh | null = null;
+    try {
+      if (!file.name.toLowerCase().endsWith(".glb")) throw new Error("Choose a binary .glb model file.");
+      if (!file.size || file.size > MAX_LOCAL_GLB_BYTES) throw new Error("Local GLB must be between 1 byte and 40 MB.");
+      const glb = await file.arrayBuffer();
+      parsed = await parseTripoGlb(glb.slice(0), { maxFaceCount: TRIPO_LOCAL_MESH_FACE_LIMIT });
+      const id = window.crypto.randomUUID();
+      const baseName = file.name.replace(/\.glb$/i, "").trim() || "Imported GLB";
+      const metadata: LocalTripoMeshMetadata = {
+        schema: TRIPO_MESH_SCHEMA,
+        id,
+        createdAt: new Date().toISOString(),
+        name: baseName.length > 42 ? `${baseName.slice(0, 41)}…` : baseName,
+        prompt: `Imported locally from ${file.name}`,
+        taskId: `local-file-${id}`,
+        modelVersion: "local-glb",
+        topperHeight: DEFAULT_IMPORTED_TOPPER_SIZE.height,
+        topperWidth: DEFAULT_IMPORTED_TOPPER_SIZE.width,
+        byteLength: glb.byteLength,
+        meshCount: parsed.meshCount,
+        faceCount: parsed.faceCount,
+        source: "local-file",
+      };
+      await putLocalTripoMesh({ ...metadata, glb });
+      applyTripoDesign(metadata, parsed);
+      parsed = null;
+      setMessage(`${metadata.name} imported locally · ${metadata.faceCount.toLocaleString()} faces`);
+    } catch (error) {
+      if (parsed) disposeObject(parsed.object);
+      setMessage(error instanceof Error ? error.message : "The local GLB could not be imported");
     }
   };
 
@@ -1054,7 +1144,7 @@ export function Studio() {
         manufacturing,
         warning: "Fixed Ø33/Ø41 pod-fit standard. Verify fit with a small adapter test before production.",
       }, null, 2));
-      root.file("PRINT-NOTES.txt", `${designName}\n\n${aiDesign ? `${aiDesign.creativeNote}\n\nGenerated from: ${aiDesign.prompt}\n\n` : tripoDesign ? `Generated as a direct Tripo mesh from: ${tripoDesign.prompt}\nTask: ${tripoDesign.taskId}\nModel: ${tripoDesign.modelVersion}\nThe API key is not included in this export.\n\n` : ""}${designPrintNote}\n\nManufacturing status: ${manufacturing.status}.\nOrientation: ${manufacturing.orientation}.\nSupport: ${manufacturing.supportStrategy}.\nMinimum designed wall: ${manufacturing.minWall.toFixed(1)} mm.\nMinimum designed feature: ${manufacturing.minFeature.toFixed(1)} mm.\nBatch mode: ${manufacturing.batchMode}.\n\nEvery STL is a single connected, watertight solid. ${integrated ? "This export contains one fused adapter-and-topper part with no loose connector." : "The adapter and topper use a flush embedded socket plus a removable double-ended connector pin; mushroom and clover include one additional upper part."}\n\nAdapter standard: Ø${ADAPTER_STANDARD.lowerDiameter.toFixed(2)} mm straight lower section × ${ADAPTER_STANDARD.lowerHeight.toFixed(2)} mm, then a ${ADAPTER_STANDARD.transitionHeight.toFixed(2)} mm transition to a Ø${ADAPTER_STANDARD.upperDiameter.toFixed(2)} mm × ${ADAPTER_STANDARD.upperBandHeight.toFixed(2)} mm vertical upper band; total height ${ADAPTER_STANDARD.totalHeight.toFixed(2)} mm. ${integrated ? `Print the complete model upright with the Ø${ADAPTER_STANDARD.lowerDiameter.toFixed(2)} mm locator face on the bed.` : `The adapter STL is pre-oriented with its Ø${ADAPTER_STANDARD.upperDiameter.toFixed(2)} mm logo face on the print bed and its Ø${ADAPTER_STANDARD.lowerDiameter.toFixed(2)} mm side facing upward.`} Verify fit with a small test print before production.\n`);
+      root.file("PRINT-NOTES.txt", `${designName}\n\n${aiDesign ? `${aiDesign.creativeNote}\n\nGenerated from: ${aiDesign.prompt}\n\n` : tripoDesign ? tripoDesign.source === "local-file" ? `Imported from a local GLB. The source file stayed on this device.\n\n` : `Generated as a direct Tripo mesh from: ${tripoDesign.prompt}\nTask: ${tripoDesign.taskId}\nModel: ${tripoDesign.modelVersion}\nThe API key is not included in this export.\n\n` : ""}${designPrintNote}\n\nManufacturing status: ${manufacturing.status}.\nOrientation: ${manufacturing.orientation}.\nSupport: ${manufacturing.supportStrategy}.\nMinimum designed wall: ${manufacturing.minWall.toFixed(1)} mm.\nMinimum designed feature: ${manufacturing.minFeature.toFixed(1)} mm.\nBatch mode: ${manufacturing.batchMode}.\n\nEvery STL is a single connected, watertight solid. ${integrated ? "This export contains one fused adapter-and-topper part with no loose connector." : "The adapter and topper use a flush embedded socket plus a removable double-ended connector pin; mushroom and clover include one additional upper part."}\n\nAdapter standard: Ø${ADAPTER_STANDARD.lowerDiameter.toFixed(2)} mm straight lower section × ${ADAPTER_STANDARD.lowerHeight.toFixed(2)} mm, then a ${ADAPTER_STANDARD.transitionHeight.toFixed(2)} mm transition to a Ø${ADAPTER_STANDARD.upperDiameter.toFixed(2)} mm × ${ADAPTER_STANDARD.upperBandHeight.toFixed(2)} mm vertical upper band; total height ${ADAPTER_STANDARD.totalHeight.toFixed(2)} mm. ${integrated ? `Print the complete model upright with the Ø${ADAPTER_STANDARD.lowerDiameter.toFixed(2)} mm locator face on the bed.` : `The adapter STL is pre-oriented with its Ø${ADAPTER_STANDARD.upperDiameter.toFixed(2)} mm logo face on the print bed and its Ø${ADAPTER_STANDARD.lowerDiameter.toFixed(2)} mm side facing upward.`} Verify fit with a small test print before production.\n`);
       const archive = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
       downloadBlob(archive, `${slugify(designName)}-print-pack.zip`);
       disposeObject(solidAssembly);
@@ -1142,12 +1232,14 @@ export function Studio() {
 
       for (const [modelIndex, modelDefinition] of MODEL_LIBRARY.entries()) {
         setMessage(`Packing ${modelIndex + 1} / ${MODEL_LIBRARY.length}: ${modelDefinition.name}`);
+        const officialSource = modelDefinition.officialMesh ? await loadOfficialMesh(modelDefinition) : null;
         const modelOptions: ModelOptions = {
           ...DEFAULT_OPTIONS,
           modelId: modelDefinition.id,
           ...modelDefinition.defaults,
           faceted: modelDefinition.style === "lowpoly",
           shape: getDefaultShapeParameters(modelDefinition),
+          externalMesh: officialSource?.object,
         };
         const modelBuild = createModel(modelOptions);
         const solids: THREE.Mesh[] = [];
@@ -1184,6 +1276,7 @@ export function Studio() {
         } finally {
           solids.forEach((solid) => disposeObject(solid));
           disposeObject(modelBuild.assembly);
+          if (officialSource) disposeObject(officialSource.object);
         }
       }
 
@@ -1255,6 +1348,21 @@ export function Studio() {
             <button className={libraryMode === "official" ? "active" : ""} onClick={() => setLibraryMode("official")}>Official <span>{MODEL_LIBRARY.length}</span></button>
             <button className={libraryMode === "mine" ? "active" : ""} onClick={() => setLibraryMode("mine")}>Mine <span>{aiCreations.length + tripoCreations.length}</span></button>
           </div>
+          {libraryMode === "mine" && <div className="local-import-bar">
+            <input
+              ref={glbInputRef}
+              type="file"
+              accept=".glb,model/gltf-binary"
+              hidden
+              onChange={(event) => {
+                const file = event.currentTarget.files?.[0];
+                event.currentTarget.value = "";
+                void importLocalGlb(file);
+              }}
+            />
+            <button type="button" onClick={() => glbInputRef.current?.click()}>↑ Import local GLB</button>
+            <span>≤100k faces · stays in this browser</span>
+          </div>}
           {libraryMode === "official" && <div className="tag-filter" aria-label="Filter designs by tag">
             <button className={activeTag === "all" ? "active" : ""} onClick={() => setActiveTag("all")} aria-pressed={activeTag === "all"}>
               All <span>{MODEL_LIBRARY.length}</span>
@@ -1271,7 +1379,9 @@ export function Studio() {
           <div className="asset-list">
             {libraryMode === "official" && visibleModels.map((item) => (
               <button key={item.id} className={`asset-card ${item.style} ${item.id === options.modelId ? "active" : ""}`} title={item.name} onClick={() => chooseModel(item.id)}>
-                <span className="asset-number">{item.number}</span>
+                {item.officialMesh
+                  ? <span className="asset-preview" aria-hidden="true" style={{ backgroundImage: `url(${item.officialMesh.previewPath})` }} />
+                  : <span className="asset-number">{item.number}</span>}
                 <span className="asset-copy">
                   <strong>{item.name}</strong>
                   <span className="asset-tags">{item.tags.slice(0, 3).map((tag) => <i key={tag}>{TAG_LABELS[tag]}</i>)}</span>
@@ -1282,7 +1392,7 @@ export function Studio() {
               <div key={creation.id} className={`local-creation-card direct-mesh ${tripoDesign?.id === creation.id ? "active" : ""}`}>
                 <button className="local-creation-main" title={creation.name} onClick={() => void chooseTripoCreation(creation)}>
                   <span className="asset-number">M{String(tripoCreations.length - index).padStart(2, "0")}</span>
-                  <span className="asset-copy"><strong>{creation.name}</strong><small>Tripo mesh · {(creation.faceCount / 1000).toFixed(1)}k faces</small></span>
+                  <span className="asset-copy"><strong>{creation.name}</strong><small>{creation.source === "local-file" ? "Imported GLB" : "Tripo mesh"} · {(creation.faceCount / 1000).toFixed(1)}k faces</small></span>
                 </button>
                 <button className="local-creation-remove" aria-label={`Remove ${creation.name}`} onClick={() => void removeTripoCreation(creation)}>×</button>
               </div>
@@ -1296,7 +1406,7 @@ export function Studio() {
                 <button className="local-creation-remove" aria-label={`Remove ${creation.recipe.name}`} onClick={() => removeAiCreation(creation)}>×</button>
               </div>
             ))}
-            {libraryMode === "mine" && aiCreations.length + tripoCreations.length === 0 && <div className="local-empty-state"><span>✦</span><b>No local creations yet</b><p>Generate a bounded shape or direct Tripo mesh and it will stay only in this browser.</p><button onClick={() => setAiOpen(true)}>Generate your first model</button></div>}
+            {libraryMode === "mine" && aiCreations.length + tripoCreations.length === 0 && <div className="local-empty-state"><span>✦</span><b>No local creations yet</b><p>Generate a bounded shape, direct Tripo mesh, or import a local GLB. It stays only in this browser.</p><button onClick={() => setAiOpen(true)}>Generate your first model</button></div>}
           </div>
         </aside>
 
@@ -1347,7 +1457,7 @@ export function Studio() {
 
         <aside className="inspector-panel" id="studio-adjustments" aria-label="Model adjustments">
           <div className="inspector-title">
-            <div><p>{tripoDesign ? "TRIPO MESH" : aiDesign ? "AI DESIGN" : `MODEL ${definition.number}`}</p><h2>{designName}</h2><span>{designSubtitle}</span></div>
+            <div><p>{tripoDesign ? tripoDesign.source === "local-file" ? "LOCAL GLB" : "TRIPO MESH" : isOfficialMesh ? "OFFICIAL MESH" : aiDesign ? "AI DESIGN" : `MODEL ${definition.number}`}</p><h2>{designName}</h2><span>{designSubtitle}</span></div>
             <span className="part-count">{designParts} {designParts === 1 ? "PART" : "PARTS"}</span>
           </div>
           <div className="inspector-content">

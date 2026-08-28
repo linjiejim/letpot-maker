@@ -6,7 +6,7 @@
 
 It has two modes:
 
-1. `library` can select any of the 34 checked-in models. The six original parametric families retain their full bounded controls:
+1. `library` can select any of the 35 checked-in models. The six original parametric families retain their full bounded controls:
 
 | Family | Variable shape controls |
 | --- | --- |
@@ -31,13 +31,13 @@ Every sculpture recipe is normalized to a 25–100 mm topper height, 20–80 mm 
 - The adapter and connection geometry are always code-owned. The AI cannot change their dimensions. Studio offers a flush detachable mode, where the hex pin enters a blind socket embedded directly inside the subject, and a one-piece mode, where a hidden internal core fuses the adapter and topper into one exported manifold.
 - The three sculpture colors survive boolean solidification as face materials in Bambu 3MF. STL remains single-color because STL has no material model.
 - Export rejects disconnected or invalid solids, and automated fixtures cover houses, a character, complex fruit, a many-limbed animal and a vehicle. These checks do not prove real-world fit, material suitability, food-contact safety, strength, or support-free printing on every printer.
-- Bounded prompts are 3–280 normalized characters and recipes use localStorage. Tripo prompts are 3–640 characters and downloaded GLBs use IndexedDB. There are no application accounts, server history, or community publishing.
+- Bounded prompts are 3–280 normalized characters and recipes use localStorage. Tripo prompts are 3–640 characters and downloaded or explicitly imported GLBs use IndexedDB. There are no application accounts, server history, or community publishing.
 
 ## Device-local Tripo mesh path
 
 Tripo's authenticated API does not currently accept the browser's CORS preflight, and Tripo's own quick start warns against exposing API Keys in client-side code. A standard web page therefore cannot make this BYOK request directly. The local path runs `npm run tripo:bridge`, binding a small helper only to `127.0.0.1:4318`; it accepts configured localhost origins (plus explicit `TRIPO_BRIDGE_ORIGINS`), stores nothing, and uses Node's environment-proxy support for devices that require `HTTP_PROXY` or `HTTPS_PROXY`.
 
-The helper uses the official `@vastai/tripo-sdk` against the selected global (`https://openapi.tripo3d.ai/v3`) or China (`https://openapi.tripo3d.com/v3`) region. It submits `text-to-model` with either Tripo v3.1 or P1, disables textures and PBR, requests at most 10,000 faces, exposes sanitized task progress to the browser, and downloads the short-lived model URL immediately. The UI limits cached files to 40 MB and parsed meshes to 25,000 faces; IndexedDB retains up to 12 recent GLBs.
+The helper uses the official `@vastai/tripo-sdk` against the selected global (`https://openapi.tripo3d.ai/v3`) or China (`https://openapi.tripo3d.com/v3`) region. It submits `text-to-model` with either Tripo v3.1 or P1, disables textures and PBR, requests at most 10,000 faces, exposes sanitized task progress to the browser, and downloads the short-lived model URL immediately. The network-generation path limits parsed meshes to 25,000 faces. The explicit local-file importer accepts a reviewed GLB up to 40 MB and 100,000 faces; it never performs a network request. IndexedDB retains up to 12 recent GLBs across both sources.
 
 Privacy and credential flow are deliberately narrow:
 
@@ -52,6 +52,24 @@ This is BYOK, not secret isolation: browser JavaScript, extensions, developer to
 Current Tripo API billing charges the selected model's base generation plus any requested texture tier. This flow explicitly uses `texture: false` and `pbr: false`, so one v3.1 generation uses 10 credits and one P1 generation uses 30 credits. The unused texture surcharges are +10 credits for standard, +20 for detailed, and +30 for extreme. Tripo freezes credits when a task starts, deducts them on success, and refunds failed or expired tasks according to its [current billing documentation](https://platform.tripo3d.ai/docs/billing). Pricing is provider-controlled and can change; the linked Tripo page is authoritative.
 
 The neural mesh controls only the topper silhouette. `lib/model-factory.ts` centers it and constrains the artwork to the selected 20–80 × 25–100 mm maximum envelope, then adds a code-owned transition, connector core, blind hex socket, detachable double-ended pin, and locked Ø33/Ø41 adapter. The same envelope fitter also prevents stock and bounded-AI signature controls from pushing decorative geometry beyond the selected topper width or height. Integrated mode adds the standard hidden fused core. Export still requires one connected, closed Manifold solid; a visually plausible Tripo result can therefore be rejected until the prompt is simplified or the mesh is repaired.
+
+### Local official-candidate workflow
+
+Maintainers can generate reproducible review candidates without putting a Key, mesh or prompt into the application server. Set `TRIPO_API_KEY` only in the local process environment, then run `npm run tripo:candidates`; optionally restrict the batch with `npm run tripo:candidates -- --ids=santa,snowman`. The script uses the official v3 SDK with the pinned H3.1 snapshot, a fixed per-subject seed, 10,000-face limit, standard geometry, and texture, PBR, UV export, quad topology, smart low-poly and part generation explicitly disabled. It immediately downloads the expiring GLB and provider preview, validates the same standard socket assembly through Manifold, and writes only non-secret metadata into the gitignored `tools/tripo-review/public/candidates/` directory.
+
+For a single-image reference, supply exactly one library candidate plus a local PNG, JPEG or WebP: `npm run tripo:candidates -- --ids=snowman --image=/absolute/path/snowman.png`. The image is uploaded directly from the local maintainer process to Tripo, never through the LetPot application server. Image-to-3D uses the same pinned no-texture geometry settings and currently costs 20 credits on H3.1. The ignored review manifest records the generation mode and a local copy of the input image, but never the API Key or an expiring provider URL.
+
+Use `--face-limit=50000` for a higher-density comparison. The local maintainer reviewer and explicit local-file importer accept up to 100,000 faces, while the direct network-generation path retains its 25,000-face performance limit. A face-limit suffix keeps high-density GLBs alongside the 10k baseline instead of overwriting it.
+
+At the expected 70 × 100 mm maximum, source face count should follow silhouette complexity rather than scale linearly with millimetres. Start at 25–35k faces for rounded characters, fruit and simple solids; 35–45k for fabric folds, pumpkins and layered herbs; and 45–60k for antlers, leaf edges or insect silhouettes. More than 60k is useful only when the reference actually contains printable fine geometry. A 0.4 mm nozzle and normal layer heights erase many smaller differences while extra triangles increase browser boolean time and file size.
+
+Before promoting a neural candidate, normalize it into a browser-portable closed GLB with `npm run tripo:prepare -- /absolute/input.glb /absolute/output.glb`. This local, credit-free step fits the source to a 70 × 100 mm review envelope, uses Node Manifold to weld provider seams, requires one final connected closed solid, and exports a fresh GLB without the LetPot adapter. Its result line reports source faces → closed faces so topology repair is never mistaken for extra detail. Import that prepared file in Studio → Mine; Studio then applies the selected 20–80 × 25–100 mm envelope, standard socket and adapter before STL, OBJ or Bambu 3MF export.
+
+Run `npm run tripo:review` and open `http://127.0.0.1:4320` to compare local candidates using the production `model-factory` adapter, envelope fitter and direct-socket fallback logic. This review surface is a local Vite tool and is not part of the deployed application. Generated files remain ignored until a maintainer deliberately promotes an approved mesh into the checked-in library.
+
+### Bundled official meshes
+
+Approved image-to-3D candidates live under `public/models/official/`, alongside a non-secret manifest and lightweight preview. Their source GLBs are repaired locally before promotion and contain only the subject: no API Key, provider URL, display tray, connector or adapter. Studio fetches these same-origin static assets on demand, verifies the recorded face count, then applies the selected width/height envelope and the code-owned direct blind socket, connector pin and fixed Ø33/Ø41 adapter. Bundled models therefore require no Tripo account or credits at runtime. The Christmas Friends collection ships Santa, Snowman, Christmas Tree and Reindeer in both detachable and one-piece export paths.
 
 ## Provider configuration
 

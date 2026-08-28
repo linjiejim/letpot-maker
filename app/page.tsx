@@ -18,7 +18,7 @@ import {
 
 const title = "LetPot Maker — Customize & print 3D garden accessories";
 const description =
-  "Explore 34 printable LetPot accessories, customize modular 3D designs, and export STL, OBJ, or Bambu 3MF files in your browser.";
+  "Explore 35 printable LetPot accessories, customize modular 3D designs, and export STL, OBJ, or Bambu 3MF files in your browser.";
 const landingModels = MODEL_LIBRARY.map((model) => ({
   id: model.id,
   number: model.number,

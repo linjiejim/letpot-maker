@@ -44,7 +44,10 @@ function geometryToManifold(wasm: ManifoldToplevel, source: THREE.Mesh) {
       ? 2
       : source.userData.aiColorRole === "adapter" ? 3 : 0;
   const weldTolerances = source.userData.allowSmallGapRepair === true
-    ? [1e-5, 0.01, 0.03, 0.08]
+    // Neural seams scale with the requested topper envelope. The final two
+    // tolerances stay below a 0.4 mm nozzle line while repairing the same
+    // source seam after it is enlarged from a 45 mm preview to a 100 mm part.
+    ? [1e-5, 0.01, 0.03, 0.08, 0.16, 0.24]
     : [1e-5];
   let lastStatus = "NotManifold";
   try {

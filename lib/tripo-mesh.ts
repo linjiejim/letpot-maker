@@ -13,6 +13,8 @@ export { buildTripoPrompt, TRIPO_MODEL_OPTIONS, TRIPO_REGION_OPTIONS, validateTr
 export type { TripoModelVersion, TripoRegion };
 
 export const TRIPO_LOCAL_BRIDGE_URL = "http://127.0.0.1:4318";
+export const TRIPO_BROWSER_GENERATION_FACE_LIMIT = 25_000;
+export const TRIPO_LOCAL_MESH_FACE_LIMIT = 100_000;
 
 export interface TripoGenerationResult {
   taskId: string;
@@ -25,6 +27,10 @@ export interface ParsedTripoMesh {
   object: THREE.Group;
   meshCount: number;
   faceCount: number;
+}
+
+export interface ParseTripoGlbOptions {
+  maxFaceCount?: number;
 }
 
 function disposeParsedObject(object: THREE.Object3D) {
@@ -157,7 +163,13 @@ export async function generateTripoMesh({
   };
 }
 
-export function parseTripoGlb(data: ArrayBuffer): Promise<ParsedTripoMesh> {
+export function parseTripoGlb(
+  data: ArrayBuffer,
+  { maxFaceCount = TRIPO_BROWSER_GENERATION_FACE_LIMIT }: ParseTripoGlbOptions = {},
+): Promise<ParsedTripoMesh> {
+  if (!Number.isInteger(maxFaceCount) || maxFaceCount < 1) {
+    return Promise.reject(new Error("The GLB face limit must be a positive integer."));
+  }
   const signature = new TextDecoder().decode(new Uint8Array(data, 0, Math.min(4, data.byteLength)));
   if (signature !== "glTF") return Promise.reject(new Error("Tripo returned a model that is not a binary GLB."));
 
@@ -186,7 +198,7 @@ export function parseTripoGlb(data: ArrayBuffer): Promise<ParsedTripoMesh> {
         reject(new Error("The downloaded mesh has invalid dimensions."));
         return;
       }
-      if (faceCount > 25_000) {
+      if (faceCount > maxFaceCount) {
         disposeParsedObject(object);
         reject(new Error("The downloaded mesh is too dense for the printable browser pipeline."));
         return;

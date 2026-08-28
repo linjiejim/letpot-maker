@@ -1,39 +1,40 @@
 {
   "schema": "letpot-maker/model/v1",
   "model": {
-    "id": "snowman",
-    "number": "31",
-    "name": "Winter Snowman",
-    "subtitle": "Rounded official image-to-3D companion",
+    "id": "reindeer",
+    "number": "32",
+    "name": "Cozy Reindeer",
+    "subtitle": "Rounded official image-to-3D character",
     "difficulty": "Medium",
     "parts": 3,
     "series": "04",
     "style": "realistic",
     "tags": [
       "realistic",
-      "christmas"
+      "christmas",
+      "animal"
     ],
-    "symbol": "☃",
+    "symbol": "♢",
     "officialMesh": {
-      "assetPath": "/models/official/christmas/snowman.glb",
-      "previewPath": "/models/official/christmas/previews/snowman.jpg",
-      "faceCount": 48064,
+      "assetPath": "/models/official/christmas/reindeer.glb",
+      "previewPath": "/models/official/christmas/previews/reindeer.jpg",
+      "faceCount": 47588,
       "generation": "Tripo H3.1 image-to-3D"
     },
     "defaults": {
       "topperHeight": 88,
-      "topperWidth": 62,
-      "primaryColor": "#eef3ed",
+      "topperWidth": 66,
+      "primaryColor": "#a9774d",
       "accentColor": "#d7d0bf"
     },
-    "printNote": "Print upright with automatic snug supports. The smooth two-ball body, hat, scarf and buttons are fused into one repaired official mesh with a direct blind socket."
+    "printNote": "Print upright with automatic snug supports. Thick two-branch antlers, close-set ears and seated hooves remain fused into a compact repaired official mesh."
   },
   "options": {
-    "modelId": "snowman",
+    "modelId": "reindeer",
     "connectionMode": "detachable",
     "topperHeight": 88,
-    "topperWidth": 62,
-    "primaryColor": "#eef3ed",
+    "topperWidth": 66,
+    "primaryColor": "#a9774d",
     "accentColor": "#d7d0bf",
     "secondaryColor": "#d8a33e",
     "detailColor": "#f4eee2",
@@ -50,9 +51,9 @@
     "logoRecessDepth": 0.6
   },
   "measurements": {
-    "width": 62,
+    "width": 66,
     "height": 93.6,
-    "topperWidth": 62,
+    "topperWidth": 66,
     "topperHeight": 88,
     "lowerDiameter": 33,
     "upperDiameter": 41

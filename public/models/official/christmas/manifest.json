@@ -1,0 +1,39 @@
+{
+  "schema": "letpot-maker/official-meshes/v1",
+  "collection": "Christmas Friends",
+  "units": "millimetres",
+  "generation": "Tripo H3.1 image-to-3D",
+  "texture": false,
+  "adapterIncluded": false,
+  "connection": "Studio adds the code-owned blind socket, connector pin and fixed Ø33/Ø41 adapter at export time.",
+  "models": [
+    {
+      "id": "santa",
+      "glb": "santa.glb",
+      "preview": "previews/santa.jpg",
+      "faces": 39312,
+      "reviewEnvelope": [70, 100]
+    },
+    {
+      "id": "snowman",
+      "glb": "snowman.glb",
+      "preview": "previews/snowman.jpg",
+      "faces": 48064,
+      "reviewEnvelope": [70, 100]
+    },
+    {
+      "id": "christmas-tree",
+      "glb": "christmas-tree.glb",
+      "preview": "previews/christmas-tree.jpg",
+      "faces": 38788,
+      "reviewEnvelope": [70, 100]
+    },
+    {
+      "id": "reindeer",
+      "glb": "reindeer.glb",
+      "preview": "previews/reindeer.jpg",
+      "faces": 47588,
+      "reviewEnvelope": [70, 100]
+    }
+  ]
+}
