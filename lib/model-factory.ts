@@ -99,6 +99,7 @@ export interface ModelOptions {
   faceted: boolean;
   shape: Partial<Record<ShapeParameterKey, number>>;
   aiProgram?: AiShapeProgram;
+  externalMesh?: THREE.Object3D;
 }
 
 export interface PrintablePart {
@@ -158,6 +159,12 @@ export const ADAPTER_STANDARD = {
   upperBandHeight: 0.2,
   totalHeight: 5.6,
   logoRecessDepth: 0.6,
+} as const;
+
+export const TOPPER_SIZE_LIMITS = {
+  height: { min: 25, max: 100 },
+  width: { min: 20, max: 80 },
+  step: 0.5,
 } as const;
 
 const PRODUCTION_PROFILES: Partial<Record<ModelId, ManufacturingProfile>> = {
@@ -1067,6 +1074,55 @@ function prepareTopper(options: ModelOptions, color = options.primaryColor) {
     group.add(socket);
   }
   return group;
+}
+
+function buildExternalMeshTopper(options: ModelOptions, source: THREE.Object3D) {
+  const topper = prepareTopper(options);
+  topper.name = "tripo_mesh_topper";
+  const sculpture = new THREE.Group();
+  sculpture.name = "tripo_generated_mesh";
+  source.updateMatrixWorld(true);
+  source.traverse((child) => {
+    if (!(child instanceof THREE.Mesh) || !child.visible || !child.geometry.getAttribute("position")) return;
+    const geometry = child.geometry.clone();
+    geometry.applyMatrix4(child.matrixWorld);
+    geometry.computeVertexNormals();
+    const printableMesh = mesh(geometry, options.primaryColor, options.faceted);
+    printableMesh.name = child.name ? `tripo_${child.name}` : "tripo_mesh_part";
+    printableMesh.userData.aiColorRole = "primary";
+    sculpture.add(printableMesh);
+  });
+  if (!sculpture.children.length) throw new Error("The local Tripo creation contains no printable mesh.");
+
+  sculpture.updateMatrixWorld(true);
+  const bounds = new THREE.Box3().setFromObject(sculpture);
+  const size = bounds.getSize(new THREE.Vector3());
+  const center = bounds.getCenter(new THREE.Vector3());
+  const lateralScale = options.topperWidth / Math.max(size.x, size.z, 0.001);
+  const verticalScale = options.topperHeight / Math.max(size.y, 0.001);
+  sculpture.scale.set(lateralScale, verticalScale, lateralScale);
+  sculpture.position.set(
+    -center.x * lateralScale,
+    ADAPTER_STANDARD.totalHeight + 4.25 - bounds.min.y * verticalScale,
+    -center.z * lateralScale,
+  );
+
+  // Neural meshes vary at their underside. This code-owned transition keeps
+  // the generated subject seated on the same connector core as every stock
+  // topper, without allowing the provider to alter the socket or adapter.
+  const supportRadius = THREE.MathUtils.clamp(options.topperWidth * 0.22, 5.4, 9);
+  const supportHeight = 2.4;
+  const support = mesh(
+    new THREE.CylinderGeometry(supportRadius * 0.88, supportRadius, supportHeight, 24),
+    options.primaryColor,
+    false,
+  );
+  support.name = "standardized_tripo_mesh_transition";
+  support.position.y = ADAPTER_STANDARD.totalHeight + 3.8;
+  support.userData.aiColorRole = "primary";
+  topper.add(support, sculpture);
+  topper.userData.externalMeshSource = "tripo";
+  return topper;
 }
 
 function buildIntegratedBaseJoint(options: ModelOptions) {
@@ -3403,7 +3459,7 @@ function markColorRole(object: THREE.Object3D, role: "primary" | "secondary" | "
 export function createModel(options: ModelOptions): ModelBuild {
   const integrated = options.connectionMode === "integrated";
   const assembly = new THREE.Group();
-  assembly.name = options.aiProgram ? "ai_custom_assembly" : `${options.modelId}_assembly`;
+  assembly.name = options.externalMesh ? "tripo_mesh_assembly" : options.aiProgram ? "ai_custom_assembly" : `${options.modelId}_assembly`;
   const printableRoot = integrated ? new THREE.Group() : assembly;
   if (integrated) {
     printableRoot.name = `${options.modelId}_integrated_print`;
@@ -3415,7 +3471,19 @@ export function createModel(options: ModelOptions): ModelBuild {
     { id: "adapter", label: "Universal adapter · Ø41 face down", object: adapter, color: options.accentColor, printFlipZ: true },
   ];
 
-  if (options.aiProgram) {
+  if (options.externalMesh) {
+    const topper = buildExternalMeshTopper(options, options.externalMesh);
+    if (integrated) {
+      printableRoot.add(buildIntegratedBaseJoint(options), topper);
+    } else {
+      const pinGroup = buildConnectorPin(options, "tripo_mesh_double_ended_connector_pin");
+      printableRoot.add(pinGroup, topper);
+      parts.push(
+        { id: "connector-pin", label: "Double-ended connector pin", object: pinGroup, color: options.primaryColor },
+        { id: "topper", label: "Flush socketed Tripo mesh", object: topper, color: options.primaryColor },
+      );
+    }
+  } else if (options.aiProgram) {
     const topper = buildAiSculpture(options, options.aiProgram);
     if (integrated) {
       printableRoot.add(buildIntegratedBaseJoint(options), topper);

@@ -70,7 +70,7 @@ const hostileProgramRecipe = normalizeAiRecipe({
   },
 });
 assert.equal(hostileProgramRecipe.mode, "sculpture");
-assert.equal(hostileProgramRecipe.topperHeight, 50);
+assert.equal(hostileProgramRecipe.topperHeight, 100);
 assert.equal(hostileProgramRecipe.topperWidth, 20);
 assert.ok((hostileProgramRecipe.program?.nodes.length ?? 0) <= 24);
 assert.ok((hostileProgramRecipe.program?.nodes.filter((node) => node.operation === "subtract").length ?? 0) <= 5);
@@ -135,7 +135,7 @@ try {
   assert.equal(controlResponse.status, 200);
   const controlBody = await controlResponse.json() as { recipe: Record<string, unknown> };
   assert.equal(controlBody.recipe.templateId, "cactus");
-  assert.equal(controlBody.recipe.topperHeight, 50);
+  assert.equal(controlBody.recipe.topperHeight, 100);
   assert.equal(controlBody.recipe.topperWidth, 20);
   assert.equal("command" in controlBody.recipe, false);
   assert.equal("unsupportedCommand" in (controlBody.recipe.shape as Record<string, unknown>), false);

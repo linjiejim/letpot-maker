@@ -11,7 +11,7 @@
     "dev": "vinext dev",
     "build": "vinext build",
     "start": "node dist/standalone/server.js",
-    "test": "npm run build && node --test tests/rendered-html.test.mjs tests/usability-contract.test.mjs && npm run validate:ai-security && npm run validate:ai && npm run validate:parameters && npm run validate:assets && npm run validate:bambu",
+    "test": "npm run build && node --test tests/rendered-html.test.mjs tests/usability-contract.test.mjs && npm run validate:ai-security && npm run validate:ai && npm run validate:tripo && npm run validate:parameters && npm run validate:assets && npm run validate:bambu",
     "ci": "npm run check && npm test && npm run validate:deploy",
     "check": "npm run lint && npm run typecheck",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
@@ -20,6 +20,7 @@
     "validate:assets": "tsx scripts/validate-assets.ts",
     "validate:ai": "tsx scripts/validate-ai-generation.ts",
     "validate:ai-security": "tsx scripts/validate-ai-security.ts",
+    "validate:tripo": "tsx scripts/validate-tripo-mesh.ts",
     "validate:parameters": "tsx scripts/validate-shape-parameters.ts",
     "validate:bambu": "tsx scripts/validate-bambu-3mf.ts",
     "validate:deploy": "bash -n scripts/deploy-release-image.sh scripts/create-production-release.sh ops/server/letpot-maker-deploy && node --test tests/deploy-scripts.test.mjs",
@@ -30,6 +31,7 @@
     "docker:logs": "docker compose logs --follow --tail=200 letpot-maker"
   },
   "dependencies": {
+    "@vastai/tripo-sdk": "^0.1.1",
     "jszip": "^3.10.1",
     "manifold-3d": "^3.5.1",
     "react": "19.2.8",

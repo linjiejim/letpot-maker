@@ -27,7 +27,7 @@ Model definitions + parameters
 
 ### Maker Studio
 
-`components/Studio.tsx` owns the interactive authoring flow. It selects a model definition, maintains parameter and color state, renders the assembly, stores optional AI recipes in browser storage, and packages exports on demand.
+`components/Studio.tsx` owns the interactive authoring flow. It selects a model definition, maintains parameter and color state, renders the assembly, stores optional AI recipes in localStorage and direct Tripo GLBs in IndexedDB, and packages exports on demand.
 
 ### Pod Styler
 
@@ -58,7 +58,9 @@ Validation scripts enforce:
 
 `app/api/ai-generate/route.ts` sends a short text prompt to a provider-neutral OpenAI chat-completions endpoint configured entirely through environment variables. `lib/ai-prompt-security.ts` normalizes and screens direct instruction-control attempts, then serializes accepted input as an untrusted JSON data record. The server prompt can choose any checked-in library model or return a bounded declarative shape program. `lib/ai-shape-program.ts` allowlists and normalizes geometry nodes; `lib/ai-design.ts` validates the surrounding recipe before the Studio uses it. `lib/model-factory.ts` compiles accepted nodes into connected Three.js solids around the locked adapter and selected connection mode. Semantic node colors, plus the integrated adapter color, are carried through Manifold and emitted as 3MF face materials.
 
-The endpoint returns a recipe, not arbitrary executable code or an opaque mesh. Created recipes are stored only in the browser today.
+The endpoint returns a recipe, not arbitrary executable code or an opaque mesh. Created recipes are stored only in the browser.
+
+The independent direct-mesh path in `lib/tripo-mesh.ts` uses Tripo's official v3 browser SDK with a user-entered, memory-only API key. The browser submits and polls the task, immediately downloads the expiring GLB, validates its basic size and triangle bounds, and stores it through `lib/local-mesh-cache.ts`. No application server route participates. The imported silhouette remains untrusted; `lib/model-factory.ts` alone owns the transition, socket, connector and adapter, and `lib/solidify.ts` rejects exports that are not one connected closed solid.
 
 See `docs/ai-generation.md` for the exact shape boundary, provider configuration, and prompt-injection threat boundary.
 
@@ -68,4 +70,4 @@ See `docs/ai-generation.md` for the exact shape boundary, provider configuration
 
 `Dockerfile` builds that standalone output in a Node 22 build stage and copies it into a smaller non-root runtime image. `compose.yaml` adds restart behavior, a read-only filesystem, a temporary `/tmp`, private loopback binding, and an HTTP health check.
 
-The AI route reads provider settings from the container environment. There is no database, user-account layer, persistent server volume, Sites integration, Cloudflare binding, or Worker entry point.
+The bounded-AI route reads provider settings from the container environment. Direct-mesh binaries live in each user's IndexedDB. There is no server database, user-account layer, persistent server volume, Sites integration, Cloudflare binding, or Worker entry point.
