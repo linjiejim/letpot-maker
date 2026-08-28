@@ -10,7 +10,7 @@ The project started from a simple gap: small hydroponic accessories are easy to 
 
 ## Current capabilities
 
-- Browse and filter 35 checked-in printable designs, including four bundled Christmas image-to-3D meshes.
+- Browse and filter 80 checked-in printable designs, including 52 bundled Official neural meshes across eight collections.
 - Preview the same parametric geometry used by the export pipeline.
 - Customize topper height from 25–100 mm, width from 20–80 mm, model-specific details, colors, and surface style.
 - Export watertight STL parts, OBJ assemblies, manifests, and Bambu Studio 3MF projects.

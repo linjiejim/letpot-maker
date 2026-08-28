@@ -1,0 +1,132 @@
+{
+  "schema": "letpot-maker/official-meshes/v2",
+  "collection": "produce",
+  "units": "millimetres",
+  "texture": false,
+  "adapterIncluded": false,
+  "models": [
+    {
+      "id": "tomato-pal",
+      "number": "36",
+      "name": "Tomato Pal",
+      "tags": [
+        "realistic",
+        "veggie",
+        "fruit"
+      ],
+      "glb": "tomato-pal.glb",
+      "preview": "previews/tomato-pal.jpg",
+      "faces": 19228,
+      "generation": "Tripo H3.1 image-to-3D",
+      "defaultEnvelope": [
+        66,
+        70
+      ]
+    },
+    {
+      "id": "strawberry-pal",
+      "number": "37",
+      "name": "Strawberry Pal",
+      "tags": [
+        "realistic",
+        "fruit"
+      ],
+      "glb": "strawberry-pal.glb",
+      "preview": "previews/strawberry-pal.jpg",
+      "faces": 19590,
+      "generation": "Tripo H3.1 image-to-3D",
+      "defaultEnvelope": [
+        58,
+        78
+      ]
+    },
+    {
+      "id": "carrot-pal",
+      "number": "38",
+      "name": "Carrot Pal",
+      "tags": [
+        "realistic",
+        "veggie"
+      ],
+      "glb": "carrot-pal.glb",
+      "preview": "previews/carrot-pal.jpg",
+      "faces": 18956,
+      "generation": "Tripo H3.1 image-to-3D",
+      "defaultEnvelope": [
+        52,
+        92
+      ]
+    },
+    {
+      "id": "pumpkin-pal",
+      "number": "39",
+      "name": "Pumpkin Pal",
+      "tags": [
+        "realistic",
+        "veggie",
+        "fruit"
+      ],
+      "glb": "pumpkin-pal.glb",
+      "preview": "previews/pumpkin-pal.jpg",
+      "faces": 18782,
+      "generation": "Tripo H3.1 image-to-3D",
+      "defaultEnvelope": [
+        70,
+        68
+      ]
+    },
+    {
+      "id": "chili-pal",
+      "number": "40",
+      "name": "Chili Pal",
+      "tags": [
+        "realistic",
+        "veggie",
+        "fruit"
+      ],
+      "glb": "chili-pal.glb",
+      "preview": "previews/chili-pal.jpg",
+      "faces": 19732,
+      "generation": "Tripo H3.1 image-to-3D",
+      "defaultEnvelope": [
+        54,
+        86
+      ]
+    },
+    {
+      "id": "eggplant-pal",
+      "number": "41",
+      "name": "Eggplant Pal",
+      "tags": [
+        "realistic",
+        "veggie",
+        "fruit"
+      ],
+      "glb": "eggplant-pal.glb",
+      "preview": "previews/eggplant-pal.jpg",
+      "faces": 18844,
+      "generation": "Tripo H3.1 image-to-3D",
+      "defaultEnvelope": [
+        58,
+        84
+      ]
+    },
+    {
+      "id": "lemon-pal",
+      "number": "42",
+      "name": "Lemon Pal",
+      "tags": [
+        "realistic",
+        "fruit"
+      ],
+      "glb": "lemon-pal.glb",
+      "preview": "previews/lemon-pal.jpg",
+      "faces": 19298,
+      "generation": "Tripo H3.1 image-to-3D",
+      "defaultEnvelope": [
+        70,
+        64
+      ]
+    }
+  ]
+}

@@ -1,8 +1,14 @@
 import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 import type { AiColorRole, AiShapeNode, AiShapeProgram } from "./ai-shape-program";
+import {
+  OFFICIAL_EXPANSION_MODELS,
+  OFFICIAL_MESH_UPGRADES,
+  type OfficialExpansionModelId,
+} from "./official-expansion";
 
 export type ModelId =
+  | OfficialExpansionModelId
   | "sprout"
   | "pine"
   | "cactus"
@@ -49,6 +55,12 @@ export const MODEL_TAGS = [
   "flower",
   "animal",
   "christmas",
+  "plant",
+  "space",
+  "insect",
+  "ocean",
+  "holiday",
+  "pet",
   "other",
 ] as const;
 
@@ -132,7 +144,7 @@ export interface ModelDefinition {
   subtitle: string;
   difficulty: "Easy" | "Medium";
   parts: number;
-  series: "01" | "02" | "03" | "04";
+  series: "01" | "02" | "03" | "04" | "05";
   style: "lowpoly" | "realistic";
   tags: ModelTag[];
   symbol: string;
@@ -140,7 +152,7 @@ export interface ModelDefinition {
     assetPath: string;
     previewPath: string;
     faceCount: number;
-    generation: "Tripo H3.1 image-to-3D";
+    generation: "Tripo H3.1 image-to-3D" | "Tripo H3.1 text-to-3D";
   };
   parameters?: ShapeParameterDefinition[];
   defaults: Pick<ModelOptions, "topperHeight" | "topperWidth" | "primaryColor" | "accentColor">;
@@ -242,7 +254,7 @@ export function getManufacturingProfile(modelId: ModelId): ManufacturingProfile 
   };
 }
 
-export const MODEL_LIBRARY: ModelDefinition[] = [
+const CORE_MODEL_LIBRARY: ModelDefinition[] = [
   {
     id: "sprout",
     number: "01",
@@ -755,44 +767,93 @@ export const MODEL_LIBRARY: ModelDefinition[] = [
     id: "gift-box",
     number: "33",
     name: "Wrapped Gift",
-    subtitle: "Ribboned Christmas present",
+    subtitle: "Rounded official image-to-3D present",
     difficulty: "Easy",
     parts: 3,
     series: "04",
     style: "realistic",
     tags: ["realistic", "christmas", "other"],
     symbol: "◇",
-    defaults: { topperHeight: 31, topperWidth: 32, primaryColor: "#b8323c", accentColor: "#d7d0bf" },
-    printNote: "Print upright. The box, lid, crossed ribbon, tails and rounded bow loops are generously fused into a sturdy festive topper.",
+    officialMesh: {
+      assetPath: "/models/official/christmas/gift-box.glb",
+      previewPath: "/models/official/christmas/previews/gift-box.jpg",
+      faceCount: OFFICIAL_MESH_UPGRADES["gift-box"].faces,
+      generation: "Tripo H3.1 image-to-3D",
+    },
+    defaults: { topperHeight: OFFICIAL_MESH_UPGRADES["gift-box"].height, topperWidth: OFFICIAL_MESH_UPGRADES["gift-box"].width, primaryColor: OFFICIAL_MESH_UPGRADES["gift-box"].color, accentColor: "#d7d0bf" },
+    printNote: "Print upright with snug supports. The rounded package, ribbon bands and low bow form one repaired official mesh with a direct blind socket.",
   },
   {
     id: "candy-cane",
     number: "34",
     name: "Candy Cane",
-    subtitle: "Striped peppermint hook",
+    subtitle: "Rounded official image-to-3D cane",
     difficulty: "Medium",
     parts: 3,
     series: "04",
     style: "realistic",
     tags: ["realistic", "christmas", "other"],
     symbol: "⌁",
-    defaults: { topperHeight: 39, topperWidth: 29, primaryColor: "#c72f3b", accentColor: "#d7d0bf" },
-    printNote: "Print upright with automatic support enabled. Overlapping rounded segments form the hook, while embedded raised bands preserve the peppermint stripe at printable scale.",
+    officialMesh: {
+      assetPath: "/models/official/christmas/candy-cane.glb",
+      previewPath: "/models/official/christmas/previews/candy-cane.jpg",
+      faceCount: OFFICIAL_MESH_UPGRADES["candy-cane"].faces,
+      generation: "Tripo H3.1 image-to-3D",
+    },
+    defaults: { topperHeight: OFFICIAL_MESH_UPGRADES["candy-cane"].height, topperWidth: OFFICIAL_MESH_UPGRADES["candy-cane"].width, primaryColor: OFFICIAL_MESH_UPGRADES["candy-cane"].color, accentColor: "#d7d0bf" },
+    printNote: "Print upright with snug supports. The thick hook, compact inner gap and broad spiral relief form one repaired official mesh with a direct blind socket.",
   },
   {
     id: "christmas-bell",
     number: "35",
     name: "Christmas Bell",
-    subtitle: "Bowed golden holiday bell",
+    subtitle: "Rounded official image-to-3D bell",
     difficulty: "Medium",
     parts: 3,
     series: "04",
     style: "realistic",
     tags: ["realistic", "christmas", "other"],
     symbol: "◒",
-    defaults: { topperHeight: 40, topperWidth: 31, primaryColor: "#d4a62f", accentColor: "#d7d0bf" },
-    printNote: "Print upright with automatic support enabled. A solid flared bell, reinforced clapper, raised rim and fused red bow form one durable holiday body.",
+    officialMesh: {
+      assetPath: "/models/official/christmas/christmas-bell.glb",
+      previewPath: "/models/official/christmas/previews/christmas-bell.jpg",
+      faceCount: OFFICIAL_MESH_UPGRADES["christmas-bell"].faces,
+      generation: "Tripo H3.1 image-to-3D",
+    },
+    defaults: { topperHeight: OFFICIAL_MESH_UPGRADES["christmas-bell"].height, topperWidth: OFFICIAL_MESH_UPGRADES["christmas-bell"].width, primaryColor: OFFICIAL_MESH_UPGRADES["christmas-bell"].color, accentColor: "#d7d0bf" },
+    printNote: "Print upright with snug supports. The thick bow, solid bell body and hidden socket land form one repaired official mesh with a direct blind socket.",
   },
+];
+
+const EXPANSION_MODEL_LIBRARY: ModelDefinition[] = OFFICIAL_EXPANSION_MODELS.map((entry) => ({
+  id: entry.id,
+  number: entry.number,
+  name: entry.name,
+  subtitle: entry.subtitle,
+  difficulty: "Medium",
+  parts: 3,
+  series: "05",
+  style: "realistic",
+  tags: ["realistic", ...entry.tags],
+  symbol: "◆",
+  officialMesh: {
+    assetPath: `/models/official/${entry.group}/${entry.id}.glb`,
+    previewPath: `/models/official/${entry.group}/previews/${entry.id}.jpg`,
+    faceCount: entry.faces,
+    generation: "generation" in entry ? entry.generation : "Tripo H3.1 image-to-3D",
+  },
+  defaults: {
+    topperHeight: entry.height,
+    topperWidth: entry.width,
+    primaryColor: entry.color,
+    accentColor: "#d7d0bf",
+  },
+  printNote: "Print upright with automatic snug supports. This rounded repaired official mesh uses thick fused details, a direct blind socket and no external transition tray.",
+}));
+
+export const MODEL_LIBRARY: ModelDefinition[] = [
+  ...CORE_MODEL_LIBRARY,
+  ...EXPANSION_MODEL_LIBRARY,
 ];
 
 export function getDefaultShapeParameters(definition: ModelDefinition) {
@@ -3789,7 +3850,7 @@ export function createModel(options: ModelOptions): ModelBuild {
       );
     }
   } else {
-    const builders: Record<Exclude<ModelId, "mushroom" | "clover">, (value: ModelOptions) => THREE.Group> = {
+    const builders: Partial<Record<ModelId, (value: ModelOptions) => THREE.Group>> = {
       sprout: buildSprout,
       pine: buildPine,
       cactus: buildCactus,
@@ -3824,7 +3885,8 @@ export function createModel(options: ModelOptions): ModelBuild {
       "candy-cane": buildCandyCane,
       "christmas-bell": buildChristmasBell,
     };
-    const topper = constrainTopperArtwork(builders[options.modelId](options), options);
+    const builder = builders[options.modelId] ?? buildSprout;
+    const topper = constrainTopperArtwork(builder(options), options);
     if (integrated) {
       printableRoot.add(buildIntegratedBaseJoint(options), topper);
     } else {

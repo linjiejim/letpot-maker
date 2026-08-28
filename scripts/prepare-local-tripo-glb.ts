@@ -28,7 +28,7 @@ class NodeFileReader {
   }
 }
 
-function fitToPrintableEnvelope(object: THREE.Object3D) {
+function fitToPrintableEnvelope(object: THREE.Object3D, addSocketLand: boolean) {
   object.updateMatrixWorld(true);
   const bounds = new THREE.Box3().setFromObject(object);
   const size = bounds.getSize(new THREE.Vector3());
@@ -47,6 +47,16 @@ function fitToPrintableEnvelope(object: THREE.Object3D) {
   object.traverse((child) => {
     if (child instanceof THREE.Mesh) child.userData.allowSmallGapRepair = true;
   });
+  if (addSocketLand) {
+    const socketLand = new THREE.Mesh(
+      new THREE.CylinderGeometry(7.8, 5.6, 12, 24),
+      new THREE.MeshStandardMaterial({ color: "#789269", roughness: 0.82 }),
+    );
+    socketLand.name = "embedded_official_socket_land";
+    socketLand.position.y = 6;
+    socketLand.userData.allowSmallGapRepair = true;
+    fitted.add(socketLand);
+  }
   fitted.updateMatrixWorld(true);
   return fitted;
 }
@@ -58,17 +68,22 @@ async function main() {
   }
   const input = path.resolve(inputArgument);
   const output = path.resolve(outputArgument);
+  const addSocketLand = process.argv.includes("--socket-land");
   if (input === output) throw new Error("Prepared GLB output must not overwrite its source file.");
 
   const data = await readFile(input);
   const sourceBuffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
   const parsed = await parseTripoGlb(sourceBuffer, { maxFaceCount: TRIPO_LOCAL_MESH_FACE_LIMIT });
   const inputFaceCount = parsed.faceCount;
-  const fitted = fitToPrintableEnvelope(parsed.object);
+  const fitted = fitToPrintableEnvelope(parsed.object, addSocketLand);
   let printable: THREE.Mesh | undefined;
   try {
     const manifold = await loadNodeManifold();
-    printable = await solidifyObject(manifold, fitted, { printerAxes: false, normalize: false });
+    printable = await solidifyObject(manifold, fitted, {
+      printerAxes: false,
+      normalize: false,
+      keepLargestComponent: true,
+    });
     printable.name = "tripo_printable_source";
     printable.geometry.computeVertexNormals();
     const previousMaterial = printable.material;
@@ -91,7 +106,7 @@ async function main() {
 
     const checked = await parseTripoGlb(exported.slice(0), { maxFaceCount: TRIPO_LOCAL_MESH_FACE_LIMIT });
     console.log(
-      `Prepared ${path.basename(output)}: ${inputFaceCount.toLocaleString()} source faces → ${checked.faceCount.toLocaleString()} closed faces, ${(exported.byteLength / 1024).toFixed(1)} KiB, ${TARGET_WIDTH}×${TARGET_HEIGHT} mm envelope`,
+      `Prepared ${path.basename(output)}: ${inputFaceCount.toLocaleString()} source faces → ${checked.faceCount.toLocaleString()} closed faces, ${(exported.byteLength / 1024).toFixed(1)} KiB, ${TARGET_WIDTH}×${TARGET_HEIGHT} mm envelope${addSocketLand ? ", embedded socket land" : ""}`,
     );
     disposeObject(checked.object);
   } finally {

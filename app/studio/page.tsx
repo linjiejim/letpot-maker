@@ -10,7 +10,7 @@ import {
 
 const title = "Maker Studio — LetPot Maker";
 const description =
-  "Customize 35 print-ready LetPot accessories and export STL, OBJ, or Bambu 3MF files from the free browser-based 3D Maker Studio.";
+  "Customize 80 print-ready LetPot accessories and export STL, OBJ, or Bambu 3MF files from the free browser-based 3D Maker Studio.";
 
 export function generateMetadata(): Promise<Metadata> {
   return createPageMetadata({

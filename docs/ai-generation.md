@@ -6,7 +6,7 @@
 
 It has two modes:
 
-1. `library` can select any of the 35 checked-in models. The six original parametric families retain their full bounded controls:
+1. `library` can select any of the 80 checked-in models. The six original parametric families retain their full bounded controls:
 
 | Family | Variable shape controls |
 | --- | --- |
@@ -69,7 +69,9 @@ Run `npm run tripo:review` and open `http://127.0.0.1:4320` to compare local can
 
 ### Bundled official meshes
 
-Approved image-to-3D candidates live under `public/models/official/`, alongside a non-secret manifest and lightweight preview. Their source GLBs are repaired locally before promotion and contain only the subject: no API Key, provider URL, display tray, connector or adapter. Studio fetches these same-origin static assets on demand, verifies the recorded face count, then applies the selected width/height envelope and the code-owned direct blind socket, connector pin and fixed Ø33/Ø41 adapter. Bundled models therefore require no Tripo account or credits at runtime. The Christmas Friends collection ships Santa, Snowman, Christmas Tree and Reindeer in both detachable and one-piece export paths.
+Approved neural candidates live under `public/models/official/`, alongside non-secret manifests and lightweight previews. Their source GLBs are repaired locally before promotion and contain only the subject plus, where required, a narrow embedded socket land: no API Key, provider URL, display tray, connector or adapter. Studio fetches these same-origin static assets on demand, verifies the recorded face count, then applies the selected width/height envelope and the code-owned direct blind socket, connector pin and fixed Ø33/Ø41 adapter. Bundled models therefore require no Tripo account or credits at runtime.
+
+The Official library currently contains 52 bundled meshes across produce, plants, herbs, Christmas, space, insects, ocean, and holiday/pets. This expansion batch used 47 H3.1 image-to-3D jobs at 20 credits each—including three upgrades to existing Christmas designs—and one 10-credit text-to-3D job for the simple Starfish, for a recorded total of 950 credits. Every card uses a corresponding concept render rather than a generic number tile. `npm run official:manifest` regenerates the root and per-collection manifests from the typed library catalog.
 
 ## Provider configuration
 

@@ -1,0 +1,117 @@
+{
+  "schema": "letpot-maker/official-meshes/v2",
+  "collection": "ocean",
+  "units": "millimetres",
+  "texture": false,
+  "adapterIncluded": false,
+  "models": [
+    {
+      "id": "whale-friend",
+      "number": "70",
+      "name": "Whale Friend",
+      "tags": [
+        "realistic",
+        "ocean",
+        "animal"
+      ],
+      "glb": "whale-friend.glb",
+      "preview": "previews/whale-friend.jpg",
+      "faces": 24674,
+      "generation": "Tripo H3.1 image-to-3D",
+      "defaultEnvelope": [
+        76,
+        62
+      ]
+    },
+    {
+      "id": "octopus-friend",
+      "number": "71",
+      "name": "Octopus Friend",
+      "tags": [
+        "realistic",
+        "ocean",
+        "animal"
+      ],
+      "glb": "octopus-friend.glb",
+      "preview": "previews/octopus-friend.jpg",
+      "faces": 27222,
+      "generation": "Tripo H3.1 image-to-3D",
+      "defaultEnvelope": [
+        72,
+        70
+      ]
+    },
+    {
+      "id": "sea-turtle-friend",
+      "number": "72",
+      "name": "Sea Turtle Friend",
+      "tags": [
+        "realistic",
+        "ocean",
+        "animal"
+      ],
+      "glb": "sea-turtle-friend.glb",
+      "preview": "previews/sea-turtle-friend.jpg",
+      "faces": 29236,
+      "generation": "Tripo H3.1 image-to-3D",
+      "defaultEnvelope": [
+        76,
+        58
+      ]
+    },
+    {
+      "id": "seahorse-friend",
+      "number": "73",
+      "name": "Seahorse Friend",
+      "tags": [
+        "realistic",
+        "ocean",
+        "animal"
+      ],
+      "glb": "seahorse-friend.glb",
+      "preview": "previews/seahorse-friend.jpg",
+      "faces": 27460,
+      "generation": "Tripo H3.1 image-to-3D",
+      "defaultEnvelope": [
+        58,
+        92
+      ]
+    },
+    {
+      "id": "ocean-fish",
+      "number": "74",
+      "name": "Ocean Fish",
+      "tags": [
+        "realistic",
+        "ocean",
+        "animal"
+      ],
+      "glb": "ocean-fish.glb",
+      "preview": "previews/ocean-fish.jpg",
+      "faces": 27338,
+      "generation": "Tripo H3.1 image-to-3D",
+      "defaultEnvelope": [
+        76,
+        64
+      ]
+    },
+    {
+      "id": "starfish-friend",
+      "number": "75",
+      "name": "Starfish Friend",
+      "tags": [
+        "realistic",
+        "ocean",
+        "animal"
+      ],
+      "glb": "starfish-friend.glb",
+      "preview": "previews/starfish-friend.jpg",
+      "faces": 9900,
+      "generation": "Tripo H3.1 text-to-3D",
+      "defaultEnvelope": [
+        76,
+        66
+      ]
+    }
+  ]
+}

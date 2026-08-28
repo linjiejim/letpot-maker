@@ -24,7 +24,7 @@ test("renders the LetPot Maker homepage and searchable asset library", async () 
   const html = await response.text();
   const initialHead = html.slice(0, html.indexOf("</head>"));
   assert.match(html, /<title>LetPot Maker — Customize &amp; print 3D garden accessories/i);
-  assert.match(html, /<meta name="description" content="Explore 35 printable LetPot accessories/i);
+  assert.match(html, /<meta name="description" content="Explore 80 printable LetPot accessories/i);
   assert.match(html, new RegExp(`<link rel="canonical" href="${publicOrigin}">`));
   assert.match(html, new RegExp(`<meta property="og:url" content="${publicOrigin}">`));
   assert.match(html, new RegExp(`<meta property="og:image" content="${publicOrigin}/og-maker\\.png">`));

@@ -86,7 +86,8 @@ source.add(new THREE.Mesh(
 const wasm = await loadNodeManifold();
 
 const officialDefinitions = MODEL_LIBRARY.filter((definition) => definition.officialMesh);
-assert.deepEqual(officialDefinitions.map(({ id }) => id), ["santa", "christmas-tree", "snowman", "reindeer"]);
+assert.equal(officialDefinitions.length, 52);
+assert.deepEqual(officialDefinitions.slice(0, 4).map(({ id }) => id), ["santa", "christmas-tree", "snowman", "reindeer"]);
 for (const definition of officialDefinitions) {
   const official = await loadOfficialMeshForNode(definition);
   assert.ok(official);

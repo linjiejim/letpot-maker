@@ -8,6 +8,7 @@ import {
   TRIPO_IMAGE_CANDIDATE_CREDITS,
   buildTripoImageCandidateRequest,
   buildTripoCandidateRequest,
+  validateTripoCandidateSpec,
   type TripoCandidateInspection,
   type TripoCandidateManifestEntry,
   type TripoCandidateSpec,
@@ -26,6 +27,16 @@ type Manifest = {
   schema: "letpot-maker/tripo-candidates/v1";
   updatedAt: string;
   candidates: TripoCandidateManifestEntry[];
+};
+
+type ImageBatchJob = TripoCandidateSpec & {
+  image: string;
+  faceLimit?: number;
+};
+
+type ImageBatch = {
+  schema: "letpot-maker/tripo-image-batch/v1";
+  candidates: ImageBatchJob[];
 };
 
 function selectedCandidates() {
@@ -59,6 +70,39 @@ function requestedImageFaceLimit() {
     throw new Error(`Local image candidate face limit must be between 1,000 and ${TRIPO_LOCAL_MESH_FACE_LIMIT.toLocaleString()}.`);
   }
   return value;
+}
+
+function requestedConcurrency() {
+  const raw = argumentValue("--concurrency=");
+  if (!raw) return 1;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < 1 || value > 4) {
+    throw new Error("Candidate concurrency must be between 1 and 4.");
+  }
+  return value;
+}
+
+async function readImageBatch(filename: string) {
+  const absolute = path.resolve(filename);
+  const parsed = JSON.parse(await readFile(absolute, "utf8")) as ImageBatch;
+  if (parsed.schema !== "letpot-maker/tripo-image-batch/v1" || !Array.isArray(parsed.candidates)) {
+    throw new Error("Image batch must use letpot-maker/tripo-image-batch/v1.");
+  }
+  const seen = new Set<string>();
+  return parsed.candidates.map((job) => {
+    const spec = validateTripoCandidateSpec(job);
+    if (seen.has(spec.id)) throw new Error(`Duplicate batch candidate id: ${spec.id}`);
+    seen.add(spec.id);
+    const faceLimit = job.faceLimit ?? TRIPO_CANDIDATE_FACE_LIMIT;
+    if (!Number.isInteger(faceLimit) || faceLimit < 1_000 || faceLimit > TRIPO_LOCAL_MESH_FACE_LIMIT) {
+      throw new Error(`${spec.id}: faceLimit must be between 1,000 and ${TRIPO_LOCAL_MESH_FACE_LIMIT.toLocaleString()}.`);
+    }
+    return {
+      spec,
+      image: path.resolve(path.dirname(absolute), job.image),
+      faceLimit,
+    };
+  });
 }
 
 async function readManifest(): Promise<Manifest> {
@@ -190,6 +234,50 @@ async function main() {
   await mkdir(OUTPUT_DIR, { recursive: true });
   const client = new TripoClient({ apiKey, baseUrl: TRIPO_BASE_URLS.global, retries: 1, timeoutMs: 60_000 });
   const manifest = await readManifest();
+  const textSpecFilename = argumentValue("--text-spec=");
+  if (textSpecFilename) {
+    const parsed = JSON.parse(await readFile(path.resolve(textSpecFilename), "utf8")) as TripoCandidateSpec;
+    const spec = validateTripoCandidateSpec(parsed);
+    const entry = await generateCandidate(client, spec);
+    manifest.candidates = [...manifest.candidates.filter(({ id }) => id !== entry.id), entry];
+    manifest.updatedAt = new Date().toISOString();
+    await writeFile(path.join(OUTPUT_DIR, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+    console.log(`[${spec.id}] saved ${entry.glb}; ${entry.inspection.faceCount} faces; ${entry.inspection.mountMode}; manifold=${entry.inspection.manifoldValid}`);
+    return;
+  }
+  const batchFilename = argumentValue("--batch=");
+  if (batchFilename) {
+    if (argumentValue("--image=") || process.argv.some((value) => value.startsWith("--ids="))) {
+      throw new Error("--batch cannot be combined with --image or --ids.");
+    }
+    const jobs = await readImageBatch(batchFilename);
+    const concurrency = requestedConcurrency();
+    console.log(`Generating ${jobs.length} local image candidates in ${OUTPUT_DIR} with concurrency ${concurrency}`);
+    const failures: string[] = [];
+    for (let index = 0; index < jobs.length; index += concurrency) {
+      const group = jobs.slice(index, index + concurrency);
+      const results = await Promise.allSettled(group.map(({ spec, image, faceLimit }) => (
+        generateCandidate(client, spec, image, faceLimit)
+      )));
+      results.forEach((result, resultIndex) => {
+        const id = group[resultIndex].spec.id;
+        if (result.status === "fulfilled") {
+          const entry = result.value;
+          manifest.candidates = [...manifest.candidates.filter((candidate) => candidate.id !== entry.id), entry];
+          console.log(`[${id}] saved ${entry.glb}; ${entry.inspection.faceCount} faces; ${entry.inspection.mountMode}; manifold=${entry.inspection.manifoldValid}`);
+        } else {
+          const reason = result.reason instanceof Error ? result.reason.message : String(result.reason);
+          failures.push(`${id}: ${reason}`);
+          console.error(`[${id}] failed: ${reason}`);
+        }
+      });
+      manifest.updatedAt = new Date().toISOString();
+      await writeFile(path.join(OUTPUT_DIR, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+      if (failures.length) break;
+    }
+    if (failures.length) throw new Error(`Image batch stopped after ${failures.length} failure(s): ${failures.join(" | ")}`);
+    return;
+  }
   const selected = selectedCandidates();
   const imagePath = argumentValue("--image=");
   const imageFaceLimit = requestedImageFaceLimit();

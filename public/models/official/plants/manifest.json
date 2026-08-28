@@ -1,0 +1,130 @@
+{
+  "schema": "letpot-maker/official-meshes/v2",
+  "collection": "plants",
+  "units": "millimetres",
+  "texture": false,
+  "adapterIncluded": false,
+  "models": [
+    {
+      "id": "monstera-cluster",
+      "number": "43",
+      "name": "Monstera Cluster",
+      "tags": [
+        "realistic",
+        "plant"
+      ],
+      "glb": "monstera-cluster.glb",
+      "preview": "previews/monstera-cluster.jpg",
+      "faces": 23894,
+      "generation": "Tripo H3.1 image-to-3D",
+      "defaultEnvelope": [
+        72,
+        92
+      ]
+    },
+    {
+      "id": "barrel-cactus",
+      "number": "44",
+      "name": "Barrel Cactus",
+      "tags": [
+        "realistic",
+        "plant"
+      ],
+      "glb": "barrel-cactus.glb",
+      "preview": "previews/barrel-cactus.jpg",
+      "faces": 21878,
+      "generation": "Tripo H3.1 image-to-3D",
+      "defaultEnvelope": [
+        62,
+        82
+      ]
+    },
+    {
+      "id": "succulent-rosette",
+      "number": "45",
+      "name": "Succulent Rosette",
+      "tags": [
+        "realistic",
+        "plant"
+      ],
+      "glb": "succulent-rosette.glb",
+      "preview": "previews/succulent-rosette.jpg",
+      "faces": 24354,
+      "generation": "Tripo H3.1 image-to-3D",
+      "defaultEnvelope": [
+        72,
+        62
+      ]
+    },
+    {
+      "id": "fern-sprout",
+      "number": "46",
+      "name": "Fern Sprout",
+      "tags": [
+        "realistic",
+        "plant"
+      ],
+      "glb": "fern-sprout.glb",
+      "preview": "previews/fern-sprout.jpg",
+      "faces": 24652,
+      "generation": "Tripo H3.1 image-to-3D",
+      "defaultEnvelope": [
+        68,
+        90
+      ]
+    },
+    {
+      "id": "cloud-bonsai",
+      "number": "47",
+      "name": "Cloud Crown Bonsai",
+      "tags": [
+        "realistic",
+        "plant",
+        "tree"
+      ],
+      "glb": "cloud-bonsai.glb",
+      "preview": "previews/cloud-bonsai.jpg",
+      "faces": 26380,
+      "generation": "Tripo H3.1 image-to-3D",
+      "defaultEnvelope": [
+        72,
+        92
+      ]
+    },
+    {
+      "id": "sunflower-smile",
+      "number": "48",
+      "name": "Sunflower Smile",
+      "tags": [
+        "realistic",
+        "plant",
+        "flower"
+      ],
+      "glb": "sunflower-smile.glb",
+      "preview": "previews/sunflower-smile.jpg",
+      "faces": 24822,
+      "generation": "Tripo H3.1 image-to-3D",
+      "defaultEnvelope": [
+        70,
+        94
+      ]
+    },
+    {
+      "id": "aloe-rosette",
+      "number": "49",
+      "name": "Aloe Rosette",
+      "tags": [
+        "realistic",
+        "plant"
+      ],
+      "glb": "aloe-rosette.glb",
+      "preview": "previews/aloe-rosette.jpg",
+      "faces": 23372,
+      "generation": "Tripo H3.1 image-to-3D",
+      "defaultEnvelope": [
+        68,
+        72
+      ]
+    }
+  ]
+}

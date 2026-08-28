@@ -10,7 +10,7 @@ import type {
 
 export type LandingModel = Pick<
   ModelDefinition,
-  "id" | "number" | "name" | "subtitle" | "parts" | "style" | "tags" | "defaults"
+  "id" | "number" | "name" | "subtitle" | "parts" | "style" | "tags" | "defaults" | "officialMesh"
 > & {
   shape: ModelOptions["shape"];
 };
@@ -35,6 +35,12 @@ const MODEL_TAGS: ModelTag[] = [
   "flower",
   "animal",
   "christmas",
+  "plant",
+  "space",
+  "insect",
+  "ocean",
+  "holiday",
+  "pet",
   "other",
 ];
 const TAG_LABELS: Record<ModelTag, string> = {
@@ -47,6 +53,12 @@ const TAG_LABELS: Record<ModelTag, string> = {
   flower: "Flower",
   animal: "Animal",
   christmas: "Christmas",
+  plant: "Plant",
+  space: "Space",
+  insect: "Insect",
+  ocean: "Ocean",
+  holiday: "Holiday",
+  pet: "Pet",
   other: "Other",
 };
 
@@ -73,10 +85,11 @@ function LiveModel({
   const mountRef = useRef<HTMLDivElement>(null);
   const [shouldLoad, setShouldLoad] = useState(false);
   const [isReady, setIsReady] = useState(false);
+  const officialPreview = models.find((model) => model.id === modelId)?.officialMesh?.previewPath;
 
   useEffect(() => {
     const mount = mountRef.current;
-    if (!mount || shouldLoad || interactive) return;
+    if (!mount || officialPreview || shouldLoad || interactive) return;
 
     const observer = new IntersectionObserver(
       ([entry]) => {
@@ -88,10 +101,10 @@ function LiveModel({
     );
     observer.observe(mount);
     return () => observer.disconnect();
-  }, [interactive, shouldLoad]);
+  }, [interactive, officialPreview, shouldLoad]);
 
   useEffect(() => {
-    if (!interactive || shouldLoad) return;
+    if (officialPreview || !interactive || shouldLoad) return;
     const load = () => setShouldLoad(true);
     const idleWindow = window as unknown as {
       requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
@@ -105,11 +118,11 @@ function LiveModel({
 
     const timer = globalThis.setTimeout(load, 350);
     return () => globalThis.clearTimeout(timer);
-  }, [interactive, shouldLoad]);
+  }, [interactive, officialPreview, shouldLoad]);
 
   useEffect(() => {
     const mount = mountRef.current;
-    if (!mount || !shouldLoad) return;
+    if (!mount || officialPreview || !shouldLoad) return;
 
     let cancelled = false;
     let disposeScene: (() => void) | undefined;
@@ -211,11 +224,13 @@ function LiveModel({
       cancelled = true;
       disposeScene?.();
     };
-  }, [interactive, modelId, models, shouldLoad]);
+  }, [interactive, modelId, models, officialPreview, shouldLoad]);
 
   return (
-    <div className={`landing-model ${interactive ? "interactive" : ""}`} ref={mountRef} data-ready={isReady} aria-label={`${modelId} live 3D preview`} aria-busy={!isReady}>
-      <span className="landing-model-loading" aria-hidden="true">Loading 3D preview…</span>
+    <div className={`landing-model ${interactive ? "interactive" : ""} ${officialPreview ? "official-preview" : ""}`} ref={mountRef} data-ready={officialPreview ? true : isReady} aria-label={`${modelId} ${officialPreview ? "official mesh render" : "live 3D preview"}`} aria-busy={officialPreview ? false : !isReady}>
+      {officialPreview
+        ? <span className="landing-official-preview" aria-hidden="true" style={{ backgroundImage: `url(${officialPreview})` }} />
+        : <span className="landing-model-loading" aria-hidden="true">Loading 3D preview…</span>}
     </div>
   );
 }

@@ -1,0 +1,100 @@
+{
+  "schema": "letpot-maker/official-meshes/v2",
+  "collection": "holiday-pets",
+  "units": "millimetres",
+  "texture": false,
+  "adapterIncluded": false,
+  "models": [
+    {
+      "id": "jack-o-lantern",
+      "number": "76",
+      "name": "Jack-o'-Lantern",
+      "tags": [
+        "realistic",
+        "holiday",
+        "other"
+      ],
+      "glb": "jack-o-lantern.glb",
+      "preview": "previews/jack-o-lantern.jpg",
+      "faces": 23474,
+      "generation": "Tripo H3.1 image-to-3D",
+      "defaultEnvelope": [
+        70,
+        70
+      ]
+    },
+    {
+      "id": "friendly-ghost",
+      "number": "77",
+      "name": "Friendly Ghost",
+      "tags": [
+        "realistic",
+        "holiday",
+        "other"
+      ],
+      "glb": "friendly-ghost.glb",
+      "preview": "previews/friendly-ghost.jpg",
+      "faces": 23966,
+      "generation": "Tripo H3.1 image-to-3D",
+      "defaultEnvelope": [
+        66,
+        86
+      ]
+    },
+    {
+      "id": "easter-bunny",
+      "number": "78",
+      "name": "Easter Bunny",
+      "tags": [
+        "realistic",
+        "holiday",
+        "animal",
+        "pet"
+      ],
+      "glb": "easter-bunny.glb",
+      "preview": "previews/easter-bunny.jpg",
+      "faces": 25444,
+      "generation": "Tripo H3.1 image-to-3D",
+      "defaultEnvelope": [
+        64,
+        92
+      ]
+    },
+    {
+      "id": "cozy-cat",
+      "number": "79",
+      "name": "Cozy Cat",
+      "tags": [
+        "realistic",
+        "pet",
+        "animal"
+      ],
+      "glb": "cozy-cat.glb",
+      "preview": "previews/cozy-cat.jpg",
+      "faces": 24880,
+      "generation": "Tripo H3.1 image-to-3D",
+      "defaultEnvelope": [
+        66,
+        86
+      ]
+    },
+    {
+      "id": "cozy-dog",
+      "number": "80",
+      "name": "Cozy Dog",
+      "tags": [
+        "realistic",
+        "pet",
+        "animal"
+      ],
+      "glb": "cozy-dog.glb",
+      "preview": "previews/cozy-dog.jpg",
+      "faces": 25684,
+      "generation": "Tripo H3.1 image-to-3D",
+      "defaultEnvelope": [
+        68,
+        84
+      ]
+    }
+  ]
+}
