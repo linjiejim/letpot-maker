@@ -790,6 +790,10 @@ const KIT_PIN_LENGTH = 7.4;
 const KIT_PIN_ADAPTER_INSERT = 4;
 const KIT_TRUNK_SOCKET_RADIUS = 4.02;
 const KIT_TRUNK_SOCKET_DEPTH = 3.4;
+const EXTERNAL_MESH_CORE_HEIGHT = 4.15;
+const EXTERNAL_MESH_DIRECT_MIN_OVERLAP = 0.6;
+const EXTERNAL_MESH_CONTACT_TOLERANCE = 0.8;
+const EXTERNAL_MESH_FALLBACK_LIFT = 4.25;
 const KIT_CROWN_PIN_RADIUS = 2.6;
 const KIT_CROWN_SOCKET_RADIUS = 2.82;
 const KIT_CROWN_SOCKET_DEPTH = 3.05;
@@ -1051,14 +1055,14 @@ function prepareTopper(options: ModelOptions, color = options.primaryColor) {
   group.name = `${options.modelId}_topper`;
   const adapterTop = ADAPTER_STANDARD.totalHeight;
   const connectorCore = mesh(
-    new THREE.CylinderGeometry(4.85, 5.25, 4.15, 12),
+    new THREE.CylinderGeometry(4.85, 5.25, EXTERNAL_MESH_CORE_HEIGHT, 12),
     color,
     options.faceted,
   );
   connectorCore.name = "embedded_topper_connector_core";
-  // Start 0.05 mm above the subject's flat print face so the core is fully
-  // embedded instead of sharing a coplanar bottom with model-specific feet.
-  connectorCore.position.y = adapterTop + 4.15 / 2;
+  // This code-owned core preserves the standard socket independently of the
+  // generated artwork and is hidden inside its base and central sculpture.
+  connectorCore.position.y = adapterTop + EXTERNAL_MESH_CORE_HEIGHT / 2;
   connectorCore.userData.aiColorRole = color.toLowerCase() === options.accentColor.toLowerCase()
     ? "adapter"
     : "primary";
@@ -1114,6 +1118,63 @@ function constrainTopperArtwork(topper: THREE.Group, options: ModelOptions) {
   return topper;
 }
 
+function verticalSolidIntervalsAt(
+  object: THREE.Object3D,
+  x: number,
+  z: number,
+  bounds: THREE.Box3,
+) {
+  const material = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
+  const raycaster = new THREE.Raycaster(
+    new THREE.Vector3(x, bounds.min.y - 1, z),
+    new THREE.Vector3(0, 1, 0),
+    0,
+    bounds.max.y - bounds.min.y + 2,
+  );
+  const intervals: Array<[number, number]> = [];
+  object.traverse((child) => {
+    if (!(child instanceof THREE.Mesh) || !child.visible) return;
+    const proxy = new THREE.Mesh(child.geometry, material);
+    proxy.matrixAutoUpdate = false;
+    proxy.matrixWorld.copy(child.matrixWorld);
+    const heights = raycaster.intersectObject(proxy, false)
+      .map((hit) => hit.point.y)
+      .sort((first, second) => first - second)
+      .filter((height, index, values) => index === 0 || Math.abs(height - values[index - 1]) > 0.02);
+    for (let index = 0; index + 1 < heights.length; index += 2) {
+      intervals.push([heights[index], heights[index + 1]]);
+    }
+  });
+  material.dispose();
+
+  intervals.sort((first, second) => first[0] - second[0]);
+  const merged: Array<[number, number]> = [];
+  intervals.forEach(([bottom, top]) => {
+    const previous = merged.at(-1);
+    if (previous && bottom <= previous[1] + 0.02) previous[1] = Math.max(previous[1], top);
+    else merged.push([bottom, top]);
+  });
+  return merged;
+}
+
+function supportsDirectExternalMeshSocket(sculpture: THREE.Object3D) {
+  sculpture.updateMatrixWorld(true);
+  const bounds = new THREE.Box3().setFromObject(sculpture);
+  if (bounds.isEmpty()) return false;
+  const adapterTop = ADAPTER_STANDARD.totalHeight;
+  const sampleRadius = KIT_TRUNK_SOCKET_RADIUS + 0.55;
+  const samples = [new THREE.Vector2(0, 0)];
+  for (let index = 0; index < 6; index += 1) {
+    const angle = index * Math.PI / 3;
+    samples.push(new THREE.Vector2(Math.cos(angle) * sampleRadius, Math.sin(angle) * sampleRadius));
+  }
+  const coveredSamples = samples.map(({ x, y: z }) => verticalSolidIntervalsAt(sculpture, x, z, bounds).some(
+    ([bottom, top]) => bottom <= adapterTop + EXTERNAL_MESH_CONTACT_TOLERANCE
+      && top >= adapterTop + EXTERNAL_MESH_DIRECT_MIN_OVERLAP,
+  ));
+  return coveredSamples[0] && coveredSamples.filter(Boolean).length >= 5;
+}
+
 function buildExternalMeshTopper(options: ModelOptions, source: THREE.Object3D) {
   const topper = prepareTopper(options);
   topper.name = "tripo_mesh_topper";
@@ -1128,6 +1189,7 @@ function buildExternalMeshTopper(options: ModelOptions, source: THREE.Object3D) 
     const printableMesh = mesh(geometry, options.primaryColor, options.faceted);
     printableMesh.name = child.name ? `tripo_${child.name}` : "tripo_mesh_part";
     printableMesh.userData.aiColorRole = "primary";
+    printableMesh.userData.allowSmallGapRepair = true;
     sculpture.add(printableMesh);
   });
   if (!sculpture.children.length) throw new Error("The local Tripo creation contains no printable mesh.");
@@ -1141,24 +1203,32 @@ function buildExternalMeshTopper(options: ModelOptions, source: THREE.Object3D) 
   sculpture.scale.set(lateralScale, verticalScale, lateralScale);
   sculpture.position.set(
     -center.x * lateralScale,
-    ADAPTER_STANDARD.totalHeight + 4.25 - bounds.min.y * verticalScale,
+    ADAPTER_STANDARD.totalHeight - bounds.min.y * verticalScale,
     -center.z * lateralScale,
   );
 
-  // Neural meshes vary at their underside. This code-owned transition keeps
-  // the generated subject seated on the same connector core as every stock
-  // topper, without allowing the provider to alter the socket or adapter.
-  const supportRadius = THREE.MathUtils.clamp(options.topperWidth * 0.22, 5.4, 9);
-  const supportHeight = 2.4;
-  const support = mesh(
-    new THREE.CylinderGeometry(supportRadius * 0.88, supportRadius, supportHeight, 24),
-    options.primaryColor,
-    false,
-  );
-  support.name = "standardized_tripo_mesh_transition";
-  support.position.y = ADAPTER_STANDARD.totalHeight + 3.8;
-  support.userData.aiColorRole = "primary";
-  topper.add(support, sculpture);
+  const directSocket = supportsDirectExternalMeshSocket(sculpture);
+  if (directSocket) {
+    topper.add(sculpture);
+    topper.userData.externalMeshMountMode = "direct-socket";
+  } else {
+    // Some neural meshes end in feet, islands or a thin shell instead of a
+    // printable central base. Lift only those models onto a code-owned bridge
+    // so the standardized socket cannot become a disconnected loose part.
+    sculpture.position.y += EXTERNAL_MESH_FALLBACK_LIFT;
+    const supportRadius = THREE.MathUtils.clamp(options.topperWidth * 0.22, 5.4, 9);
+    const supportHeight = 2.4;
+    const support = mesh(
+      new THREE.CylinderGeometry(supportRadius * 0.88, supportRadius, supportHeight, 24),
+      options.primaryColor,
+      false,
+    );
+    support.name = "standardized_tripo_mesh_transition_fallback";
+    support.position.y = ADAPTER_STANDARD.totalHeight + 3.8;
+    support.userData.aiColorRole = "primary";
+    topper.add(support, sculpture);
+    topper.userData.externalMeshMountMode = "reinforced-transition";
+  }
   topper.userData.externalMeshSource = "tripo";
   return constrainTopperArtwork(topper, options);
 }
@@ -3507,7 +3577,10 @@ export function createModel(options: ModelOptions): ModelBuild {
     printableRoot.name = `${options.modelId}_integrated_print`;
     assembly.add(printableRoot);
   }
-  const adapter = buildAdapter(options);
+  // A direct external-mesh base covers the adapter face in integrated mode.
+  // Omitting the hidden engraving also prevents its preview lift from cutting
+  // into the generated base at their shared seating plane.
+  const adapter = buildAdapter(options, !(integrated && options.externalMesh));
   printableRoot.add(adapter);
   const parts: PrintablePart[] = integrated ? [] : [
     { id: "adapter", label: "Universal adapter · Ø41 face down", object: adapter, color: options.accentColor, printFlipZ: true },
@@ -3520,9 +3593,15 @@ export function createModel(options: ModelOptions): ModelBuild {
     } else {
       const pinGroup = buildConnectorPin(options, "tripo_mesh_double_ended_connector_pin");
       printableRoot.add(pinGroup, topper);
+      const directSocket = topper.userData.externalMeshMountMode === "direct-socket";
       parts.push(
         { id: "connector-pin", label: "Double-ended connector pin", object: pinGroup, color: options.primaryColor },
-        { id: "topper", label: "Flush socketed Tripo mesh", object: topper, color: options.primaryColor },
+        {
+          id: "topper",
+          label: directSocket ? "Direct socketed Tripo mesh" : "Reinforced socketed Tripo mesh",
+          object: topper,
+          color: options.primaryColor,
+        },
       );
     }
   } else if (options.aiProgram) {

@@ -38,55 +38,76 @@ function geometryToManifold(wasm: ManifoldToplevel, source: THREE.Mesh) {
   geometry.applyMatrix4(source.matrixWorld);
 
   const triangles = geometry.index ? geometry.toNonIndexed() : geometry;
-  const welded = mergeVertices(triangles, 1e-5);
-  const position = welded.getAttribute("position");
-  const index = welded.index;
-  if (!index) throw new Error(`Could not index geometry ${source.name || "mesh"}`);
-
-  const cleanTriangles: number[] = [];
-  const a = new THREE.Vector3();
-  const b = new THREE.Vector3();
-  const c = new THREE.Vector3();
-  const ab = new THREE.Vector3();
-  const ac = new THREE.Vector3();
-  for (let i = 0; i < index.count; i += 3) {
-    const ia = index.getX(i);
-    const ib = index.getX(i + 1);
-    const ic = index.getX(i + 2);
-    if (ia === ib || ib === ic || ic === ia) continue;
-    a.fromBufferAttribute(position, ia);
-    b.fromBufferAttribute(position, ib);
-    c.fromBufferAttribute(position, ic);
-    ab.subVectors(b, a);
-    ac.subVectors(c, a);
-    if (ab.cross(ac).lengthSq() < 1e-10) continue;
-    cleanTriangles.push(ia, ib, ic);
-  }
-
   const colorRole = source.userData.aiColorRole === "secondary"
     ? 1
     : source.userData.aiColorRole === "detail"
       ? 2
       : source.userData.aiColorRole === "adapter" ? 3 : 0;
-  const vertexProperties = new Float32Array(position.count * 4);
-  for (let vertex = 0; vertex < position.count; vertex += 1) {
-    vertexProperties[vertex * 4] = position.getX(vertex);
-    vertexProperties[vertex * 4 + 1] = position.getY(vertex);
-    vertexProperties[vertex * 4 + 2] = position.getZ(vertex);
-    vertexProperties[vertex * 4 + 3] = colorRole;
+  const weldTolerances = source.userData.allowSmallGapRepair === true
+    ? [1e-5, 0.01, 0.03, 0.08]
+    : [1e-5];
+  let lastStatus = "NotManifold";
+  try {
+    for (const weldTolerance of weldTolerances) {
+      const welded = mergeVertices(triangles, weldTolerance);
+      try {
+        const position = welded.getAttribute("position");
+        const index = welded.index;
+        if (!index) throw new Error(`Could not index geometry ${source.name || "mesh"}`);
+
+        const cleanTriangles: number[] = [];
+        const a = new THREE.Vector3();
+        const b = new THREE.Vector3();
+        const c = new THREE.Vector3();
+        const ab = new THREE.Vector3();
+        const ac = new THREE.Vector3();
+        for (let i = 0; i < index.count; i += 3) {
+          const ia = index.getX(i);
+          const ib = index.getX(i + 1);
+          const ic = index.getX(i + 2);
+          if (ia === ib || ib === ic || ic === ia) continue;
+          a.fromBufferAttribute(position, ia);
+          b.fromBufferAttribute(position, ib);
+          c.fromBufferAttribute(position, ic);
+          ab.subVectors(b, a);
+          ac.subVectors(c, a);
+          if (ab.cross(ac).lengthSq() < 1e-10) continue;
+          cleanTriangles.push(ia, ib, ic);
+        }
+
+        const vertexProperties = new Float32Array(position.count * 4);
+        for (let vertex = 0; vertex < position.count; vertex += 1) {
+          vertexProperties[vertex * 4] = position.getX(vertex);
+          vertexProperties[vertex * 4 + 1] = position.getY(vertex);
+          vertexProperties[vertex * 4 + 2] = position.getZ(vertex);
+          vertexProperties[vertex * 4 + 3] = colorRole;
+        }
+        const mesh = new wasm.Mesh({
+          numProp: 4,
+          vertProperties: vertexProperties,
+          triVerts: Uint32Array.from(cleanTriangles),
+          tolerance: weldTolerance,
+        });
+        mesh.merge();
+        let manifold: Manifold;
+        try {
+          manifold = new wasm.Manifold(mesh);
+          lastStatus = manifold.status();
+        } catch (error) {
+          lastStatus = error instanceof Error ? error.message : lastStatus;
+          continue;
+        }
+        if (lastStatus === "NoError") return manifold;
+        manifold.delete();
+      } finally {
+        welded.dispose();
+      }
+    }
+  } finally {
+    if (triangles !== geometry) triangles.dispose();
+    geometry.dispose();
   }
-  const mesh = new wasm.Mesh({
-    numProp: 4,
-    vertProperties: vertexProperties,
-    triVerts: Uint32Array.from(cleanTriangles),
-  });
-  mesh.merge();
-  const manifold = new wasm.Manifold(mesh);
-  if (manifold.status() !== "NoError") {
-    manifold.delete();
-    throw new Error(`${source.name || "mesh"} is not a valid closed solid`);
-  }
-  return manifold;
+  throw new Error(`${source.name || "mesh"} is not a valid closed solid (${lastStatus})`);
 }
 
 function manifoldToGeometry(solid: Manifold) {
