@@ -1,6 +1,7 @@
 import {
   getDefaultShapeParameters,
   MODEL_LIBRARY,
+  TOPPER_SIZE_LIMITS,
   type ModelId,
   type ShapeParameterKey,
 } from "./model-factory";
@@ -117,21 +118,25 @@ export function normalizeAiRecipe(value: unknown): AiDesignRecipe {
 
   const program = mode === "sculpture" ? normalizeAiShapeProgram(input.program) : undefined;
   const libraryHeightRange: [number, number] = LEGACY_PARAMETRIC_IDS.has(templateId)
-    ? [25, 50]
+    ? [TOPPER_SIZE_LIMITS.height.min, TOPPER_SIZE_LIMITS.height.max]
     : [definition.defaults.topperHeight, definition.defaults.topperHeight];
   const libraryWidthRange: [number, number] = LEGACY_PARAMETRIC_IDS.has(templateId)
-    ? [20, 40]
+    ? [TOPPER_SIZE_LIMITS.width.min, TOPPER_SIZE_LIMITS.width.max]
     : [definition.defaults.topperWidth, definition.defaults.topperWidth];
-  const heightRange = mode === "sculpture" ? [25, 50] as const : libraryHeightRange;
-  const widthRange = mode === "sculpture" ? [20, 40] as const : libraryWidthRange;
+  const heightRange = mode === "sculpture"
+    ? [TOPPER_SIZE_LIMITS.height.min, TOPPER_SIZE_LIMITS.height.max] as const
+    : libraryHeightRange;
+  const widthRange = mode === "sculpture"
+    ? [TOPPER_SIZE_LIMITS.width.min, TOPPER_SIZE_LIMITS.width.max] as const
+    : libraryWidthRange;
 
   return {
     mode,
     name: shortText(input.name, `AI ${definition.name}`, 34),
     subtitle: shortText(input.subtitle, definition.subtitle, 68),
     templateId,
-    topperHeight: snap(finiteNumber(input.topperHeight, definition.defaults.topperHeight), heightRange[0], heightRange[1], 0.5),
-    topperWidth: snap(finiteNumber(input.topperWidth, definition.defaults.topperWidth), widthRange[0], widthRange[1], 0.5),
+    topperHeight: snap(finiteNumber(input.topperHeight, definition.defaults.topperHeight), heightRange[0], heightRange[1], TOPPER_SIZE_LIMITS.step),
+    topperWidth: snap(finiteNumber(input.topperWidth, definition.defaults.topperWidth), widthRange[0], widthRange[1], TOPPER_SIZE_LIMITS.step),
     primaryColor: color(input.primaryColor, definition.defaults.primaryColor),
     accentColor: color(input.accentColor, definition.defaults.accentColor),
     secondaryColor: color(input.secondaryColor, "#d8a33e"),

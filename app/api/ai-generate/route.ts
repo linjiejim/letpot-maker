@@ -64,7 +64,7 @@ Subject planning rules:
 - Flowers and radial creatures: use radial-N-y instead of manually placing near-duplicate parts whenever the requested count
   is 3, 4, 5, 6 or 8.
 
-The locked adapter, embedded connection core, optional detachable pin, final 20–40 mm width, 25–50 mm height, node count, ranges and
+The locked adapter, embedded connection core, optional detachable pin, final 20–80 mm width, 25–100 mm height, node count, ranges and
 manifold checks are applied by application code and cannot be changed by this recipe.
 The templateId MUST be exactly one of ${JSON.stringify(AI_TEMPLATE_IDS)}. In sculpture mode it is only the closest
 library reference for metadata; the program defines the geometry. Never put a family display name in templateId.
@@ -81,8 +81,8 @@ Return only a JSON object with exactly these fields:
   "name": "short English product name",
   "subtitle": "short English design description",
   "templateId": "one supported templateId",
-  "topperHeight": 25-50,
-  "topperWidth": 20-40,
+  "topperHeight": 25-100,
+  "topperWidth": 20-80,
   "primaryColor": "#rrggbb",
   "accentColor": "#rrggbb",
   "secondaryColor": "#rrggbb",

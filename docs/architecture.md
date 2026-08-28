@@ -27,7 +27,7 @@ Model definitions + parameters
 
 ### Maker Studio
 
-`components/Studio.tsx` owns the interactive authoring flow. It selects a model definition, maintains parameter and color state, renders the assembly, stores optional AI recipes in browser storage, and packages exports on demand.
+`components/Studio.tsx` owns the interactive authoring flow. It selects a model definition, maintains parameter and color state, renders the assembly, stores optional AI recipes in localStorage and direct Tripo GLBs in IndexedDB, and packages exports on demand.
 
 ### Pod Styler
 
@@ -58,7 +58,9 @@ Validation scripts enforce:
 
 `app/api/ai-generate/route.ts` sends a short text prompt to a provider-neutral OpenAI chat-completions endpoint configured entirely through environment variables. `lib/ai-prompt-security.ts` normalizes and screens direct instruction-control attempts, then serializes accepted input as an untrusted JSON data record. The server prompt can choose any checked-in library model or return a bounded declarative shape program. `lib/ai-shape-program.ts` allowlists and normalizes geometry nodes; `lib/ai-design.ts` validates the surrounding recipe before the Studio uses it. `lib/model-factory.ts` compiles accepted nodes into connected Three.js solids around the locked adapter and selected connection mode. Semantic node colors, plus the integrated adapter color, are carried through Manifold and emitted as 3MF face materials.
 
-The endpoint returns a recipe, not arbitrary executable code or an opaque mesh. Created recipes are stored only in the browser today.
+The endpoint returns a recipe, not arbitrary executable code or an opaque mesh. Created recipes are stored only in the browser.
+
+The independent direct-mesh path in `lib/tripo-mesh.ts` uses a user-entered Tripo key through `scripts/tripo-local-bridge.ts`, a helper bound only to `127.0.0.1`. The helper uses Tripo's v3 SDK to submit and poll the task, then downloads the expiring GLB without involving a LetPot Maker application-server route. The browser validates the GLB's basic size and triangle bounds and stores it through `lib/local-mesh-cache.ts`. The key remains in dialog memory by default; explicit browser-local persistence uses a dedicated localStorage entry and never stores the key with the mesh. The imported silhouette remains untrusted; `lib/model-factory.ts` alone owns the transition, socket, connector and adapter, and `lib/solidify.ts` rejects exports that are not one connected closed solid.
 
 See `docs/ai-generation.md` for the exact shape boundary, provider configuration, and prompt-injection threat boundary.
 
@@ -68,4 +70,4 @@ See `docs/ai-generation.md` for the exact shape boundary, provider configuration
 
 `Dockerfile` builds that standalone output in a Node 22 build stage and copies it into a smaller non-root runtime image. `compose.yaml` adds restart behavior, a read-only filesystem, a temporary `/tmp`, private loopback binding, and an HTTP health check.
 
-The AI route reads provider settings from the container environment. There is no database, user-account layer, persistent server volume, Sites integration, Cloudflare binding, or Worker entry point.
+The bounded-AI route reads provider settings from the container environment. The loopback Tripo helper is a separate opt-in device process, not part of the deployed application container; hosted origins must be explicitly allowlisted with `TRIPO_BRIDGE_ORIGINS`. Direct-mesh binaries live in each user's IndexedDB. There is no server database, user-account layer, persistent server volume, Sites integration, Cloudflare binding, or Worker entry point.
