@@ -27,6 +27,15 @@ export interface ParsedTripoMesh {
   faceCount: number;
 }
 
+function disposeParsedObject(object: THREE.Object3D) {
+  object.traverse((child) => {
+    if (!(child instanceof THREE.Mesh)) return;
+    child.geometry.dispose();
+    const materials = Array.isArray(child.material) ? child.material : [child.material];
+    materials.forEach((material) => material.dispose());
+  });
+}
+
 const TERMINAL_ERROR_MESSAGE = "Tripo could not generate this mesh. Try a simpler printable shape.";
 
 export function tripoErrorMessage(error: unknown) {
@@ -168,14 +177,17 @@ export function parseTripoGlb(data: ArrayBuffer): Promise<ParsedTripoMesh> {
       const bounds = new THREE.Box3().setFromObject(object);
       const size = bounds.getSize(new THREE.Vector3());
       if (!meshCount || !faceCount || bounds.isEmpty()) {
+        disposeParsedObject(object);
         reject(new Error("The downloaded GLB contains no usable triangle mesh."));
         return;
       }
       if (![size.x, size.y, size.z].every((value) => Number.isFinite(value) && value > 1e-6)) {
+        disposeParsedObject(object);
         reject(new Error("The downloaded mesh has invalid dimensions."));
         return;
       }
       if (faceCount > 25_000) {
+        disposeParsedObject(object);
         reject(new Error("The downloaded mesh is too dense for the printable browser pipeline."));
         return;
       }

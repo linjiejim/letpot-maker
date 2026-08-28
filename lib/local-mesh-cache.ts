@@ -143,4 +143,3 @@ export async function deleteLocalTripoMesh(id: string) {
     database.close();
   }
 }
-

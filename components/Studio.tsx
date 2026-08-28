@@ -501,6 +501,7 @@ function AiGenerateModal({ open, onClose, onGenerated, onMeshGenerated }: {
     setTripoProgress(0);
     setError("");
     const startedAt = Date.now();
+    let unclaimedParsedMesh: ParsedTripoMesh | null = null;
     try {
       if (generator === "tripo") {
         const controller = new AbortController();
@@ -519,6 +520,7 @@ function AiGenerateModal({ open, onClose, onGenerated, onMeshGenerated }: {
         setStep(3);
         setTripoProgress(100);
         const parsed = await parseTripoGlb(generated.data.slice(0));
+        unclaimedParsedMesh = parsed;
         setStep(4);
         const id = window.crypto.randomUUID();
         const title = cleanPrompt.split(/\s+/).slice(0, 6).join(" ");
@@ -539,6 +541,7 @@ function AiGenerateModal({ open, onClose, onGenerated, onMeshGenerated }: {
         const record: LocalTripoMeshRecord = { ...metadata, glb: generated.data };
         await putLocalTripoMesh(record);
         onMeshGenerated(metadata, parsed);
+        unclaimedParsedMesh = null;
         if (!rememberTripoKey) setTripoApiKey("");
         abortRef.current = null;
       } else {
@@ -556,6 +559,7 @@ function AiGenerateModal({ open, onClose, onGenerated, onMeshGenerated }: {
       setPhase("success");
       window.setTimeout(closeModal, 900);
     } catch (requestError) {
+      if (unclaimedParsedMesh) disposeObject(unclaimedParsedMesh.object);
       abortRef.current = null;
       const directMessage = requestError instanceof Error && /local|GLB|mesh|browser does not support/i.test(requestError.message)
         ? requestError.message
@@ -594,7 +598,7 @@ function AiGenerateModal({ open, onClose, onGenerated, onMeshGenerated }: {
         ) : (
           <form onSubmit={generate} autoComplete="off">
             <div className="ai-generator-tabs" aria-label="Choose AI generation method">
-              <button type="button" className={generator === "recipe" ? "active" : ""} aria-pressed={generator === "recipe"} onClick={() => { setGenerator("recipe"); setError(""); setPhase("idle"); }}>Bounded shape</button>
+              <button type="button" className={generator === "recipe" ? "active" : ""} aria-pressed={generator === "recipe"} onClick={() => { setGenerator("recipe"); setPrompt((current) => current.slice(0, 280)); setError(""); setPhase("idle"); }}>Bounded shape</button>
               <button type="button" className={generator === "tripo" ? "active" : ""} aria-pressed={generator === "tripo"} onClick={() => { setGenerator("tripo"); setError(""); setPhase("idle"); }}>Direct mesh · Tripo</button>
             </div>
             <div className="ai-modal-heading">
@@ -1050,7 +1054,7 @@ export function Studio() {
         manufacturing,
         warning: "Fixed Ø33/Ø41 pod-fit standard. Verify fit with a small adapter test before production.",
       }, null, 2));
-      root.file("PRINT-NOTES.txt", `${designName}\n\n${aiDesign ? `${aiDesign.creativeNote}\n\nGenerated from: ${aiDesign.prompt}\n\n` : tripoDesign ? `Generated as a direct Tripo mesh from: ${tripoDesign.prompt}\nTask: ${tripoDesign.taskId}\nModel: ${tripoDesign.modelVersion}\nThe API key was not saved.\n\n` : ""}${designPrintNote}\n\nManufacturing status: ${manufacturing.status}.\nOrientation: ${manufacturing.orientation}.\nSupport: ${manufacturing.supportStrategy}.\nMinimum designed wall: ${manufacturing.minWall.toFixed(1)} mm.\nMinimum designed feature: ${manufacturing.minFeature.toFixed(1)} mm.\nBatch mode: ${manufacturing.batchMode}.\n\nEvery STL is a single connected, watertight solid. ${integrated ? "This export contains one fused adapter-and-topper part with no loose connector." : "The adapter and topper use a flush embedded socket plus a removable double-ended connector pin; mushroom and clover include one additional upper part."}\n\nAdapter standard: Ø${ADAPTER_STANDARD.lowerDiameter.toFixed(2)} mm straight lower section × ${ADAPTER_STANDARD.lowerHeight.toFixed(2)} mm, then a ${ADAPTER_STANDARD.transitionHeight.toFixed(2)} mm transition to a Ø${ADAPTER_STANDARD.upperDiameter.toFixed(2)} mm × ${ADAPTER_STANDARD.upperBandHeight.toFixed(2)} mm vertical upper band; total height ${ADAPTER_STANDARD.totalHeight.toFixed(2)} mm. ${integrated ? `Print the complete model upright with the Ø${ADAPTER_STANDARD.lowerDiameter.toFixed(2)} mm locator face on the bed.` : `The adapter STL is pre-oriented with its Ø${ADAPTER_STANDARD.upperDiameter.toFixed(2)} mm logo face on the print bed and its Ø${ADAPTER_STANDARD.lowerDiameter.toFixed(2)} mm side facing upward.`} Verify fit with a small test print before production.\n`);
+      root.file("PRINT-NOTES.txt", `${designName}\n\n${aiDesign ? `${aiDesign.creativeNote}\n\nGenerated from: ${aiDesign.prompt}\n\n` : tripoDesign ? `Generated as a direct Tripo mesh from: ${tripoDesign.prompt}\nTask: ${tripoDesign.taskId}\nModel: ${tripoDesign.modelVersion}\nThe API key is not included in this export.\n\n` : ""}${designPrintNote}\n\nManufacturing status: ${manufacturing.status}.\nOrientation: ${manufacturing.orientation}.\nSupport: ${manufacturing.supportStrategy}.\nMinimum designed wall: ${manufacturing.minWall.toFixed(1)} mm.\nMinimum designed feature: ${manufacturing.minFeature.toFixed(1)} mm.\nBatch mode: ${manufacturing.batchMode}.\n\nEvery STL is a single connected, watertight solid. ${integrated ? "This export contains one fused adapter-and-topper part with no loose connector." : "The adapter and topper use a flush embedded socket plus a removable double-ended connector pin; mushroom and clover include one additional upper part."}\n\nAdapter standard: Ø${ADAPTER_STANDARD.lowerDiameter.toFixed(2)} mm straight lower section × ${ADAPTER_STANDARD.lowerHeight.toFixed(2)} mm, then a ${ADAPTER_STANDARD.transitionHeight.toFixed(2)} mm transition to a Ø${ADAPTER_STANDARD.upperDiameter.toFixed(2)} mm × ${ADAPTER_STANDARD.upperBandHeight.toFixed(2)} mm vertical upper band; total height ${ADAPTER_STANDARD.totalHeight.toFixed(2)} mm. ${integrated ? `Print the complete model upright with the Ø${ADAPTER_STANDARD.lowerDiameter.toFixed(2)} mm locator face on the bed.` : `The adapter STL is pre-oriented with its Ø${ADAPTER_STANDARD.upperDiameter.toFixed(2)} mm logo face on the print bed and its Ø${ADAPTER_STANDARD.lowerDiameter.toFixed(2)} mm side facing upward.`} Verify fit with a small test print before production.\n`);
       const archive = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
       downloadBlob(archive, `${slugify(designName)}-print-pack.zip`);
       disposeObject(solidAssembly);
