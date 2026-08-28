@@ -238,6 +238,9 @@ body.studio-panel-resizing { cursor: col-resize; user-select: none; }
 .tripo-remember b, .tripo-remember small { display: block; }
 .tripo-remember small { margin-top: 2px; color: var(--fg-muted); font-size: 8px; font-weight: 600; }
 .tripo-cost-note { grid-column: 1 / -1; margin: -1px 0 0; padding: 9px 10px; border-radius: 8px; color: var(--fg-muted); background: var(--primary-50); font-size: 8px; line-height: 1.45; }
+.tripo-bridge-note { grid-column: 1 / -1; margin: -1px 0 0; padding: 9px 10px; border: 1px solid #e8ddb8; border-radius: 8px; color: #74612b; background: #fffaf0; font-size: 8px; line-height: 1.45; }
+.tripo-bridge-note b { color: #66521c; }
+.tripo-bridge-note code { padding: 1px 4px; border-radius: 4px; color: var(--primary-800); background: white; font: 700 1em/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; }
 .tripo-cost-note b { color: var(--fg-secondary); }
 .tripo-cost-note a { color: var(--primary-700); font-weight: 800; text-decoration: none; }
 .tripo-cost-note a:hover { text-decoration: underline; }
@@ -636,7 +639,7 @@ body.studio-panel-resizing { cursor: col-resize; user-select: none; }
 .ai-kicker { font-size: 12px; letter-spacing: .11em; }
 .ai-generator-tabs button, .tripo-settings label > span { font-size: 13px; }
 .tripo-settings input, .tripo-settings select { min-height: 48px; font-size: 16px; }
-.tripo-settings .tripo-remember > span, .tripo-remember small, .tripo-cost-note { font-size: 13px; }
+.tripo-settings .tripo-remember > span, .tripo-remember small, .tripo-bridge-note, .tripo-cost-note { font-size: 13px; }
 .ai-modal-heading p { font-size: 15px; }
 .ai-modal-heading small { font-size: 13px; }
 .ai-examples button { min-height: 72px; font-size: 14px; line-height: 1.5; }

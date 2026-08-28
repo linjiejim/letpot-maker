@@ -57,9 +57,11 @@ import {
   generateTripoMesh,
   parseTripoGlb,
   TRIPO_MODEL_OPTIONS,
+  TRIPO_REGION_OPTIONS,
   tripoErrorMessage,
   type ParsedTripoMesh,
   type TripoModelVersion,
+  type TripoRegion,
 } from "../lib/tripo-mesh";
 
 type ViewName = "orbit" | "front" | "top";
@@ -275,7 +277,7 @@ const AI_CREATION_STEPS = [
 ];
 
 const TRIPO_CREATION_STEPS = [
-  "Sending directly to Tripo",
+  "Sending through the local device bridge",
   "Generating the neural mesh",
   "Checking the printable silhouette",
   "Downloading the short-lived GLB",
@@ -365,6 +367,7 @@ function AiGenerateModal({ open, onClose, onGenerated, onMeshGenerated }: {
   const [tripoApiKey, setTripoApiKey] = useState("");
   const [rememberTripoKey, setRememberTripoKey] = useState(false);
   const [tripoModel, setTripoModel] = useState<TripoModelVersion>(TRIPO_MODEL_OPTIONS[0].id);
+  const [tripoRegion, setTripoRegion] = useState<TripoRegion>("global");
   const [tripoProgress, setTripoProgress] = useState(0);
   const [phase, setPhase] = useState<"idle" | "creating" | "success" | "error">("idle");
   const [step, setStep] = useState(0);
@@ -506,6 +509,7 @@ function AiGenerateModal({ open, onClose, onGenerated, onMeshGenerated }: {
           apiKey: tripoApiKey,
           prompt: cleanPrompt,
           modelVersion: tripoModel,
+          region: tripoRegion,
           signal: controller.signal,
           onProgress: (progress) => {
             setTripoProgress(progress);
@@ -584,7 +588,7 @@ function AiGenerateModal({ open, onClose, onGenerated, onMeshGenerated }: {
             </div>
             <p>{phase === "success" ? "MODEL READY" : generator === "tripo" ? "TRIPO · DIRECT MESH" : "AI · CREATING"}</p>
             <h2 id="ai-modal-title">{phase === "success" ? "Your idea is taking shape" : creationSteps[step]}</h2>
-            <span>{phase === "success" ? "Opening the new 3D design…" : generator === "tripo" ? `${tripoProgress}% · Browser → Tripo → local cache` : "Building within proven print-safe limits"}</span>
+            <span>{phase === "success" ? "Opening the new 3D design…" : generator === "tripo" ? `${tripoProgress}% · Browser → local bridge → Tripo → local cache` : "Building within proven print-safe limits"}</span>
             <div className="ai-progress"><i style={{ width: phase === "success" ? "100%" : `${progressWidth}%` }} /></div>
           </div>
         ) : (
@@ -597,7 +601,7 @@ function AiGenerateModal({ open, onClose, onGenerated, onMeshGenerated }: {
               <span className="ai-kicker">{generator === "tripo" ? "◈ CLIENT-SIDE MESH" : "✦ AI ASSISTED"}</span>
               <h2 id="ai-modal-title">{generator === "tripo" ? "Generate a neural 3D mesh" : "Generate a printable idea"}</h2>
               <p>{generator === "tripo"
-                ? "Use your own Tripo API key to generate an untextured GLB. The browser calls Tripo directly, then adds the same locked LetPot adapter, socket and connector used by standard designs."
+                ? "Use your own Tripo API key to generate an untextured GLB through a loopback-only helper on this device, then add the same locked LetPot adapter, socket and connector used by standard designs."
                 : "The configured AI turns your description into a bounded 3D shape program. It can compose new objects and characters while the solid pipeline locks the adapter, size, connections and print limits."}</p>
               <small>{generator === "tripo" ? "Typically 1–5 minutes · billed by Tripo" : "Usually 10–25 seconds"}</small>
             </div>
@@ -607,7 +611,9 @@ function AiGenerateModal({ open, onClose, onGenerated, onMeshGenerated }: {
             {generator === "tripo" && <div className="tripo-settings">
               <label><span>Tripo API key</span><input type="password" aria-label="Tripo API key" autoComplete="off" spellCheck={false} maxLength={256} value={tripoApiKey} onChange={(event) => updateTripoApiKey(event.target.value)} placeholder="tsk_…" /></label>
               <label><span>Model</span><select aria-label="Tripo model version" value={tripoModel} onChange={(event) => setTripoModel(event.target.value as TripoModelVersion)}>{TRIPO_MODEL_OPTIONS.map((model) => <option key={model.id} value={model.id}>{model.label}</option>)}</select></label>
+              <label><span>API region</span><select aria-label="Tripo API region" value={tripoRegion} onChange={(event) => setTripoRegion(event.target.value as TripoRegion)}>{TRIPO_REGION_OPTIONS.map((region) => <option key={region.id} value={region.id}>{region.label}</option>)}</select></label>
               <label className="tripo-remember"><input type="checkbox" aria-label="Remember Tripo API key in this browser" checked={rememberTripoKey} onChange={(event) => updateTripoKeyPersistence(event.target.checked)} /><span><b>Remember Key in this browser</b><small>Optional · stored only for this site until you turn this off.</small></span></label>
+              <p className="tripo-bridge-note"><b>Local helper required:</b> run <code>npm run tripo:bridge</code> on this device. It binds only to 127.0.0.1, keeps no Key or model history, and handles Tripo&apos;s browser CORS restriction.</p>
               <p className="tripo-cost-note"><b>Mesh-only billing:</b> v3.1 uses 10 credits; P1 uses 30. This flow keeps texture/PBR off, so it does not add Tripo&apos;s +10 standard, +20 detailed, or +30 extreme texture credits. <a href="https://platform.tripo3d.ai/docs/billing" target="_blank" rel="noreferrer">Current pricing ↗</a></p>
             </div>}
             <label className="ai-prompt-field">
@@ -618,7 +624,7 @@ function AiGenerateModal({ open, onClose, onGenerated, onMeshGenerated }: {
               </div>
             </label>
             {error && <p className="ai-error" role="alert">{error}</p>}
-            <div className="ai-safety-note"><i>✓</i><span>{generator === "tripo" ? <><b>Never uploaded to the LetPot Maker server</b>The Key goes directly from this browser to Tripo only. By default it stays in memory; optional “Remember” stores it in this browser&apos;s local site storage. The GLB stays in local IndexedDB. Browser storage is not encrypted, so use a dedicated revocable Key with a credit cap. <a href="https://platform.tripo3d.ai/api-keys" target="_blank" rel="noreferrer">Manage Tripo API keys ↗</a></> : <><b>Bounded geometry, locally organized</b>Your description is sent to the configured AI provider to create an allowlisted shape program—never executable mesh code. The finished recipe is cached in Mine on this device.</>}</span></div>
+            <div className="ai-safety-note"><i>✓</i><span>{generator === "tripo" ? <><b>Never uploaded to the LetPot Maker server</b>The Key travels only browser → this device&apos;s loopback bridge → the selected Tripo region. The bridge holds request data in memory and stores nothing. By default the browser clears the Key on close; optional “Remember” uses this site&apos;s local storage. The GLB stays in local IndexedDB. <a href="https://platform.tripo3d.ai/api-keys" target="_blank" rel="noreferrer">Manage Tripo API keys ↗</a></> : <><b>Bounded geometry, locally organized</b>Your description is sent to the configured AI provider to create an allowlisted shape program—never executable mesh code. The finished recipe is cached in Mine on this device.</>}</span></div>
           </form>
         )}
       </section>
@@ -1314,7 +1320,7 @@ export function Studio() {
           </div>
           <ModelViewport build={build} view={view} />
           <div className="dimension-summary" aria-label="Model dimensions">
-            <span>MODEL SIZE</span><b>W {build.measurements.width.toFixed(1)} × H {build.measurements.height.toFixed(1)} mm</b>
+            <span>TOPPER / ASSEMBLY</span><b>W {build.measurements.topperWidth.toFixed(1)} × H {build.measurements.topperHeight.toFixed(1)} / {build.measurements.width.toFixed(1)} × {build.measurements.height.toFixed(1)} mm</b>
           </div>
           {message && <div className="stage-toast" role="status" aria-live="polite">{message}</div>}
         </section>
@@ -1342,9 +1348,10 @@ export function Studio() {
           </div>
           <div className="inspector-content">
             <section className="inspector-section">
-              <div className="section-heading"><div><p>SHAPE</p><span>Overall printable envelope</span></div></div>
+              <div className="section-heading"><div><p>SHAPE</p><span>Maximum upper-shape envelope</span></div></div>
               <Slider label="Topper height" value={options.topperHeight} min={TOPPER_SIZE_LIMITS.height.min} max={TOPPER_SIZE_LIMITS.height.max} step={TOPPER_SIZE_LIMITS.step} onChange={(value) => update("topperHeight", value)} />
               <Slider label="Topper width" value={options.topperWidth} min={TOPPER_SIZE_LIMITS.width.min} max={TOPPER_SIZE_LIMITS.width.max} step={TOPPER_SIZE_LIMITS.step} onChange={(value) => update("topperWidth", value)} />
+              <p className="parameter-note">The upper artwork is centered and fitted inside this fixed envelope. Signature controls can change its form, but cannot push it beyond the selected width or height.</p>
             </section>
 
             <section className="inspector-section connection-section">
@@ -1384,7 +1391,7 @@ export function Studio() {
                   onChange={(value) => updateShape(parameter.key, value)}
                 />
               ))}
-              <p className="parameter-note">Ranges preserve the minimum printable feature size and all required part intersections.</p>
+              <p className="parameter-note">Ranges preserve the minimum printable feature size and required intersections while the fixed topper envelope remains the outer limit.</p>
             </section>}
 
             <section className="inspector-section appearance-section">

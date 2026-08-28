@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import {
   createModel,
   DEFAULT_OPTIONS,
@@ -35,6 +36,14 @@ for (const definition of MODEL_LIBRARY.filter((item) => item.parameters?.length)
     });
 
     try {
+      assert.ok(
+        build.measurements.topperWidth <= definition.defaults.topperWidth + 0.1,
+        `${definition.name} ${variant.name} exceeded the fixed topper width envelope`,
+      );
+      assert.ok(
+        build.measurements.topperHeight <= definition.defaults.topperHeight + 0.1,
+        `${definition.name} ${variant.name} exceeded the fixed topper height envelope`,
+      );
       for (const part of build.parts) {
         const solid = await solidifyObject(wasm, part.object, { flipZ: part.printFlipZ });
         disposeObject(solid);

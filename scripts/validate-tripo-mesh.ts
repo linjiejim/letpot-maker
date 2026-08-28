@@ -58,6 +58,8 @@ for (const connectionMode of ["detachable", "integrated"] satisfies ModelOptions
     assert.equal(build.parts.length, connectionMode === "integrated" ? 1 : 3);
     assert.ok(build.measurements.height >= TOPPER_SIZE_LIMITS.height.max);
     assert.ok(build.measurements.width >= TOPPER_SIZE_LIMITS.width.max);
+    assert.ok(build.measurements.topperHeight <= TOPPER_SIZE_LIMITS.height.max + 0.1);
+    assert.ok(build.measurements.topperWidth <= TOPPER_SIZE_LIMITS.width.max + 0.1);
     for (const part of build.parts) {
       solids.push(await solidifyObject(wasm, part.object, { flipZ: part.printFlipZ }));
     }

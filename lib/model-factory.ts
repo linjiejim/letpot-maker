@@ -117,6 +117,8 @@ export interface ModelBuild {
   measurements: {
     width: number;
     height: number;
+    topperWidth: number;
+    topperHeight: number;
     lowerDiameter: number;
     upperDiameter: number;
   };
@@ -1076,6 +1078,42 @@ function prepareTopper(options: ModelOptions, color = options.primaryColor) {
   return group;
 }
 
+const STANDARD_TOPPER_CHILDREN = new Set([
+  "embedded_topper_connector_core",
+  "embedded_topper_pin_socket_cutter",
+]);
+
+function constrainTopperArtwork(topper: THREE.Group, options: ModelOptions) {
+  const artisticChildren = topper.children.filter((child) => !STANDARD_TOPPER_CHILDREN.has(child.name));
+  if (!artisticChildren.length) return topper;
+
+  const artwork = new THREE.Group();
+  artwork.name = "topper_artwork_envelope";
+  artwork.userData.topperArtworkRoot = true;
+  artisticChildren.forEach((child) => artwork.add(child));
+  topper.add(artwork);
+  artwork.updateMatrixWorld(true);
+
+  const bounds = new THREE.Box3().setFromObject(artwork);
+  if (bounds.isEmpty()) return topper;
+  const size = bounds.getSize(new THREE.Vector3());
+  const center = bounds.getCenter(new THREE.Vector3());
+  const lateralScale = Math.min(1, options.topperWidth / Math.max(size.x, size.z, 0.001));
+  const verticalScale = Math.min(1, options.topperHeight / Math.max(size.y, 0.001));
+  artwork.scale.set(lateralScale, verticalScale, lateralScale);
+  artwork.position.set(
+    -center.x * lateralScale,
+    bounds.min.y * (1 - verticalScale),
+    -center.z * lateralScale,
+  );
+  artwork.updateMatrixWorld(true);
+  topper.userData.requestedTopperEnvelope = {
+    width: options.topperWidth,
+    height: options.topperHeight,
+  };
+  return topper;
+}
+
 function buildExternalMeshTopper(options: ModelOptions, source: THREE.Object3D) {
   const topper = prepareTopper(options);
   topper.name = "tripo_mesh_topper";
@@ -1122,7 +1160,7 @@ function buildExternalMeshTopper(options: ModelOptions, source: THREE.Object3D) 
   support.userData.aiColorRole = "primary";
   topper.add(support, sculpture);
   topper.userData.externalMeshSource = "tripo";
-  return topper;
+  return constrainTopperArtwork(topper, options);
 }
 
 function buildIntegratedBaseJoint(options: ModelOptions) {
@@ -1532,7 +1570,7 @@ function buildAiSculpture(options: ModelOptions, program: AiShapeProgram) {
   sculpture.position.y = ADAPTER_STANDARD.totalHeight - 0.05 - additiveBounds.min.y * verticalScale;
   topper.add(sculpture);
   topper.userData.aiShapeProgram = program;
-  return topper;
+  return constrainTopperArtwork(topper, options);
 }
 
 function leafBladeGeometry(length: number, width: number, thickness: number) {
@@ -3383,7 +3421,10 @@ function buildMushroom(options: ModelOptions) {
   stemGroup.name = "mushroom_stem";
   const sx = options.topperWidth / 32;
   const sy = options.topperHeight / 34;
-  const capDiameter = shapeValue(options, "capDiameter", 1);
+  // The outer cap may vary inside the requested topper envelope, but its
+  // central press-fit socket must never be rescaled with that decorative
+  // variation. Cap the outer-only factor instead of scaling the whole part.
+  const capDiameter = Math.min(shapeValue(options, "capDiameter", 1), 32 / 27.6);
   const capDome = shapeValue(options, "capDome", 1);
   const stemThickness = shapeValue(options, "stemThickness", 1);
   const gillCount = Math.round(shapeValue(options, "gillCount", 12));
@@ -3420,6 +3461,7 @@ function buildMushroom(options: ModelOptions) {
 
   const capGroup = new THREE.Group();
   capGroup.name = "mushroom_cap";
+  capGroup.userData.topperArtworkRoot = true;
   capGroup.position.y = topY;
   capGroup.scale.set(sx, sy, sx);
   const capProfile = [
@@ -3503,6 +3545,7 @@ export function createModel(options: ModelOptions): ModelBuild {
     }
   } else if (options.modelId === "mushroom") {
     const { stemGroup, capGroup } = buildMushroom(options);
+    constrainTopperArtwork(stemGroup, options);
     if (integrated) {
       const widthScale = options.topperWidth / 32;
       const heightScale = options.topperHeight / 34;
@@ -3532,6 +3575,8 @@ export function createModel(options: ModelOptions): ModelBuild {
     }
   } else if (options.modelId === "clover") {
     const { pinGroup, trunkGroup, crownGroup } = buildCloverKit(options);
+    trunkGroup.userData.topperArtworkRoot = true;
+    crownGroup.userData.topperArtworkRoot = true;
     if (integrated) {
       const stemTop = 16.8 * (options.topperHeight / 33);
       const crownBase = ADAPTER_STANDARD.totalHeight + stemTop;
@@ -3591,7 +3636,7 @@ export function createModel(options: ModelOptions): ModelBuild {
       "candy-cane": buildCandyCane,
       "christmas-bell": buildChristmasBell,
     };
-    const topper = builders[options.modelId](options);
+    const topper = constrainTopperArtwork(builders[options.modelId](options), options);
     if (integrated) {
       printableRoot.add(buildIntegratedBaseJoint(options), topper);
     } else {
@@ -3628,12 +3673,21 @@ export function createModel(options: ModelOptions): ModelBuild {
   assembly.updateMatrixWorld(true);
   const bounds = new THREE.Box3().setFromObject(assembly);
   const size = bounds.getSize(new THREE.Vector3());
+  const artworkBounds = new THREE.Box3();
+  assembly.traverse((child) => {
+    if (child.userData.topperArtworkRoot === true) artworkBounds.expandByObject(child);
+  });
+  const artworkSize = artworkBounds.isEmpty()
+    ? new THREE.Vector3(options.topperWidth, options.topperHeight, options.topperWidth)
+    : artworkBounds.getSize(new THREE.Vector3());
   return {
     assembly,
     parts,
     measurements: {
       width: Number(Math.max(size.x, size.z).toFixed(1)),
       height: Number(size.y.toFixed(1)),
+      topperWidth: Number(Math.max(artworkSize.x, artworkSize.z).toFixed(1)),
+      topperHeight: Number(artworkSize.y.toFixed(1)),
       lowerDiameter: ADAPTER_STANDARD.lowerDiameter,
       upperDiameter: ADAPTER_STANDARD.upperDiameter,
     },

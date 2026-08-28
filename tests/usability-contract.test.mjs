@@ -21,6 +21,8 @@ test("Tripo BYOK is opt-in for browser persistence and visibly bypasses the app 
   assert.match(studio, /Remember Key in this browser/);
   assert.match(studio, /TRIPO_API_KEY_STORAGE_KEY/);
   assert.match(studio, /Never uploaded to the LetPot Maker server/);
+  assert.match(studio, /Browser → local bridge → Tripo → local cache/);
+  assert.match(studio, /npm run tripo:bridge/);
   assert.match(studio, /texture\/PBR off/);
 });
 

@@ -1,14 +1,18 @@
-import { ModelVersion, TripoClient, type Task } from "@vastai/tripo-sdk";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import {
+  buildTripoPrompt,
+  TRIPO_MODEL_OPTIONS,
+  TRIPO_REGION_OPTIONS,
+  validateTripoApiKey,
+  type TripoModelVersion,
+  type TripoRegion,
+} from "./tripo-protocol";
 
-export const TRIPO_BASE_URL = "https://openapi.tripo3d.ai/v3";
-export const TRIPO_MODEL_OPTIONS = [
-  { id: ModelVersion.H3_1, label: "Tripo v3.1 · 10 credits", meshCredits: 10 },
-  { id: ModelVersion.P1, label: "Tripo P1 · 30 credits", meshCredits: 30 },
-] as const;
+export { buildTripoPrompt, TRIPO_MODEL_OPTIONS, TRIPO_REGION_OPTIONS, validateTripoApiKey };
+export type { TripoModelVersion, TripoRegion };
 
-export type TripoModelVersion = typeof TRIPO_MODEL_OPTIONS[number]["id"];
+export const TRIPO_LOCAL_BRIDGE_URL = "http://127.0.0.1:4318";
 
 export interface TripoGenerationResult {
   taskId: string;
@@ -23,31 +27,7 @@ export interface ParsedTripoMesh {
   faceCount: number;
 }
 
-const PRINTABLE_PROMPT_SUFFIX = [
-  "Design this as a compact FDM-printable hydroponic pod topper.",
-  "Use one connected watertight solid with a sturdy centered flat base, no floating pieces, no text, and no thin fragile details.",
-  "Keep the object upright and centered; the mounting socket and adapter will be added separately.",
-].join(" ");
-
 const TERMINAL_ERROR_MESSAGE = "Tripo could not generate this mesh. Try a simpler printable shape.";
-
-function cleanText(value: string, maxLength: number) {
-  return value.replace(/[^\x20-\x7e\u00c0-\uffff]/g, " ").replace(/\s+/g, " ").trim().slice(0, maxLength);
-}
-
-export function buildTripoPrompt(prompt: string) {
-  const clean = cleanText(prompt, 640);
-  if (clean.length < 3) throw new Error("Describe the mesh with at least three characters.");
-  return `${clean}. ${PRINTABLE_PROMPT_SUFFIX}`.slice(0, 1024);
-}
-
-export function validateTripoApiKey(apiKey: string) {
-  const clean = apiKey.trim();
-  if (!/^tsk_[A-Za-z0-9_-]{8,}$/.test(clean)) {
-    throw new Error("Enter a valid Tripo API key beginning with tsk_.");
-  }
-  return clean;
-}
 
 export function tripoErrorMessage(error: unknown) {
   if (!(error instanceof Error)) return TERMINAL_ERROR_MESSAGE;
@@ -57,54 +37,114 @@ export function tripoErrorMessage(error: unknown) {
   if (/402|balance|credit|payment/i.test(error.message)) return "The Tripo account does not have enough API credits for this generation.";
   if (/429|limit|busy|rate/i.test(error.message)) return "Tripo is rate-limiting this key. Wait briefly and try again.";
   if (/timeout/i.test(error.message)) return "Tripo generation timed out before the mesh was ready. Try again.";
-  if (/network|fetch|cors/i.test(error.message)) return "The browser could not reach Tripo directly. Check the network and Tripo API access for this key.";
+  if (/local bridge/i.test(error.message)) return error.message;
+  if (/network|fetch|cors/i.test(error.message)) return "The local Tripo bridge could not reach Tripo. Check this device's network or proxy.";
   return TERMINAL_ERROR_MESSAGE;
+}
+
+type BridgeTaskStatus = {
+  taskId: string;
+  status: "queued" | "running" | "success" | "failed" | "cancelled" | "banned" | "expired" | "unknown";
+  progress: number;
+  error?: string;
+};
+
+async function bridgeJson<T>(path: string, body: object, signal?: AbortSignal): Promise<T> {
+  let response: Response;
+  try {
+    response = await fetch(`${TRIPO_LOCAL_BRIDGE_URL}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      cache: "no-store",
+      signal,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") throw error;
+    throw new Error("Local Tripo bridge is not running. Start `npm run tripo:bridge` on this device, then try again.");
+  }
+  const result = await response.json().catch(() => ({})) as { error?: string } & T;
+  if (!response.ok) throw new Error(result.error || `Local Tripo bridge returned HTTP ${response.status}.`);
+  return result;
+}
+
+function wait(ms: number, signal?: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    const finish = () => {
+      signal?.removeEventListener("abort", abort);
+      resolve();
+    };
+    const timer = window.setTimeout(finish, ms);
+    const abort = () => {
+      window.clearTimeout(timer);
+      signal?.removeEventListener("abort", abort);
+      reject(new DOMException("Generation cancelled", "AbortError"));
+    };
+    signal?.addEventListener("abort", abort, { once: true });
+  });
 }
 
 export async function generateTripoMesh({
   apiKey,
   prompt,
   modelVersion,
+  region,
   signal,
   onProgress,
 }: {
   apiKey: string;
   prompt: string;
   modelVersion: TripoModelVersion;
+  region: TripoRegion;
   signal?: AbortSignal;
-  onProgress?: (progress: number, task: Task) => void;
+  onProgress?: (progress: number) => void;
 }): Promise<TripoGenerationResult> {
-  const client = new TripoClient({
-    apiKey: validateTripoApiKey(apiKey),
-    baseUrl: TRIPO_BASE_URL,
-    retries: 1,
-    timeoutMs: 60_000,
-  });
-  const taskId = await client.textToModel({
-    prompt: buildTripoPrompt(prompt),
-    model: modelVersion,
-    face_limit: 10_000,
-    texture: false,
-    pbr: false,
-    quad: false,
-    generate_parts: false,
-  });
+  const request = { apiKey: validateTripoApiKey(apiKey), region };
+  const created = await bridgeJson<{ taskId: string }>("/v1/tasks", {
+    ...request,
+    prompt,
+    modelVersion,
+  }, signal);
+  const taskId = created.taskId;
   if (!taskId) throw new Error("Tripo returned no task identifier.");
 
-  const task = await client.waitForTask(taskId, {
-    pollingIntervalMs: 2_000,
-    timeoutMs: 10 * 60_000,
-    signal,
-    onProgress: (snapshot) => onProgress?.(Math.max(0, Math.min(100, snapshot.progress ?? 0)), snapshot),
-  });
-  const downloaded = await client.downloadModel(task);
-  if (!downloaded?.data.byteLength) throw new Error("Tripo returned no downloadable mesh.");
-  if (downloaded.data.byteLength > 40 * 1024 * 1024) throw new Error("The generated GLB exceeds the 40 MB local mesh limit.");
+  const startedAt = Date.now();
+  for (;;) {
+    const task = await bridgeJson<BridgeTaskStatus>("/v1/tasks/status", { ...request, taskId }, signal);
+    onProgress?.(Math.max(0, Math.min(100, task.progress)));
+    if (task.status === "success") break;
+    if (["failed", "cancelled", "banned", "expired"].includes(task.status)) {
+      throw new Error(task.error || `Tripo task ended with status ${task.status}.`);
+    }
+    if (Date.now() - startedAt > 10 * 60_000) throw new Error("Tripo generation timed out before the mesh was ready.");
+    await wait(2_000, signal);
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(`${TRIPO_LOCAL_BRIDGE_URL}/v1/tasks/download`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...request, taskId }),
+      cache: "no-store",
+      signal,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") throw error;
+    throw new Error("Local Tripo bridge disconnected before the GLB download finished.");
+  }
+  if (!response.ok) {
+    const result = await response.json().catch(() => ({})) as { error?: string };
+    throw new Error(result.error || `Local Tripo bridge returned HTTP ${response.status}.`);
+  }
+  const data = await response.arrayBuffer();
+  if (!data.byteLength) throw new Error("Tripo returned no downloadable mesh.");
+  if (data.byteLength > 40 * 1024 * 1024) throw new Error("The generated GLB exceeds the 40 MB local mesh limit.");
   return {
     taskId,
     modelVersion,
-    data: downloaded.data,
-    contentType: downloaded.contentType || "model/gltf-binary",
+    data,
+    contentType: response.headers.get("Content-Type") || "model/gltf-binary",
   };
 }
 
