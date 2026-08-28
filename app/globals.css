@@ -211,7 +211,7 @@ body.studio-panel-resizing { cursor: col-resize; user-select: none; }
 .audit-list li::before { content: "✓"; position: absolute; left: 0; color: var(--primary-600); font-weight: 800; }
 
 .ai-modal-backdrop { position: fixed; z-index: 100; inset: 0; display: grid; place-items: center; padding: 24px; background: rgba(17,34,22,.38); backdrop-filter: blur(10px); animation: ai-fade-in .18s ease-out; }
-.ai-modal { position: relative; width: min(610px, calc(100vw - 32px)); min-height: 438px; overflow: hidden; border: 1px solid rgba(199,216,195,.95); border-radius: var(--radius-lg); color: var(--fg); background: rgba(255,255,252,.98); box-shadow: var(--shadow-lg); }
+.ai-modal { position: relative; width: min(610px, calc(100vw - 32px)); min-height: 438px; max-height: calc(100dvh - 48px); overflow-x: hidden; overflow-y: auto; border: 1px solid rgba(199,216,195,.95); border-radius: var(--radius-lg); color: var(--fg); background: rgba(255,255,252,.98); box-shadow: var(--shadow-lg); }
 .ai-modal::before { content: ""; position: absolute; width: 280px; height: 280px; top: -190px; left: -90px; border-radius: 50%; background: radial-gradient(circle, rgba(166,207,157,.34), transparent 68%); pointer-events: none; }
 .ai-close { position: absolute; z-index: 3; top: 17px; right: 17px; width: 31px; height: 31px; display: grid; place-items: center; border: 1px solid var(--edge); border-radius: 50%; color: var(--fg-muted); background: rgba(255,255,255,.8); font-size: 18px; line-height: 1; cursor: pointer; }
 .ai-close:hover { border-color: var(--primary-300); color: var(--primary-800); background: var(--primary-50); }
@@ -232,6 +232,15 @@ body.studio-panel-resizing { cursor: col-resize; user-select: none; }
 .tripo-settings label > span { display: block; margin-bottom: 7px; color: var(--fg-secondary); font-size: 9px; font-weight: 800; }
 .tripo-settings input, .tripo-settings select { width: 100%; min-height: 42px; padding: 0 11px; border: 1px solid var(--edge-strong); border-radius: 9px; outline: 0; color: var(--fg); background: white; font-size: 11px; }
 .tripo-settings input:focus, .tripo-settings select:focus { border-color: var(--primary-500); box-shadow: 0 0 0 3px var(--primary-100); }
+.tripo-settings .tripo-remember { grid-column: 1 / -1; display: flex; align-items: center; gap: 9px; min-height: 32px; cursor: pointer; }
+.tripo-settings .tripo-remember input[type="checkbox"] { width: 17px; min-height: 17px; flex: 0 0 17px; margin: 0; padding: 0; accent-color: var(--primary-700); }
+.tripo-settings .tripo-remember > span { margin: 0; color: var(--fg-secondary); font-size: 9px; line-height: 1.25; }
+.tripo-remember b, .tripo-remember small { display: block; }
+.tripo-remember small { margin-top: 2px; color: var(--fg-muted); font-size: 8px; font-weight: 600; }
+.tripo-cost-note { grid-column: 1 / -1; margin: -1px 0 0; padding: 9px 10px; border-radius: 8px; color: var(--fg-muted); background: var(--primary-50); font-size: 8px; line-height: 1.45; }
+.tripo-cost-note b { color: var(--fg-secondary); }
+.tripo-cost-note a { color: var(--primary-700); font-weight: 800; text-decoration: none; }
+.tripo-cost-note a:hover { text-decoration: underline; }
 .ai-prompt-field > span { display: block; margin-bottom: 8px; color: var(--fg-secondary); font-size: 9px; font-weight: 800; }
 .ai-prompt-field > div { display: flex; gap: 7px; padding: 6px; border: 1px solid var(--edge-strong); border-radius: 12px; background: white; box-shadow: 0 8px 25px rgba(31,63,32,.06); transition: border-color .15s, box-shadow .15s; }
 .ai-prompt-field > div:focus-within { border-color: var(--primary-500); box-shadow: 0 0 0 3px var(--primary-100), 0 8px 25px rgba(31,63,32,.06); }
@@ -627,6 +636,7 @@ body.studio-panel-resizing { cursor: col-resize; user-select: none; }
 .ai-kicker { font-size: 12px; letter-spacing: .11em; }
 .ai-generator-tabs button, .tripo-settings label > span { font-size: 13px; }
 .tripo-settings input, .tripo-settings select { min-height: 48px; font-size: 16px; }
+.tripo-settings .tripo-remember > span, .tripo-remember small, .tripo-cost-note { font-size: 13px; }
 .ai-modal-heading p { font-size: 15px; }
 .ai-modal-heading small { font-size: 13px; }
 .ai-examples button { min-height: 72px; font-size: 14px; line-height: 1.5; }

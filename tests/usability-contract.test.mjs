@@ -17,6 +17,13 @@ test("Studio dialog traps and restores keyboard focus", () => {
   assert.match(studio, /aria-haspopup="dialog"/);
 });
 
+test("Tripo BYOK is opt-in for browser persistence and visibly bypasses the app server", () => {
+  assert.match(studio, /Remember Key in this browser/);
+  assert.match(studio, /TRIPO_API_KEY_STORAGE_KEY/);
+  assert.match(studio, /Never uploaded to the LetPot Maker server/);
+  assert.match(studio, /texture\/PBR off/);
+});
+
 test("full-screen tools expose skip links and visible focus styles", () => {
   assert.match(studio, /href="#studio-workspace"/);
   assert.match(podStyler, /href="#pod-styler-workspace"/);

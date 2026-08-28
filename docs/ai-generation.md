@@ -39,12 +39,14 @@ The direct path uses the official `@vastai/tripo-sdk` against `https://openapi.t
 
 Privacy and credential flow are deliberately narrow:
 
-1. The user enters a `tsk_…` key into a password field. It remains only in React memory for the open dialog and is cleared on success or close.
+1. The user enters a `tsk_…` key into a password field. By default it remains only in React memory for the open dialog and is cleared on success or close. An explicit `Remember Key in this browser` checkbox can instead keep it in this origin's localStorage until the user turns the option off.
 2. The official SDK sends the key and printable prompt directly from the browser to Tripo. No request touches `/api/ai-generate` or another LetPot Maker server route.
-3. The expiring result URL is downloaded immediately, parsed as GLB, and stored in IndexedDB with task/model metadata. Neither the key nor remote URL is persisted.
+3. The expiring result URL is downloaded immediately, parsed as GLB, and stored in IndexedDB with task/model metadata. The remote URL is never persisted, and the Key is never stored with the mesh.
 4. Reloading a creation reads the GLB from IndexedDB. Deleting it removes that local binary record.
 
-This is BYOK, not secret isolation: browser JavaScript, extensions, developer tools, and Tripo necessarily see the key while a request runs. Tripo's general guidance recommends backend-held keys. Users choosing direct mode should create a dedicated revocable key, apply a hard credit cap, avoid reusing a production key, and close the dialog after use.
+This is BYOK, not secret isolation: browser JavaScript, extensions, developer tools, and Tripo necessarily see the key while a request runs. Optional localStorage persistence is not encrypted. Tripo's general guidance recommends backend-held keys. Users choosing direct mode should create a dedicated revocable key, apply a hard credit cap, avoid reusing a production key, and leave `Remember` off on shared devices. The Key is sent to Tripo for authentication but is never uploaded to, proxied through, logged by, or stored on the LetPot Maker server.
+
+Current Tripo API billing charges the selected model's base generation plus any requested texture tier. This flow explicitly uses `texture: false` and `pbr: false`, so one v3.1 generation uses 10 credits and one P1 generation uses 30 credits. The unused texture surcharges are +10 credits for standard, +20 for detailed, and +30 for extreme. Tripo freezes credits when a task starts, deducts them on success, and refunds failed or expired tasks according to its [current billing documentation](https://platform.tripo3d.ai/docs/billing). Pricing is provider-controlled and can change; the linked Tripo page is authoritative.
 
 The neural mesh controls only the topper silhouette. `lib/model-factory.ts` rescales it into the 20–80 × 25–100 mm envelope and adds a code-owned transition, connector core, blind hex socket, detachable double-ended pin, and locked Ø33/Ø41 adapter. Integrated mode instead adds the same hidden fused core used by standard components. Export still requires one connected, closed Manifold solid; a visually plausible Tripo result can therefore be rejected until the prompt is simplified or the mesh is repaired.
 

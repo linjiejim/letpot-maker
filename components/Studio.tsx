@@ -284,6 +284,7 @@ const TRIPO_CREATION_STEPS = [
 
 const AI_CREATIONS_STORAGE_KEY = "letpot-maker:ai-creations:v1";
 const LEGACY_AI_CREATIONS_STORAGE_KEY = "letpot-garden-lab:ai-creations:v1";
+const TRIPO_API_KEY_STORAGE_KEY = "letpot-maker:tripo-api-key:v1";
 
 const AI_MANUFACTURING_PROFILE: ManufacturingProfile = {
   status: "Prototype study",
@@ -362,6 +363,7 @@ function AiGenerateModal({ open, onClose, onGenerated, onMeshGenerated }: {
   const [prompt, setPrompt] = useState("");
   const [generator, setGenerator] = useState<"recipe" | "tripo">("recipe");
   const [tripoApiKey, setTripoApiKey] = useState("");
+  const [rememberTripoKey, setRememberTripoKey] = useState(false);
   const [tripoModel, setTripoModel] = useState<TripoModelVersion>(TRIPO_MODEL_OPTIONS[0].id);
   const [tripoProgress, setTripoProgress] = useState(0);
   const [phase, setPhase] = useState<"idle" | "creating" | "success" | "error">("idle");
@@ -378,10 +380,25 @@ function AiGenerateModal({ open, onClose, onGenerated, onMeshGenerated }: {
     setPhase("idle");
     setStep(0);
     setTripoProgress(0);
-    setTripoApiKey("");
+    if (!rememberTripoKey) setTripoApiKey("");
     setError("");
     onClose();
-  }, [onClose]);
+  }, [onClose, rememberTripoKey]);
+
+  useEffect(() => {
+    if (!open) return;
+    const frame = window.requestAnimationFrame(() => {
+      try {
+        const storedKey = window.localStorage.getItem(TRIPO_API_KEY_STORAGE_KEY) ?? "";
+        setTripoApiKey(storedKey.slice(0, 256));
+        setRememberTripoKey(Boolean(storedKey));
+      } catch {
+        setTripoApiKey("");
+        setRememberTripoKey(false);
+      }
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [open]);
 
   useEffect(() => {
     if (!open || phase === "creating" || phase === "success") return;
@@ -438,6 +455,36 @@ function AiGenerateModal({ open, onClose, onGenerated, onMeshGenerated }: {
 
   if (!open) return null;
 
+  const updateTripoApiKey = (nextKey: string) => {
+    setTripoApiKey(nextKey);
+    setError("");
+    if (!rememberTripoKey) return;
+    try {
+      const cleanKey = nextKey.trim();
+      if (cleanKey) window.localStorage.setItem(TRIPO_API_KEY_STORAGE_KEY, cleanKey);
+      else window.localStorage.removeItem(TRIPO_API_KEY_STORAGE_KEY);
+    } catch {
+      setRememberTripoKey(false);
+      setError("This browser blocked local Key storage. The Key will remain in memory only.");
+    }
+  };
+
+  const updateTripoKeyPersistence = (remember: boolean) => {
+    try {
+      if (remember) {
+        const cleanKey = tripoApiKey.trim();
+        if (cleanKey) window.localStorage.setItem(TRIPO_API_KEY_STORAGE_KEY, cleanKey);
+      } else {
+        window.localStorage.removeItem(TRIPO_API_KEY_STORAGE_KEY);
+      }
+      setRememberTripoKey(remember);
+      setError("");
+    } catch {
+      setRememberTripoKey(false);
+      setError("This browser blocked local Key storage. The Key will remain in memory only.");
+    }
+  };
+
   const generate = async (event: FormEvent) => {
     event.preventDefault();
     const cleanPrompt = prompt.replace(/\s+/g, " ").trim();
@@ -488,7 +535,7 @@ function AiGenerateModal({ open, onClose, onGenerated, onMeshGenerated }: {
         const record: LocalTripoMeshRecord = { ...metadata, glb: generated.data };
         await putLocalTripoMesh(record);
         onMeshGenerated(metadata, parsed);
-        setTripoApiKey("");
+        if (!rememberTripoKey) setTripoApiKey("");
         abortRef.current = null;
       } else {
         const response = await fetch("/api/ai-generate", {
@@ -558,8 +605,10 @@ function AiGenerateModal({ open, onClose, onGenerated, onMeshGenerated }: {
               {AI_EXAMPLES.map((example) => <button type="button" key={example} onClick={() => { setPrompt(example); setError(""); setPhase("idle"); }}>{example}</button>)}
             </div>}
             {generator === "tripo" && <div className="tripo-settings">
-              <label><span>Tripo API key</span><input type="password" aria-label="Tripo API key" autoComplete="off" spellCheck={false} value={tripoApiKey} onChange={(event) => { setTripoApiKey(event.target.value); setError(""); }} placeholder="tsk_…" /></label>
+              <label><span>Tripo API key</span><input type="password" aria-label="Tripo API key" autoComplete="off" spellCheck={false} maxLength={256} value={tripoApiKey} onChange={(event) => updateTripoApiKey(event.target.value)} placeholder="tsk_…" /></label>
               <label><span>Model</span><select aria-label="Tripo model version" value={tripoModel} onChange={(event) => setTripoModel(event.target.value as TripoModelVersion)}>{TRIPO_MODEL_OPTIONS.map((model) => <option key={model.id} value={model.id}>{model.label}</option>)}</select></label>
+              <label className="tripo-remember"><input type="checkbox" aria-label="Remember Tripo API key in this browser" checked={rememberTripoKey} onChange={(event) => updateTripoKeyPersistence(event.target.checked)} /><span><b>Remember Key in this browser</b><small>Optional · stored only for this site until you turn this off.</small></span></label>
+              <p className="tripo-cost-note"><b>Mesh-only billing:</b> v3.1 uses 10 credits; P1 uses 30. This flow keeps texture/PBR off, so it does not add Tripo&apos;s +10 standard, +20 detailed, or +30 extreme texture credits. <a href="https://platform.tripo3d.ai/docs/billing" target="_blank" rel="noreferrer">Current pricing ↗</a></p>
             </div>}
             <label className="ai-prompt-field">
               <span>Describe your model</span>
@@ -569,7 +618,7 @@ function AiGenerateModal({ open, onClose, onGenerated, onMeshGenerated }: {
               </div>
             </label>
             {error && <p className="ai-error" role="alert">{error}</p>}
-            <div className="ai-safety-note"><i>✓</i><span>{generator === "tripo" ? <><b>Direct and device-local</b>The Key stays in memory for this dialog and is never stored. Key, prompt and mesh bypass this app&apos;s server; the GLB is downloaded immediately into this browser&apos;s IndexedDB. <a href="https://platform.tripo3d.ai/api-keys" target="_blank" rel="noreferrer">Manage Tripo API keys ↗</a></> : <><b>Bounded geometry, locally organized</b>Your description is sent to the configured AI provider to create an allowlisted shape program—never executable mesh code. The finished recipe is cached in Mine on this device.</>}</span></div>
+            <div className="ai-safety-note"><i>✓</i><span>{generator === "tripo" ? <><b>Never uploaded to the LetPot Maker server</b>The Key goes directly from this browser to Tripo only. By default it stays in memory; optional “Remember” stores it in this browser&apos;s local site storage. The GLB stays in local IndexedDB. Browser storage is not encrypted, so use a dedicated revocable Key with a credit cap. <a href="https://platform.tripo3d.ai/api-keys" target="_blank" rel="noreferrer">Manage Tripo API keys ↗</a></> : <><b>Bounded geometry, locally organized</b>Your description is sent to the configured AI provider to create an allowlisted shape program—never executable mesh code. The finished recipe is cached in Mine on this device.</>}</span></div>
           </form>
         )}
       </section>

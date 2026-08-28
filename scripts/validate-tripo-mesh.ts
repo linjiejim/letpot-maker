@@ -9,10 +9,11 @@ import {
   type ModelOptions,
 } from "../lib/model-factory";
 import { loadNodeManifold, solidifyObject } from "../lib/solidify";
-import { buildTripoPrompt, validateTripoApiKey } from "../lib/tripo-mesh";
+import { buildTripoPrompt, TRIPO_MODEL_OPTIONS, validateTripoApiKey } from "../lib/tripo-mesh";
 
 assert.equal(validateTripoApiKey("  tsk_example-key_12345  "), "tsk_example-key_12345");
 assert.throws(() => validateTripoApiKey("not-a-key"), /tsk_/);
+assert.deepEqual(TRIPO_MODEL_OPTIONS.map(({ meshCredits }) => meshCredits), [10, 30]);
 const providerPrompt = buildTripoPrompt("A friendly low-poly otter");
 assert.match(providerPrompt, /one connected watertight solid/i);
 assert.ok(providerPrompt.length <= 1024);
@@ -68,4 +69,3 @@ for (const connectionMode of ["detachable", "integrated"] satisfies ModelOptions
 
 disposeObject(source);
 console.log("Validated client-side Tripo metadata boundaries and standardized mesh connections in both assembly modes.");
-

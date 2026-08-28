@@ -19,7 +19,7 @@ The project started from a simple gap: small hydroponic accessories are easy to 
 - Generate a direct neural mesh with a user-supplied Tripo key, browser-to-Tripo calls, and device-local GLB caching.
 - Validate model parameters, manifold geometry, printer-bed placement, and production routes.
 
-The bounded AI feature selects or composes allowlisted geometry and never evaluates executable code. A separate opt-in Tripo mode accepts a one-session user key and downloads an untextured GLB directly into browser storage; the application server never receives that key, prompt, or mesh. The core library, Studio, previews, and exports work without either provider.
+The bounded AI feature selects or composes allowlisted geometry and never evaluates executable code. A separate opt-in Tripo mode accepts a user key, keeps it in memory by default with optional browser-local persistence, and downloads an untextured GLB directly into browser storage; the application server never receives that key, prompt, or mesh. The core library, Studio, previews, and exports work without either provider.
 
 ## Technology
 

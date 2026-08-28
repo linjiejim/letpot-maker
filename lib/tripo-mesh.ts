@@ -4,8 +4,8 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 
 export const TRIPO_BASE_URL = "https://openapi.tripo3d.ai/v3";
 export const TRIPO_MODEL_OPTIONS = [
-  { id: ModelVersion.H3_1, label: "Tripo v3.1 · balanced" },
-  { id: ModelVersion.P1, label: "Tripo P1 · latest" },
+  { id: ModelVersion.H3_1, label: "Tripo v3.1 · 10 credits", meshCredits: 10 },
+  { id: ModelVersion.P1, label: "Tripo P1 · 30 credits", meshCredits: 30 },
 ] as const;
 
 export type TripoModelVersion = typeof TRIPO_MODEL_OPTIONS[number]["id"];
