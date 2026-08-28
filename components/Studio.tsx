@@ -27,6 +27,7 @@ import {
   MODEL_LIBRARY,
   MODEL_TAGS,
   STACK_TRIAL_GAPS,
+  TOPPER_SIZE_LIMITS,
   type ModelBuild,
   type ModelId,
   type ModelOptions,
@@ -43,6 +44,25 @@ import {
 } from "../lib/three-mf";
 import { normalizeAiRecipe, type AiDesignRecipe } from "../lib/ai-design";
 import { AI_SCULPTURE_EXAMPLES } from "../lib/ai-shape-examples";
+import {
+  deleteLocalTripoMesh,
+  getLocalTripoMesh,
+  listLocalTripoMeshes,
+  putLocalTripoMesh,
+  TRIPO_MESH_SCHEMA,
+  type LocalTripoMeshMetadata,
+  type LocalTripoMeshRecord,
+} from "../lib/local-mesh-cache";
+import {
+  generateTripoMesh,
+  parseTripoGlb,
+  TRIPO_MODEL_OPTIONS,
+  TRIPO_REGION_OPTIONS,
+  tripoErrorMessage,
+  type ParsedTripoMesh,
+  type TripoModelVersion,
+  type TripoRegion,
+} from "../lib/tripo-mesh";
 
 type ViewName = "orbit" | "front" | "top";
 type PanelName = "library" | "inspector";
@@ -70,6 +90,12 @@ const TAG_LABELS: Record<ModelTag, string> = {
 
 function slugify(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+}
+
+function serializableModelOptions(options: ModelOptions) {
+  const result = { ...options };
+  delete result.externalMesh;
+  return result;
 }
 
 function downloadBlob(blob: Blob, filename: string) {
@@ -250,8 +276,17 @@ const AI_CREATION_STEPS = [
   "Compiling the bounded 3D model",
 ];
 
+const TRIPO_CREATION_STEPS = [
+  "Sending through the local device bridge",
+  "Generating the neural mesh",
+  "Checking the printable silhouette",
+  "Downloading the short-lived GLB",
+  "Saving the mesh on this device",
+];
+
 const AI_CREATIONS_STORAGE_KEY = "letpot-maker:ai-creations:v1";
 const LEGACY_AI_CREATIONS_STORAGE_KEY = "letpot-garden-lab:ai-creations:v1";
+const TRIPO_API_KEY_STORAGE_KEY = "letpot-maker:tripo-api-key:v1";
 
 const AI_MANUFACTURING_PROFILE: ManufacturingProfile = {
   status: "Prototype study",
@@ -268,6 +303,21 @@ const AI_MANUFACTURING_PROFILE: ManufacturingProfile = {
   ],
 };
 
+const TRIPO_MANUFACTURING_PROFILE: ManufacturingProfile = {
+  status: "Prototype study",
+  orientation: "Mesh upright · standardized connection mode selected in Studio",
+  supportStrategy: "Automatic snug support; inspect every island and overhang",
+  minWall: 1.2,
+  minFeature: 1.2,
+  batchMode: "Single prototype first",
+  stackMode: "Adapter stack only",
+  details: [
+    "The adapter, connector pin, socket core and mesh transition are code-owned standard components",
+    "The downloaded neural mesh is scaled and cached only in this browser",
+    "Export validates the mesh through Manifold; reject or simplify any non-watertight result",
+  ],
+};
+
 type LocalAiCreation = {
   id: string;
   createdAt: string;
@@ -276,6 +326,8 @@ type LocalAiCreation = {
 };
 
 type ActiveAiDesign = AiDesignRecipe & { prompt: string; localId: string };
+
+type ActiveTripoDesign = LocalTripoMeshMetadata;
 
 function readLocalCreations(): LocalAiCreation[] {
   try {
@@ -304,25 +356,52 @@ function readLocalCreations(): LocalAiCreation[] {
   }
 }
 
-function AiGenerateModal({ open, onClose, onGenerated }: {
+function AiGenerateModal({ open, onClose, onGenerated, onMeshGenerated }: {
   open: boolean;
   onClose: () => void;
   onGenerated: (recipe: AiDesignRecipe, prompt: string) => void;
+  onMeshGenerated: (metadata: LocalTripoMeshMetadata, parsed: ParsedTripoMesh) => void;
 }) {
   const [prompt, setPrompt] = useState("");
+  const [generator, setGenerator] = useState<"recipe" | "tripo">("recipe");
+  const [tripoApiKey, setTripoApiKey] = useState("");
+  const [rememberTripoKey, setRememberTripoKey] = useState(false);
+  const [tripoModel, setTripoModel] = useState<TripoModelVersion>(TRIPO_MODEL_OPTIONS[0].id);
+  const [tripoRegion, setTripoRegion] = useState<TripoRegion>("global");
+  const [tripoProgress, setTripoProgress] = useState(0);
   const [phase, setPhase] = useState<"idle" | "creating" | "success" | "error">("idle");
   const [step, setStep] = useState(0);
   const [error, setError] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const dialogRef = useRef<HTMLElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   const closeModal = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
     setPhase("idle");
     setStep(0);
+    setTripoProgress(0);
+    if (!rememberTripoKey) setTripoApiKey("");
     setError("");
     onClose();
-  }, [onClose]);
+  }, [onClose, rememberTripoKey]);
+
+  useEffect(() => {
+    if (!open) return;
+    const frame = window.requestAnimationFrame(() => {
+      try {
+        const storedKey = window.localStorage.getItem(TRIPO_API_KEY_STORAGE_KEY) ?? "";
+        setTripoApiKey(storedKey.slice(0, 256));
+        setRememberTripoKey(Boolean(storedKey));
+      } catch {
+        setTripoApiKey("");
+        setRememberTripoKey(false);
+      }
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [open]);
 
   useEffect(() => {
     if (!open || phase === "creating" || phase === "success") return;
@@ -370,12 +449,44 @@ function AiGenerateModal({ open, onClose, onGenerated }: {
   }, [open, phase, closeModal]);
 
   useEffect(() => {
-    if (phase !== "creating") return;
+    if (phase !== "creating" || generator !== "recipe") return;
     const timer = window.setInterval(() => setStep((current) => Math.min(current + 1, AI_CREATION_STEPS.length - 1)), 1750);
     return () => window.clearInterval(timer);
-  }, [phase]);
+  }, [phase, generator]);
+
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   if (!open) return null;
+
+  const updateTripoApiKey = (nextKey: string) => {
+    setTripoApiKey(nextKey);
+    setError("");
+    if (!rememberTripoKey) return;
+    try {
+      const cleanKey = nextKey.trim();
+      if (cleanKey) window.localStorage.setItem(TRIPO_API_KEY_STORAGE_KEY, cleanKey);
+      else window.localStorage.removeItem(TRIPO_API_KEY_STORAGE_KEY);
+    } catch {
+      setRememberTripoKey(false);
+      setError("This browser blocked local Key storage. The Key will remain in memory only.");
+    }
+  };
+
+  const updateTripoKeyPersistence = (remember: boolean) => {
+    try {
+      if (remember) {
+        const cleanKey = tripoApiKey.trim();
+        if (cleanKey) window.localStorage.setItem(TRIPO_API_KEY_STORAGE_KEY, cleanKey);
+      } else {
+        window.localStorage.removeItem(TRIPO_API_KEY_STORAGE_KEY);
+      }
+      setRememberTripoKey(remember);
+      setError("");
+    } catch {
+      setRememberTripoKey(false);
+      setError("This browser blocked local Key storage. The Key will remain in memory only.");
+    }
+  };
 
   const generate = async (event: FormEvent) => {
     event.preventDefault();
@@ -387,26 +498,83 @@ function AiGenerateModal({ open, onClose, onGenerated }: {
     }
     setPhase("creating");
     setStep(0);
+    setTripoProgress(0);
     setError("");
     const startedAt = Date.now();
+    let unclaimedParsedMesh: ParsedTripoMesh | null = null;
     try {
-      const response = await fetch("/api/ai-generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: cleanPrompt }),
-      });
-      const result = await response.json() as { recipe?: AiDesignRecipe; error?: string };
-      const remainingAnimation = Math.max(0, 2600 - (Date.now() - startedAt));
-      if (remainingAnimation) await new Promise((resolve) => window.setTimeout(resolve, remainingAnimation));
-      if (!response.ok || !result.recipe) throw new Error(result.error || "The AI provider returned an incomplete design.");
-      onGenerated(result.recipe, cleanPrompt);
+      if (generator === "tripo") {
+        const controller = new AbortController();
+        abortRef.current = controller;
+        const generated = await generateTripoMesh({
+          apiKey: tripoApiKey,
+          prompt: cleanPrompt,
+          modelVersion: tripoModel,
+          region: tripoRegion,
+          signal: controller.signal,
+          onProgress: (progress) => {
+            setTripoProgress(progress);
+            setStep(Math.min(2, Math.max(1, Math.ceil(progress / 45))));
+          },
+        });
+        setStep(3);
+        setTripoProgress(100);
+        const parsed = await parseTripoGlb(generated.data.slice(0));
+        unclaimedParsedMesh = parsed;
+        setStep(4);
+        const id = window.crypto.randomUUID();
+        const title = cleanPrompt.split(/\s+/).slice(0, 6).join(" ");
+        const metadata: LocalTripoMeshMetadata = {
+          schema: TRIPO_MESH_SCHEMA,
+          id,
+          createdAt: new Date().toISOString(),
+          name: title.length > 38 ? `${title.slice(0, 37)}…` : title,
+          prompt: cleanPrompt,
+          taskId: generated.taskId,
+          modelVersion: generated.modelVersion,
+          topperHeight: 55,
+          topperWidth: 45,
+          byteLength: generated.data.byteLength,
+          meshCount: parsed.meshCount,
+          faceCount: parsed.faceCount,
+        };
+        const record: LocalTripoMeshRecord = { ...metadata, glb: generated.data };
+        await putLocalTripoMesh(record);
+        onMeshGenerated(metadata, parsed);
+        unclaimedParsedMesh = null;
+        if (!rememberTripoKey) setTripoApiKey("");
+        abortRef.current = null;
+      } else {
+        const response = await fetch("/api/ai-generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt: cleanPrompt }),
+        });
+        const result = await response.json() as { recipe?: AiDesignRecipe; error?: string };
+        const remainingAnimation = Math.max(0, 2600 - (Date.now() - startedAt));
+        if (remainingAnimation) await new Promise((resolve) => window.setTimeout(resolve, remainingAnimation));
+        if (!response.ok || !result.recipe) throw new Error(result.error || "The AI provider returned an incomplete design.");
+        onGenerated(result.recipe, cleanPrompt);
+      }
       setPhase("success");
       window.setTimeout(closeModal, 900);
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "The model could not be generated.");
+      if (unclaimedParsedMesh) disposeObject(unclaimedParsedMesh.object);
+      abortRef.current = null;
+      const directMessage = requestError instanceof Error && /local|GLB|mesh|browser does not support/i.test(requestError.message)
+        ? requestError.message
+        : tripoErrorMessage(requestError);
+      setError(generator === "tripo"
+        ? directMessage
+        : requestError instanceof Error ? requestError.message : "The model could not be generated.");
       setPhase("error");
     }
   };
+
+  const creationSteps = generator === "tripo" ? TRIPO_CREATION_STEPS : AI_CREATION_STEPS;
+  const progressWidth = generator === "tripo"
+    ? Math.max(8, step >= 3 ? 88 + (step - 3) * 6 : tripoProgress * 0.78)
+    : 18 + step * 17;
 
   return (
     <div className="ai-modal-backdrop">
@@ -422,31 +590,45 @@ function AiGenerateModal({ open, onClose, onGenerated }: {
               <i className="ai-orbit one" />
               <i className="ai-orbit two" />
             </div>
-            <p>{phase === "success" ? "MODEL READY" : "AI · CREATING"}</p>
-            <h2 id="ai-modal-title">{phase === "success" ? "Your idea is taking shape" : AI_CREATION_STEPS[step]}</h2>
-            <span>{phase === "success" ? "Opening the new 3D design…" : "Building within proven print-safe limits"}</span>
-            <div className="ai-progress"><i style={{ width: phase === "success" ? "100%" : `${18 + step * 17}%` }} /></div>
+            <p>{phase === "success" ? "MODEL READY" : generator === "tripo" ? "TRIPO · DIRECT MESH" : "AI · CREATING"}</p>
+            <h2 id="ai-modal-title">{phase === "success" ? "Your idea is taking shape" : creationSteps[step]}</h2>
+            <span>{phase === "success" ? "Opening the new 3D design…" : generator === "tripo" ? `${tripoProgress}% · Browser → local bridge → Tripo → local cache` : "Building within proven print-safe limits"}</span>
+            <div className="ai-progress"><i style={{ width: phase === "success" ? "100%" : `${progressWidth}%` }} /></div>
           </div>
         ) : (
-          <form onSubmit={generate}>
+          <form onSubmit={generate} autoComplete="off">
+            <div className="ai-generator-tabs" aria-label="Choose AI generation method">
+              <button type="button" className={generator === "recipe" ? "active" : ""} aria-pressed={generator === "recipe"} onClick={() => { setGenerator("recipe"); setPrompt((current) => current.slice(0, 280)); setError(""); setPhase("idle"); }}>Bounded shape</button>
+              <button type="button" className={generator === "tripo" ? "active" : ""} aria-pressed={generator === "tripo"} onClick={() => { setGenerator("tripo"); setError(""); setPhase("idle"); }}>Direct mesh · Tripo</button>
+            </div>
             <div className="ai-modal-heading">
-              <span className="ai-kicker">✦ AI ASSISTED</span>
-              <h2 id="ai-modal-title">Generate a printable idea</h2>
-              <p>The configured AI turns your description into a bounded 3D shape program. It can compose new objects and characters while the solid pipeline locks the adapter, size, connections and print limits.</p>
-              <small>Usually 10–25 seconds</small>
+              <span className="ai-kicker">{generator === "tripo" ? "◈ CLIENT-SIDE MESH" : "✦ AI ASSISTED"}</span>
+              <h2 id="ai-modal-title">{generator === "tripo" ? "Generate a neural 3D mesh" : "Generate a printable idea"}</h2>
+              <p>{generator === "tripo"
+                ? "Use your own Tripo API key to generate an untextured GLB through a loopback-only helper on this device, then add the same locked LetPot adapter, socket and connector used by standard designs."
+                : "The configured AI turns your description into a bounded 3D shape program. It can compose new objects and characters while the solid pipeline locks the adapter, size, connections and print limits."}</p>
+              <small>{generator === "tripo" ? "Typically 1–5 minutes · billed by Tripo" : "Usually 10–25 seconds"}</small>
             </div>
-            <div className="ai-examples" aria-label="Example prompts">
+            {generator === "recipe" && <div className="ai-examples" aria-label="Example prompts">
               {AI_EXAMPLES.map((example) => <button type="button" key={example} onClick={() => { setPrompt(example); setError(""); setPhase("idle"); }}>{example}</button>)}
-            </div>
+            </div>}
+            {generator === "tripo" && <div className="tripo-settings">
+              <label><span>Tripo API key</span><input type="password" aria-label="Tripo API key" autoComplete="off" spellCheck={false} maxLength={256} value={tripoApiKey} onChange={(event) => updateTripoApiKey(event.target.value)} placeholder="tsk_…" /></label>
+              <label><span>Model</span><select aria-label="Tripo model version" value={tripoModel} onChange={(event) => setTripoModel(event.target.value as TripoModelVersion)}>{TRIPO_MODEL_OPTIONS.map((model) => <option key={model.id} value={model.id}>{model.label}</option>)}</select></label>
+              <label><span>API region</span><select aria-label="Tripo API region" value={tripoRegion} onChange={(event) => setTripoRegion(event.target.value as TripoRegion)}>{TRIPO_REGION_OPTIONS.map((region) => <option key={region.id} value={region.id}>{region.label}</option>)}</select></label>
+              <label className="tripo-remember"><input type="checkbox" aria-label="Remember Tripo API key in this browser" checked={rememberTripoKey} onChange={(event) => updateTripoKeyPersistence(event.target.checked)} /><span><b>Remember Key in this browser</b><small>Optional · stored only for this site until you turn this off.</small></span></label>
+              <p className="tripo-bridge-note"><b>Local helper required:</b> run <code>npm run tripo:bridge</code> on this device. It binds only to 127.0.0.1, keeps no Key or model history, and handles Tripo&apos;s browser CORS restriction.</p>
+              <p className="tripo-cost-note"><b>Mesh-only billing:</b> v3.1 uses 10 credits; P1 uses 30. This flow keeps texture/PBR off, so it does not add Tripo&apos;s +10 standard, +20 detailed, or +30 extreme texture credits. <a href="https://platform.tripo3d.ai/docs/billing" target="_blank" rel="noreferrer">Current pricing ↗</a></p>
+            </div>}
             <label className="ai-prompt-field">
               <span>Describe your model</span>
               <div>
-                <input ref={inputRef} maxLength={280} value={prompt} onChange={(event) => { setPrompt(event.target.value); setError(""); setPhase("idle"); }} placeholder="e.g. A tiny cottage with a roof, chimney and windows" />
-                <button type="submit">Generate <span>→</span></button>
+                <input ref={inputRef} maxLength={generator === "tripo" ? 640 : 280} value={prompt} onChange={(event) => { setPrompt(event.target.value); setError(""); setPhase("idle"); }} placeholder={generator === "tripo" ? "e.g. A friendly low-poly otter with a sturdy round base" : "e.g. A tiny cottage with a roof, chimney and windows"} />
+                <button type="submit">{generator === "tripo" ? "Generate mesh" : "Generate"} <span>→</span></button>
               </div>
             </label>
             {error && <p className="ai-error" role="alert">{error}</p>}
-            <div className="ai-safety-note"><i>✓</i><span><b>Bounded geometry, locally organized</b>Your description is sent to the configured AI provider to create an allowlisted shape program—never executable mesh code. The finished recipe is cached in Mine on this device.</span></div>
+            <div className="ai-safety-note"><i>✓</i><span>{generator === "tripo" ? <><b>Never uploaded to the LetPot Maker server</b>The Key travels only browser → this device&apos;s loopback bridge → the selected Tripo region. The bridge holds request data in memory and stores nothing. By default the browser clears the Key on close; optional “Remember” uses this site&apos;s local storage. The GLB stays in local IndexedDB. <a href="https://platform.tripo3d.ai/api-keys" target="_blank" rel="noreferrer">Manage Tripo API keys ↗</a></> : <><b>Bounded geometry, locally organized</b>Your description is sent to the configured AI provider to create an allowlisted shape program—never executable mesh code. The finished recipe is cached in Mine on this device.</>}</span></div>
           </form>
         )}
       </section>
@@ -465,6 +647,8 @@ export function Studio() {
   const [aiOpen, setAiOpen] = useState(false);
   const [aiCreations, setAiCreations] = useState<LocalAiCreation[]>([]);
   const [aiDesign, setAiDesign] = useState<ActiveAiDesign | null>(null);
+  const [tripoCreations, setTripoCreations] = useState<LocalTripoMeshMetadata[]>([]);
+  const [tripoDesign, setTripoDesign] = useState<ActiveTripoDesign | null>(null);
   const [mobilePanel, setMobilePanel] = useState<"preview" | "library" | "adjust">("preview");
   const [panelWidths, setPanelWidths] = useState<PanelWidths>({ ...DEFAULT_PANEL_WIDTHS });
   const [resizingPanel, setResizingPanel] = useState<PanelName | null>(null);
@@ -473,11 +657,16 @@ export function Studio() {
   const build = useMemo(() => createModel(options), [options]);
   const definition = MODEL_LIBRARY.find((item) => item.id === options.modelId) ?? MODEL_LIBRARY[0];
   const isAiSculpture = Boolean(aiDesign?.program && options.aiProgram);
+  const isTripoMesh = Boolean(tripoDesign && options.externalMesh);
   const integrated = options.connectionMode === "integrated";
-  const designParts = integrated ? 1 : isAiSculpture ? 3 : definition.parts;
-  const designName = aiDesign?.name ?? definition.name;
-  const designSubtitle = aiDesign?.subtitle ?? definition.subtitle;
-  const detachablePrintNote = isAiSculpture
+  const designParts = integrated ? 1 : isAiSculpture || isTripoMesh ? 3 : definition.parts;
+  const designName = tripoDesign?.name ?? aiDesign?.name ?? definition.name;
+  const designSubtitle = tripoDesign
+    ? `Direct Tripo mesh · ${tripoDesign.faceCount.toLocaleString()} faces · local only`
+    : aiDesign?.subtitle ?? definition.subtitle;
+  const detachablePrintNote = isTripoMesh
+    ? "Print the socketed mesh upright with automatic snug supports. Neural meshes can contain thin walls, islands or non-manifold edges; validate the export and sliced preview before printing."
+    : isAiSculpture
     ? "Print the socketed sculpture upright with automatic snug supports. Inspect small color details and overhangs in the sliced preview before the first prototype."
     : definition.printNote;
   const designPrintNote = integrated
@@ -487,7 +676,9 @@ export function Studio() {
     () => activeTag === "all" ? MODEL_LIBRARY : MODEL_LIBRARY.filter((item) => item.tags.includes(activeTag)),
     [activeTag],
   );
-  const baseManufacturing = isAiSculpture ? AI_MANUFACTURING_PROFILE : getManufacturingProfile(options.modelId);
+  const baseManufacturing = isTripoMesh
+    ? TRIPO_MANUFACTURING_PROFILE
+    : isAiSculpture ? AI_MANUFACTURING_PROFILE : getManufacturingProfile(options.modelId);
   const manufacturing = integrated ? {
     ...baseManufacturing,
     orientation: "One-piece upright · Ø33 locator face on bed",
@@ -501,10 +692,17 @@ export function Studio() {
 
   useEffect(() => () => disposeObject(build.assembly), [build]);
 
+  useEffect(() => () => {
+    if (options.externalMesh) disposeObject(options.externalMesh);
+  }, [options.externalMesh]);
+
   useEffect(() => () => resizeCleanupRef.current?.(), []);
 
   useEffect(() => {
-    const load = () => setAiCreations(readLocalCreations());
+    const load = () => {
+      setAiCreations(readLocalCreations());
+      void listLocalTripoMeshes().then(setTripoCreations).catch(() => setTripoCreations([]));
+    };
     const frame = window.requestAnimationFrame(load);
     window.addEventListener("storage", load);
     return () => {
@@ -539,9 +737,11 @@ export function Studio() {
           faceted: recipe.faceted,
           shape: recipe.shape,
           aiProgram: recipe.program,
+          externalMesh: undefined,
         }));
         setAiCreations((current) => [creation, ...current.filter((item) => item.id !== localId)]);
         setAiDesign({ ...recipe, prompt: example.prompt, localId });
+        setTripoDesign(null);
         setLibraryMode("mine");
         setMessage(`${recipe.name} example loaded`);
         return;
@@ -556,10 +756,12 @@ export function Studio() {
         faceted: selected.style === "lowpoly",
         shape: getDefaultShapeParameters(selected),
         aiProgram: undefined,
+        externalMesh: undefined,
       }));
       setLibraryMode("official");
       setActiveTag("all");
       setAiDesign(null);
+      setTripoDesign(null);
       setMessage(`${selected.name} loaded`);
     });
     return () => window.cancelAnimationFrame(frame);
@@ -644,8 +846,10 @@ export function Studio() {
       faceted: selected.style === "lowpoly",
       shape: getDefaultShapeParameters(selected),
       aiProgram: undefined,
+      externalMesh: undefined,
     }));
     setAiDesign(null);
+    setTripoDesign(null);
     setMessage(`${selected.name} loaded`);
     setMobilePanel("preview");
   };
@@ -677,9 +881,11 @@ export function Studio() {
       faceted: recipe.faceted,
       shape: recipe.shape,
       aiProgram: recipe.program,
+      externalMesh: undefined,
     }));
     persistCreations([creation, ...aiCreations]);
     setAiDesign({ ...recipe, prompt, localId });
+    setTripoDesign(null);
     setLibraryMode("mine");
     requestView("orbit");
     setMessage(`${recipe.name} generated and saved locally`);
@@ -700,11 +906,71 @@ export function Studio() {
       faceted: recipe.faceted,
       shape: recipe.shape,
       aiProgram: recipe.program,
+      externalMesh: undefined,
     }));
     setAiDesign({ ...recipe, prompt: creation.prompt, localId: creation.id });
+    setTripoDesign(null);
     requestView("orbit");
     setMessage(`${recipe.name} loaded from this browser`);
     setMobilePanel("preview");
+  };
+
+  const applyTripoDesign = (metadata: LocalTripoMeshMetadata, parsed: ParsedTripoMesh) => {
+    setOptions((current) => ({
+      ...current,
+      modelId: "sprout",
+      topperHeight: metadata.topperHeight,
+      topperWidth: metadata.topperWidth,
+      faceted: false,
+      shape: getDefaultShapeParameters(MODEL_LIBRARY[0]),
+      aiProgram: undefined,
+      externalMesh: parsed.object,
+    }));
+    setTripoCreations((current) => [metadata, ...current.filter((item) => item.id !== metadata.id)]);
+    setTripoDesign(metadata);
+    setAiDesign(null);
+    setLibraryMode("mine");
+    requestView("orbit");
+    setMessage(`${metadata.name} mesh saved only in this browser`);
+    setMobilePanel("preview");
+  };
+
+  const chooseTripoCreation = async (metadata: LocalTripoMeshMetadata) => {
+    setMessage(`Loading ${metadata.name} from this browser…`);
+    try {
+      const record = await getLocalTripoMesh(metadata.id);
+      if (!record) throw new Error("This local mesh is no longer available.");
+      const parsed = await parseTripoGlb(record.glb.slice(0));
+      applyTripoDesign(metadata, parsed);
+      setMessage(`${metadata.name} loaded from this browser`);
+    } catch (loadError) {
+      setMessage(loadError instanceof Error ? loadError.message : "The local mesh could not be loaded");
+    }
+  };
+
+  const removeTripoCreation = async (metadata: LocalTripoMeshMetadata) => {
+    if (!window.confirm(`Remove “${metadata.name}” and its cached GLB from this browser?`)) return;
+    try {
+      await deleteLocalTripoMesh(metadata.id);
+      setTripoCreations((current) => current.filter((item) => item.id !== metadata.id));
+      if (tripoDesign?.id === metadata.id) {
+        const selected = MODEL_LIBRARY[0];
+        setOptions((current) => ({
+          ...current,
+          modelId: selected.id,
+          ...selected.defaults,
+          faceted: selected.style === "lowpoly",
+          shape: getDefaultShapeParameters(selected),
+          aiProgram: undefined,
+          externalMesh: undefined,
+        }));
+        setTripoDesign(null);
+        setLibraryMode("official");
+      }
+      setMessage(`${metadata.name} and its local GLB were removed`);
+    } catch {
+      setMessage("This browser could not remove the cached mesh");
+    }
   };
 
   const removeAiCreation = (creation: LocalAiCreation) => {
@@ -733,7 +999,7 @@ export function Studio() {
   };
 
   const savePreset = () => {
-    const payload = JSON.stringify({ schema: "letpot-maker/model/v1", model: designName, aiDesign, options }, null, 2);
+    const payload = JSON.stringify({ schema: "letpot-maker/model/v1", model: designName, aiDesign, tripoDesign, options: serializableModelOptions(options) }, null, 2);
     downloadBlob(new Blob([payload], { type: "application/json" }), `${options.modelId}-preset.json`);
     setMessage("Parameter preset saved");
   };
@@ -779,7 +1045,8 @@ export function Studio() {
         schema: "letpot-maker/model/v1",
         model: { ...definition, name: designName, subtitle: designSubtitle },
         aiDesign,
-        options,
+        tripoDesign,
+        options: serializableModelOptions(options),
         adapterStandard: ADAPTER_STANDARD,
         measurements: build.measurements,
         units: "millimetres",
@@ -787,7 +1054,7 @@ export function Studio() {
         manufacturing,
         warning: "Fixed Ø33/Ø41 pod-fit standard. Verify fit with a small adapter test before production.",
       }, null, 2));
-      root.file("PRINT-NOTES.txt", `${designName}\n\n${aiDesign ? `${aiDesign.creativeNote}\n\nGenerated from: ${aiDesign.prompt}\n\n` : ""}${designPrintNote}\n\nManufacturing status: ${manufacturing.status}.\nOrientation: ${manufacturing.orientation}.\nSupport: ${manufacturing.supportStrategy}.\nMinimum designed wall: ${manufacturing.minWall.toFixed(1)} mm.\nMinimum designed feature: ${manufacturing.minFeature.toFixed(1)} mm.\nBatch mode: ${manufacturing.batchMode}.\n\nEvery STL is a single connected, watertight solid. ${integrated ? "This export contains one fused adapter-and-topper part with no loose connector." : "The adapter and topper use a flush embedded socket plus a removable double-ended connector pin; mushroom and clover include one additional upper part."}\n\nAdapter standard: Ø${ADAPTER_STANDARD.lowerDiameter.toFixed(2)} mm straight lower section × ${ADAPTER_STANDARD.lowerHeight.toFixed(2)} mm, then a ${ADAPTER_STANDARD.transitionHeight.toFixed(2)} mm transition to a Ø${ADAPTER_STANDARD.upperDiameter.toFixed(2)} mm × ${ADAPTER_STANDARD.upperBandHeight.toFixed(2)} mm vertical upper band; total height ${ADAPTER_STANDARD.totalHeight.toFixed(2)} mm. ${integrated ? `Print the complete model upright with the Ø${ADAPTER_STANDARD.lowerDiameter.toFixed(2)} mm locator face on the bed.` : `The adapter STL is pre-oriented with the Ø${ADAPTER_STANDARD.upperDiameter.toFixed(2)} mm logo face on the print bed and the Ø${ADAPTER_STANDARD.lowerDiameter.toFixed(2)} mm side facing upward.`} Verify fit with a small test print before production.\n`);
+      root.file("PRINT-NOTES.txt", `${designName}\n\n${aiDesign ? `${aiDesign.creativeNote}\n\nGenerated from: ${aiDesign.prompt}\n\n` : tripoDesign ? `Generated as a direct Tripo mesh from: ${tripoDesign.prompt}\nTask: ${tripoDesign.taskId}\nModel: ${tripoDesign.modelVersion}\nThe API key is not included in this export.\n\n` : ""}${designPrintNote}\n\nManufacturing status: ${manufacturing.status}.\nOrientation: ${manufacturing.orientation}.\nSupport: ${manufacturing.supportStrategy}.\nMinimum designed wall: ${manufacturing.minWall.toFixed(1)} mm.\nMinimum designed feature: ${manufacturing.minFeature.toFixed(1)} mm.\nBatch mode: ${manufacturing.batchMode}.\n\nEvery STL is a single connected, watertight solid. ${integrated ? "This export contains one fused adapter-and-topper part with no loose connector." : "The adapter and topper use a flush embedded socket plus a removable double-ended connector pin; mushroom and clover include one additional upper part."}\n\nAdapter standard: Ø${ADAPTER_STANDARD.lowerDiameter.toFixed(2)} mm straight lower section × ${ADAPTER_STANDARD.lowerHeight.toFixed(2)} mm, then a ${ADAPTER_STANDARD.transitionHeight.toFixed(2)} mm transition to a Ø${ADAPTER_STANDARD.upperDiameter.toFixed(2)} mm × ${ADAPTER_STANDARD.upperBandHeight.toFixed(2)} mm vertical upper band; total height ${ADAPTER_STANDARD.totalHeight.toFixed(2)} mm. ${integrated ? `Print the complete model upright with the Ø${ADAPTER_STANDARD.lowerDiameter.toFixed(2)} mm locator face on the bed.` : `The adapter STL is pre-oriented with its Ø${ADAPTER_STANDARD.upperDiameter.toFixed(2)} mm logo face on the print bed and its Ø${ADAPTER_STANDARD.lowerDiameter.toFixed(2)} mm side facing upward.`} Verify fit with a small test print before production.\n`);
       const archive = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
       downloadBlob(archive, `${slugify(designName)}-print-pack.zip`);
       disposeObject(solidAssembly);
@@ -982,11 +1249,11 @@ export function Studio() {
           <div className="panel-heading">
             <p>{libraryMode === "official" ? "OFFICIAL COLLECTION" : "LOCAL WORKSPACE"}</p>
             <h2>{libraryMode === "official" ? "Maker Library" : "Mine"}</h2>
-            <span>{libraryMode === "official" ? `${MODEL_LIBRARY.length} printable models` : `${aiCreations.length} saved on this device`}</span>
+            <span>{libraryMode === "official" ? `${MODEL_LIBRARY.length} printable models` : `${aiCreations.length + tripoCreations.length} saved on this device`}</span>
           </div>
           <div className="library-mode" aria-label="Choose model library">
             <button className={libraryMode === "official" ? "active" : ""} onClick={() => setLibraryMode("official")}>Official <span>{MODEL_LIBRARY.length}</span></button>
-            <button className={libraryMode === "mine" ? "active" : ""} onClick={() => setLibraryMode("mine")}>Mine <span>{aiCreations.length}</span></button>
+            <button className={libraryMode === "mine" ? "active" : ""} onClick={() => setLibraryMode("mine")}>Mine <span>{aiCreations.length + tripoCreations.length}</span></button>
           </div>
           {libraryMode === "official" && <div className="tag-filter" aria-label="Filter designs by tag">
             <button className={activeTag === "all" ? "active" : ""} onClick={() => setActiveTag("all")} aria-pressed={activeTag === "all"}>
@@ -1011,6 +1278,15 @@ export function Studio() {
                 </span>
               </button>
             ))}
+            {libraryMode === "mine" && tripoCreations.map((creation, index) => (
+              <div key={creation.id} className={`local-creation-card direct-mesh ${tripoDesign?.id === creation.id ? "active" : ""}`}>
+                <button className="local-creation-main" title={creation.name} onClick={() => void chooseTripoCreation(creation)}>
+                  <span className="asset-number">M{String(tripoCreations.length - index).padStart(2, "0")}</span>
+                  <span className="asset-copy"><strong>{creation.name}</strong><small>Tripo mesh · {(creation.faceCount / 1000).toFixed(1)}k faces</small></span>
+                </button>
+                <button className="local-creation-remove" aria-label={`Remove ${creation.name}`} onClick={() => void removeTripoCreation(creation)}>×</button>
+              </div>
+            ))}
             {libraryMode === "mine" && aiCreations.map((creation, index) => (
               <div key={creation.id} className={`local-creation-card ${aiDesign?.localId === creation.id ? "active" : ""}`}>
                 <button className="local-creation-main" title={creation.recipe.name} onClick={() => chooseAiCreation(creation)}>
@@ -1020,7 +1296,7 @@ export function Studio() {
                 <button className="local-creation-remove" aria-label={`Remove ${creation.recipe.name}`} onClick={() => removeAiCreation(creation)}>×</button>
               </div>
             ))}
-            {libraryMode === "mine" && aiCreations.length === 0 && <div className="local-empty-state"><span>✦</span><b>No local creations yet</b><p>Describe an idea and AI Generate will save its print-safe recipe only in this browser.</p><button onClick={() => setAiOpen(true)}>Generate your first model</button></div>}
+            {libraryMode === "mine" && aiCreations.length + tripoCreations.length === 0 && <div className="local-empty-state"><span>✦</span><b>No local creations yet</b><p>Generate a bounded shape or direct Tripo mesh and it will stay only in this browser.</p><button onClick={() => setAiOpen(true)}>Generate your first model</button></div>}
           </div>
         </aside>
 
@@ -1048,7 +1324,7 @@ export function Studio() {
           </div>
           <ModelViewport build={build} view={view} />
           <div className="dimension-summary" aria-label="Model dimensions">
-            <span>MODEL SIZE</span><b>Ø {build.measurements.upperDiameter.toFixed(1)} × {build.measurements.height.toFixed(1)} mm</b>
+            <span>TOPPER / ASSEMBLY</span><b>W {build.measurements.topperWidth.toFixed(1)} × H {build.measurements.topperHeight.toFixed(1)} / {build.measurements.width.toFixed(1)} × {build.measurements.height.toFixed(1)} mm</b>
           </div>
           {message && <div className="stage-toast" role="status" aria-live="polite">{message}</div>}
         </section>
@@ -1071,14 +1347,15 @@ export function Studio() {
 
         <aside className="inspector-panel" id="studio-adjustments" aria-label="Model adjustments">
           <div className="inspector-title">
-            <div><p>{aiDesign ? "AI DESIGN" : `MODEL ${definition.number}`}</p><h2>{designName}</h2><span>{designSubtitle}</span></div>
+            <div><p>{tripoDesign ? "TRIPO MESH" : aiDesign ? "AI DESIGN" : `MODEL ${definition.number}`}</p><h2>{designName}</h2><span>{designSubtitle}</span></div>
             <span className="part-count">{designParts} {designParts === 1 ? "PART" : "PARTS"}</span>
           </div>
           <div className="inspector-content">
             <section className="inspector-section">
-              <div className="section-heading"><div><p>SHAPE</p><span>Overall printable envelope</span></div></div>
-              <Slider label="Topper height" value={options.topperHeight} min={25} max={50} step={0.5} onChange={(value) => update("topperHeight", value)} />
-              <Slider label="Topper width" value={options.topperWidth} min={20} max={40} step={0.5} onChange={(value) => update("topperWidth", value)} />
+              <div className="section-heading"><div><p>SHAPE</p><span>Maximum upper-shape envelope</span></div></div>
+              <Slider label="Topper height" value={options.topperHeight} min={TOPPER_SIZE_LIMITS.height.min} max={TOPPER_SIZE_LIMITS.height.max} step={TOPPER_SIZE_LIMITS.step} onChange={(value) => update("topperHeight", value)} />
+              <Slider label="Topper width" value={options.topperWidth} min={TOPPER_SIZE_LIMITS.width.min} max={TOPPER_SIZE_LIMITS.width.max} step={TOPPER_SIZE_LIMITS.step} onChange={(value) => update("topperWidth", value)} />
+              <p className="parameter-note">The upper artwork is centered and fitted inside this fixed envelope. Signature controls can change its form, but cannot push it beyond the selected width or height.</p>
             </section>
 
             <section className="inspector-section connection-section">
@@ -1101,7 +1378,7 @@ export function Studio() {
                 : "The pin enters an embedded blind socket inside the object, without a raised outer collar."}</p>
             </section>
 
-            {!isAiSculpture && (definition.parameters?.length ?? 0) > 0 && <section className="inspector-section signature-section">
+            {!isAiSculpture && !isTripoMesh && (definition.parameters?.length ?? 0) > 0 && <section className="inspector-section signature-section">
               <div className="section-heading">
                 <div><p>SIGNATURE</p><span>{definition.parameters?.length} model-specific controls</span></div>
                 <div className="section-actions"><button onClick={randomizeShape}>Vary</button><button onClick={resetShape}>Reset</button></div>
@@ -1118,12 +1395,12 @@ export function Studio() {
                   onChange={(value) => updateShape(parameter.key, value)}
                 />
               ))}
-              <p className="parameter-note">Ranges preserve the minimum printable feature size and all required part intersections.</p>
+              <p className="parameter-note">Ranges preserve the minimum printable feature size and required intersections while the fixed topper envelope remains the outer limit.</p>
             </section>}
 
             <section className="inspector-section appearance-section">
-              <div className="section-heading"><div><p>APPEARANCE</p><span>{isAiSculpture ? "Three-role generated palette" : definition.style === "realistic" ? "Smooth realistic model" : "Faceted printable model"}</span></div></div>
-              {(isAiSculpture || definition.style === "lowpoly") && <div className="control-group compact"><label><span>Surface style</span><select value={options.faceted ? "low" : "soft"} onChange={(event) => update("faceted", event.target.value === "low")}><option value="low">Low poly</option><option value="soft">Smooth faceted</option></select></label></div>}
+              <div className="section-heading"><div><p>APPEARANCE</p><span>{isTripoMesh ? "Single-color printable mesh" : isAiSculpture ? "Three-role generated palette" : definition.style === "realistic" ? "Smooth realistic model" : "Faceted printable model"}</span></div></div>
+              {(isTripoMesh || isAiSculpture || definition.style === "lowpoly") && <div className="control-group compact"><label><span>Surface style</span><select value={options.faceted ? "low" : "soft"} onChange={(event) => update("faceted", event.target.value === "low")}><option value="low">Low poly</option><option value="soft">Smooth faceted</option></select></label></div>}
               <div className="control-group color-control"><span>{options.modelId === "mushroom" ? "Cap color" : "Topper color"}</span><div>{COLORS.map((color) => <button key={color} className={`swatch ${options.primaryColor === color ? "active" : ""}`} style={{ background: color }} aria-label={`Use ${color}`} onClick={() => update("primaryColor", color)} />)}<input className="color-input" aria-label="Custom topper color" type="color" value={options.primaryColor} onChange={(event) => update("primaryColor", event.target.value)} /></div></div>
               {isAiSculpture && <div className="control-group color-control"><span>Secondary color</span><div><input className="color-input" aria-label="Custom secondary color" type="color" value={options.secondaryColor ?? "#d8a33e"} onChange={(event) => update("secondaryColor", event.target.value)} /></div></div>}
               {isAiSculpture && <div className="control-group color-control"><span>Detail color</span><div><input className="color-input" aria-label="Custom detail color" type="color" value={options.detailColor ?? "#f4eee2"} onChange={(event) => update("detailColor", event.target.value)} /></div></div>}
@@ -1161,7 +1438,7 @@ export function Studio() {
         <button type="button" aria-controls="studio-library" aria-pressed={mobilePanel === "library"} onClick={() => setMobilePanel("library")}><span aria-hidden="true">▦</span> Library</button>
         <button type="button" aria-controls="studio-adjustments" aria-pressed={mobilePanel === "adjust"} onClick={() => setMobilePanel("adjust")}><span aria-hidden="true">⌁</span> Adjust</button>
       </nav>
-      <AiGenerateModal open={aiOpen} onClose={() => setAiOpen(false)} onGenerated={applyAiDesign} />
+      <AiGenerateModal open={aiOpen} onClose={() => setAiOpen(false)} onGenerated={applyAiDesign} onMeshGenerated={applyTripoDesign} />
     </main>
   );
 }

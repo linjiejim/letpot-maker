@@ -12,13 +12,14 @@ The project started from a simple gap: small hydroponic accessories are easy to 
 
 - Browse and filter 34 checked-in printable designs.
 - Preview the same parametric geometry used by the export pipeline.
-- Customize dimensions, model-specific details, colors, and surface style.
+- Customize topper height from 25–100 mm, width from 20–80 mm, model-specific details, colors, and surface style.
 - Export watertight STL parts, OBJ assemblies, manifests, and Bambu Studio 3MF projects.
 - Arrange low-poly accessories across four LetPot device layouts in Pod Styler.
 - Turn a text idea into a constrained model recipe through an optional, provider-neutral AI endpoint.
+- Generate a neural mesh with a user-supplied Tripo key, a loopback-only device bridge, and device-local GLB caching.
 - Validate model parameters, manifold geometry, printer-bed placement, and production routes.
 
-The AI feature selects and configures an existing geometry family; it does not generate arbitrary meshes or executable code. The core library, Studio, previews, and exports work without an AI provider.
+The bounded AI feature selects or composes allowlisted geometry and never evaluates executable code. A separate opt-in Tripo mode accepts a user key, keeps it in memory by default with optional browser-local persistence, and uses a loopback-only helper to work around Tripo's browser CORS restriction. The helper forwards to Tripo, keeps no history, and returns the untextured GLB to browser storage; the LetPot Maker application server never receives that key, prompt, or mesh. The core library, Studio, previews, and exports work without either provider.
 
 ## Technology
 
@@ -32,7 +33,7 @@ The AI feature selects and configures an existing geometry family; it does not g
 | Deployment | Docker and Docker Compose |
 | Quality gates | ESLint, TypeScript, Node test runner, geometry validators |
 
-The application is intentionally client-heavy. Model construction and file packaging happen in the browser; the server handles rendered routes, health checks, and the optional AI recipe request. There is no database, account system, or server-side model storage.
+The application is intentionally client-heavy. Model construction and file packaging happen in the browser; the server handles rendered routes, health checks, and the optional bounded-AI recipe request. Tripo API traffic uses the optional `127.0.0.1` device bridge, while generated meshes use IndexedDB rather than server storage. There is no application database, account system, or server-side model storage.
 
 ## Getting started
 
@@ -40,6 +41,14 @@ Requirements:
 
 - Node.js 22.13 or newer
 - npm 10 or newer
+
+For local Tripo generation, start the loopback helper in a second terminal before opening Studio:
+
+```bash
+npm run tripo:bridge
+```
+
+The helper binds only to `127.0.0.1:4318`. It uses the device's `HTTP_PROXY` / `HTTPS_PROXY` settings when present and never persists or logs the user Key.
 
 ```bash
 git clone <repository-url>
@@ -76,6 +85,8 @@ Set `AI_API_KEY`, `AI_BASE_URL`, and `AI_MODEL` for a provider that implements t
 | `npm run validate:parameters` | Exercise supported parameter boundaries |
 | `npm run validate:ai` | Validate constrained AI recipes and printable output |
 | `npm run validate:ai-security` | Test prompt screening and output allowlisting |
+| `npm run validate:tripo` | Validate direct-mesh metadata and both standardized connection modes |
+| `npm run tripo:bridge` | Start the no-storage, loopback-only Tripo helper on this device |
 | `npm run validate:bambu` | Validate A1 mini and P1S 3MF packages |
 
 Run `npm run ci` before opening a pull request. Generated model files must be rebuilt from `lib/model-factory.ts`; do not hand-edit STL, OBJ, 3MF, or generated `model-spec.json` files.
