@@ -65,7 +65,7 @@ import {
   type TripoModelVersion,
   type TripoRegion,
 } from "../lib/tripo-mesh";
-import { loadOfficialMesh } from "../lib/official-mesh-browser";
+import { loadOfficialMesh, preloadOfficialMesh } from "../lib/official-mesh-browser";
 
 type ViewName = "orbit" | "front" | "top";
 type PanelName = "library" | "inspector";
@@ -81,6 +81,7 @@ type PreviewStatus = {
   kind: "loading" | "error";
   modelId?: ModelId;
   targetKey?: string;
+  progress?: number;
   name: string;
   detail: string;
 };
@@ -803,6 +804,8 @@ export function Studio() {
   const [resizingPanel, setResizingPanel] = useState<PanelName | null>(null);
   const [adaptiveEnvironment, setAdaptiveEnvironment] = useState(false);
   const [sampledViewportPalette, setSampledViewportPalette] = useState<{ path: string; palette: ViewportPalette } | null>(null);
+  const [topperAspectLocked, setTopperAspectLocked] = useState(true);
+  const topperAspectRatioRef = useRef(DEFAULT_OPTIONS.topperWidth / DEFAULT_OPTIONS.topperHeight);
   const [previewStatus, setPreviewStatus] = useState<PreviewStatus | null>({
     kind: "loading",
     modelId: DEFAULT_OPTIONS.modelId,
@@ -946,6 +949,7 @@ export function Studio() {
           prompt: example.prompt,
           recipe,
         };
+        topperAspectRatioRef.current = recipe.topperWidth / recipe.topperHeight;
         setOptions((current) => ({
           ...current,
           modelId: recipe.templateId,
@@ -994,6 +998,30 @@ export function Studio() {
 
   const update = <K extends keyof ModelOptions>(key: K, value: ModelOptions[K]) => {
     setOptions((current) => ({ ...current, [key]: value }));
+  };
+
+  const updateTopperDimension = (dimension: "topperHeight" | "topperWidth", requestedValue: number) => {
+    setOptions((current) => {
+      if (!topperAspectLocked) return { ...current, [dimension]: requestedValue };
+      const ratio = topperAspectRatioRef.current;
+      const step = TOPPER_SIZE_LIMITS.step;
+      const roundToStep = (value: number) => Number((Math.round(value / step) * step).toFixed(1));
+      if (dimension === "topperHeight") {
+        const min = Math.max(TOPPER_SIZE_LIMITS.height.min, TOPPER_SIZE_LIMITS.width.min / ratio);
+        const max = Math.min(TOPPER_SIZE_LIMITS.height.max, TOPPER_SIZE_LIMITS.width.max / ratio);
+        const topperHeight = roundToStep(THREE.MathUtils.clamp(requestedValue, min, max));
+        return { ...current, topperHeight, topperWidth: roundToStep(topperHeight * ratio) };
+      }
+      const min = Math.max(TOPPER_SIZE_LIMITS.width.min, TOPPER_SIZE_LIMITS.height.min * ratio);
+      const max = Math.min(TOPPER_SIZE_LIMITS.width.max, TOPPER_SIZE_LIMITS.height.max * ratio);
+      const topperWidth = roundToStep(THREE.MathUtils.clamp(requestedValue, min, max));
+      return { ...current, topperWidth, topperHeight: roundToStep(topperWidth / ratio) };
+    });
+  };
+
+  const toggleTopperAspectLock = (locked: boolean) => {
+    if (locked) topperAspectRatioRef.current = options.topperWidth / options.topperHeight;
+    setTopperAspectLocked(locked);
   };
 
   const updateShape = (key: ShapeParameterKey, value: number) => {
@@ -1058,12 +1086,14 @@ export function Studio() {
   function chooseModel(modelId: ModelId) {
     const selected = MODEL_LIBRARY.find((item) => item.id === modelId);
     if (!selected) return;
+    topperAspectRatioRef.current = selected.defaults.topperWidth / selected.defaults.topperHeight;
     const loadId = officialLoadRef.current + 1;
     officialLoadRef.current = loadId;
     setPreviewStatus({
       kind: "loading",
       modelId: selected.id,
       targetKey: `official:${selected.id}:${selected.officialMesh ? "mesh" : "procedural"}`,
+      progress: selected.officialMesh ? 0 : undefined,
       name: selected.name,
       detail: selected.officialMesh ? "Loading the bundled 3D mesh…" : "Preparing the procedural 3D model…",
     });
@@ -1081,7 +1111,14 @@ export function Studio() {
     setMessage(selected.officialMesh ? "" : `${selected.name} loaded`);
     setMobilePanel("preview");
     if (selected.officialMesh) {
-      void loadOfficialMesh(selected).then((parsed) => {
+      void loadOfficialMesh(selected, {
+        onProgress: ({ ratio }) => {
+          if (officialLoadRef.current !== loadId || ratio === undefined) return;
+          setPreviewStatus((current) => current?.kind === "loading" && current.modelId === selected.id
+            ? { ...current, progress: ratio }
+            : current);
+        },
+      }).then((parsed) => {
         if (officialLoadRef.current !== loadId) {
           disposeObject(parsed.object);
           return;
@@ -1115,6 +1152,7 @@ export function Studio() {
   const applyAiDesign = (recipe: AiDesignRecipe, prompt: string) => {
     officialLoadRef.current += 1;
     const localId = window.crypto.randomUUID();
+    topperAspectRatioRef.current = recipe.topperWidth / recipe.topperHeight;
     setPreviewStatus({
       kind: "loading",
       targetKey: `ai:${localId}:procedural`,
@@ -1148,6 +1186,7 @@ export function Studio() {
   const chooseAiCreation = (creation: LocalAiCreation) => {
     officialLoadRef.current += 1;
     const recipe = normalizeAiRecipe(creation.recipe);
+    topperAspectRatioRef.current = recipe.topperWidth / recipe.topperHeight;
     setPreviewStatus({
       kind: "loading",
       targetKey: `ai:${creation.id}:procedural`,
@@ -1177,6 +1216,7 @@ export function Studio() {
 
   const applyTripoDesign = (metadata: LocalTripoMeshMetadata, parsed: ParsedTripoMesh, promote = true) => {
     officialLoadRef.current += 1;
+    topperAspectRatioRef.current = metadata.topperWidth / metadata.topperHeight;
     setPreviewStatus({
       kind: "loading",
       targetKey: `tripo:${metadata.id}:mesh`,
@@ -1280,6 +1320,7 @@ export function Studio() {
       setTripoCreations((current) => current.filter((item) => item.id !== metadata.id));
       if (tripoDesign?.id === metadata.id) {
         const selected = MODEL_LIBRARY[0];
+        topperAspectRatioRef.current = selected.defaults.topperWidth / selected.defaults.topperHeight;
         setOptions((current) => ({
           ...current,
           modelId: selected.id,
@@ -1641,7 +1682,14 @@ export function Studio() {
               const visibleTags = item.tags.slice(0, 2);
               const hiddenTagCount = item.tags.length - visibleTags.length;
               return (
-                <button key={item.id} className={`asset-card ${item.style} ${item.id === options.modelId ? "active" : ""}`} title={item.name} onClick={() => chooseModel(item.id)}>
+                <button
+                  key={item.id}
+                  className={`asset-card ${item.style} ${item.id === options.modelId ? "active" : ""}`}
+                  title={item.name}
+                  onPointerEnter={() => { if (item.officialMesh) void preloadOfficialMesh(item).catch(() => undefined); }}
+                  onFocus={() => { if (item.officialMesh) void preloadOfficialMesh(item).catch(() => undefined); }}
+                  onClick={() => chooseModel(item.id)}
+                >
                   {previewPath
                     ? <span className="asset-preview" aria-hidden="true" style={{ backgroundImage: `url(${previewPath})` }} />
                     : <span className="asset-number">{item.number}</span>}
@@ -1711,6 +1759,10 @@ export function Studio() {
             <p>{previewStatus.kind === "loading" ? "LOADING 3D MODEL" : "MODEL COULD NOT LOAD"}</p>
             <h3>{previewStatus.name}</h3>
             <small>{previewStatus.detail}</small>
+            {previewStatus.kind === "loading" && previewStatus.progress !== undefined && <div className="stage-preview-progress" aria-label={`${Math.round(previewStatus.progress * 100)}% downloaded`}>
+              <span style={{ width: `${Math.round(previewStatus.progress * 100)}%` }} />
+              <i>{Math.round(previewStatus.progress * 100)}%</i>
+            </div>}
             {previewStatus.kind === "error" && <button type="button" onClick={() => chooseModel(previewStatus.modelId ?? "sprout")}>
               {previewStatus.modelId ? "Try again" : "Load Little Sprout"}
             </button>}
@@ -1742,8 +1794,18 @@ export function Studio() {
           <div className="inspector-content">
             <section className="inspector-section">
               <div className="section-heading"><div><p>SHAPE</p><span>Maximum upper-shape envelope</span></div></div>
-              <Slider label="Topper height" value={options.topperHeight} min={TOPPER_SIZE_LIMITS.height.min} max={TOPPER_SIZE_LIMITS.height.max} step={TOPPER_SIZE_LIMITS.step} onChange={(value) => update("topperHeight", value)} />
-              <Slider label="Topper width" value={options.topperWidth} min={TOPPER_SIZE_LIMITS.width.min} max={TOPPER_SIZE_LIMITS.width.max} step={TOPPER_SIZE_LIMITS.step} onChange={(value) => update("topperWidth", value)} />
+              <label className="aspect-lock-control">
+                <input
+                  type="checkbox"
+                  checked={topperAspectLocked}
+                  onChange={(event) => toggleTopperAspectLock(event.target.checked)}
+                />
+                <span aria-hidden="true">↗</span>
+                <b>Lock width / height ratio</b>
+                <small>Scale both dimensions together</small>
+              </label>
+              <Slider label="Topper height" value={options.topperHeight} min={TOPPER_SIZE_LIMITS.height.min} max={TOPPER_SIZE_LIMITS.height.max} step={TOPPER_SIZE_LIMITS.step} onChange={(value) => updateTopperDimension("topperHeight", value)} />
+              <Slider label="Topper width" value={options.topperWidth} min={TOPPER_SIZE_LIMITS.width.min} max={TOPPER_SIZE_LIMITS.width.max} step={TOPPER_SIZE_LIMITS.step} onChange={(value) => updateTopperDimension("topperWidth", value)} />
               <p className="parameter-note">The upper artwork is centered and fitted inside this fixed envelope. Signature controls can change its form, but cannot push it beyond the selected width or height.</p>
             </section>
 

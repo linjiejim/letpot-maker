@@ -61,6 +61,8 @@ test("renders the separate parametric Studio", async () => {
   assert.match(html, /Search model titles/);
   assert.match(html, /Show all tags/);
   assert.match(html, /Match preview environment/);
+  assert.match(html, /Lock width \/ height ratio/);
+  assert.match(html, /Topper height<\/span><output>65\.0<!-- --> mm/);
   assert.match(html, /data-preview-state="loading"/);
   assert.match(html, /LOADING 3D MODEL/);
   assert.match(html, /Resize model library/);

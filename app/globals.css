@@ -177,6 +177,9 @@ body.studio-panel-resizing { cursor: col-resize; user-select: none; }
 .stage-preview-status p { margin: 18px 0 7px; color: var(--primary-700); font-size: 9px; font-weight: 900; letter-spacing: .16em; }
 .stage-preview-status h3 { margin: 0; color: var(--fg); font: 780 clamp(22px,3vw,32px)/1.1 var(--font-display); letter-spacing: -.03em; }
 .stage-preview-status small { max-width: 340px; margin-top: 9px; color: var(--fg-muted); font-size: 11px; line-height: 1.55; }
+.stage-preview-progress { position: relative; width: min(280px,70vw); height: 6px; margin-top: 18px; overflow: visible; border-radius: 999px; background: var(--primary-100); }
+.stage-preview-progress span { display: block; height: 100%; min-width: 3px; border-radius: inherit; background: var(--primary-600); transition: width .12s ease-out; }
+.stage-preview-progress i { position: absolute; top: 10px; left: 50%; color: var(--fg-muted); font-size: 8px; font-style: normal; font-weight: 800; transform: translateX(-50%); }
 .stage-preview-status button { min-height: 40px; margin-top: 18px; padding: 8px 14px; border: 1px solid var(--primary-600); border-radius: 8px; color: white; background: var(--primary-600); font-size: 11px; font-weight: 850; cursor: pointer; }
 .stage-preview-spinner, .stage-preview-error-mark { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 50%; }
 .stage-preview-spinner { border: 3px solid var(--primary-200); border-top-color: var(--primary-600); animation: stage-preview-spin .85s linear infinite; }
@@ -213,6 +216,11 @@ body.studio-panel-resizing { cursor: col-resize; user-select: none; }
 .control-group.compact label { gap: 12px; }
 .control-group.compact label > span { flex: 1 1 auto; min-width: 0; }
 .control-group.compact select { min-width: 0; max-width: 68%; }
+.aspect-lock-control { display: grid; grid-template-columns: auto 24px minmax(0,1fr); grid-template-rows: auto auto; align-items: center; column-gap: 8px; margin: 0 0 19px; padding: 10px; border: 1px solid var(--edge); border-radius: 8px; background: rgba(255,255,255,.58); cursor: pointer; }
+.aspect-lock-control input { grid-row: 1 / 3; width: 17px; height: 17px; margin: 0; accent-color: var(--primary-600); }
+.aspect-lock-control > span { grid-row: 1 / 3; display: grid; width: 24px; height: 24px; place-items: center; border-radius: 6px; color: var(--primary-700); background: var(--primary-100); font-size: 13px; font-weight: 900; }
+.aspect-lock-control b { color: var(--fg-secondary); font-size: 10px; }
+.aspect-lock-control small { margin-top: 2px; color: var(--fg-muted); font-size: 8px; line-height: 1.35; }
 .parameter-note { margin: -2px 0 14px; padding: 9px 10px; border-radius: 7px; color: var(--fg-muted); background: var(--primary-50); font-size: 8px; line-height: 1.45; }
 .environment-toggle { display: grid; grid-template-columns: auto minmax(0,1fr); align-items: start; gap: 9px; margin: 0 0 19px; padding: 10px; border: 1px solid var(--edge); border-radius: 8px; background: rgba(255,255,255,.58); cursor: pointer; }
 .environment-toggle input { width: 17px; height: 17px; margin: 1px 0 0; accent-color: var(--primary-600); }
@@ -670,6 +678,8 @@ body.studio-panel-resizing { cursor: col-resize; user-select: none; }
 .parameter-note, .calibration-note, .print-note { font-size: 13px; line-height: 1.55; }
 .environment-toggle b { font-size: 14px; }
 .environment-toggle small { font-size: 12px; }
+.aspect-lock-control b { font-size: 14px; }
+.aspect-lock-control small { font-size: 12px; }
 .swatch, .color-input { width: 40px; height: 40px; }
 .inspector-disclosure > summary { min-height: 58px; }
 .inspector-disclosure > summary span b { font-size: 14px; }

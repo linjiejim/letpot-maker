@@ -125,6 +125,21 @@ test("Studio hides stale geometry behind an explicit model loading state", () =>
   assert.match(globalCss, /\.stage-preview-status \{[^}]*background: var\(--surface\)/);
 });
 
+test("Official meshes are prefetched, cached and report real transfer progress", () => {
+  assert.match(studio, /preloadOfficialMesh\(item\)/);
+  assert.match(studio, /onProgress: \(\{ ratio \}\)/);
+  assert.match(studio, /stage-preview-progress/);
+  assert.match(globalCss, /\.stage-preview-progress \{/);
+});
+
+test("Topper dimensions default to 65 mm and preserve aspect ratio", () => {
+  assert.match(studio, /const \[topperAspectLocked, setTopperAspectLocked\] = useState\(true\)/);
+  assert.match(studio, /Lock width \/ height ratio/);
+  assert.match(studio, /topperWidth: roundToStep\(topperHeight \* ratio\)/);
+  assert.match(studio, /topperHeight: roundToStep\(topperWidth \/ ratio\)/);
+  assert.match(globalCss, /\.aspect-lock-control \{/);
+});
+
 test("all procedural Studio cards have checked-in geometry renders", async () => {
   const previews = (await readdir(new URL("../public/models/previews/lowpoly/", import.meta.url)))
     .filter((filename) => filename.endsWith(".jpg"));

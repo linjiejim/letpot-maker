@@ -272,7 +272,7 @@ const CORE_MODEL_LIBRARY: ModelDefinition[] = [
       { key: "leafSpread", label: "Canopy spread", min: 0.75, max: 1.25, step: 0.05, defaultValue: 1, unit: "×" },
       { key: "stemThickness", label: "Stem thickness", min: 0.8, max: 1.3, step: 0.05, defaultValue: 1, unit: "×" },
     ],
-    defaults: { topperHeight: 35, topperWidth: 28, primaryColor: "#769567", accentColor: "#d7d0bf" },
+    defaults: { topperHeight: 65, topperWidth: 52, primaryColor: "#769567", accentColor: "#d7d0bf" },
     printNote: "Print upright. Reinforced leaf roots, fused midribs and rising leaf angles are tuned for support-free printing.",
   },
   {
@@ -865,8 +865,8 @@ export function getDefaultShapeParameters(definition: ModelDefinition) {
 export const DEFAULT_OPTIONS: ModelOptions = {
   modelId: "sprout",
   connectionMode: "detachable",
-  topperHeight: 35,
-  topperWidth: 28,
+  topperHeight: 65,
+  topperWidth: 52,
   primaryColor: "#769567",
   accentColor: "#d7d0bf",
   secondaryColor: "#d8a33e",
@@ -1285,7 +1285,7 @@ function buildExternalMeshTopper(options: ModelOptions, source: THREE.Object3D) 
     if (!(child instanceof THREE.Mesh) || !child.visible || !child.geometry.getAttribute("position")) return;
     const geometry = child.geometry.clone();
     geometry.applyMatrix4(child.matrixWorld);
-    geometry.computeVertexNormals();
+    if (!geometry.getAttribute("normal")) geometry.computeVertexNormals();
     const printableMesh = mesh(geometry, options.primaryColor, options.faceted);
     printableMesh.name = child.name ? `tripo_${child.name}` : "tripo_mesh_part";
     printableMesh.userData.aiColorRole = "primary";
@@ -3746,10 +3746,11 @@ export function createModel(options: ModelOptions): ModelBuild {
     printableRoot.name = `${options.modelId}_integrated_print`;
     assembly.add(printableRoot);
   }
-  // A direct external-mesh base covers the adapter face in integrated mode.
-  // Omitting the hidden engraving also prevents its preview lift from cutting
-  // into the generated base at their shared seating plane.
-  const adapter = buildAdapter(options, !(integrated && options.externalMesh));
+  // One-piece artwork may cover most of the adapter face. Omitting the logo
+  // recess there prevents its cutter from carving loose islands where a wide
+  // topper and the adapter overlap at their shared seating plane. Detachable
+  // adapters keep the visible engraving.
+  const adapter = buildAdapter(options, !integrated);
   printableRoot.add(adapter);
   const parts: PrintablePart[] = integrated ? [] : [
     { id: "adapter", label: "Universal adapter · Ø41 face down", object: adapter, color: options.accentColor, printFlipZ: true },

@@ -82,6 +82,7 @@ Set `AI_API_KEY`, `AI_BASE_URL`, and `AI_MODEL` for a provider that implements t
 | `npm run docker:deploy` | Build and health-check a local Compose deployment |
 | `npm run docker:deploy-image` | Pull and deploy an immutable published image |
 | `npm run generate:assets` | Regenerate the checked-in STL, OBJ, manifest, and stack-test assets |
+| `npm run official:optimize` | Re-encode checked-in Official GLBs with face-count-preserving Meshopt compression |
 | `npm run validate:assets` | Validate generated STL topology and adapter orientation |
 | `npm run validate:parameters` | Exercise supported parameter boundaries |
 | `npm run validate:ai` | Validate constrained AI recipes and printable output |
