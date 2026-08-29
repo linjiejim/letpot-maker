@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile, readdir } from "node:fs/promises";
+import { access, readFile, readdir } from "node:fs/promises";
 import test from "node:test";
 
 const [studio, podStyler, landingPage, globalCss, podCss] = await Promise.all([
@@ -79,6 +79,7 @@ test("mobile Studio keeps the preview primary and exposes explicit workspace tab
   assert.match(studio, /aria-controls="studio-adjustments"/);
   assert.match(globalCss, /workspace\[data-mobile-panel="library"\] \.library-panel/);
   assert.match(globalCss, /workspace\[data-mobile-panel="adjust"\] \.inspector-panel/);
+  assert.match(globalCss, /html \{ overflow-x: clip; scroll-behavior: smooth; \}/);
 });
 
 test("Pod Styler offers a keyboard-operable pod picker", () => {
@@ -99,6 +100,8 @@ test("landing 3D waits for idle time and exposes loading feedback", () => {
 
 test("Studio library search, stable Mine order, camera framing and adaptive environment stay explicit", () => {
   assert.match(studio, /aria-label=\{libraryMode === "official" \? "Search Official model titles" : "Search Mine titles"\}/);
+  assert.match(studio, /item\.name\.toLowerCase\(\)\.includes\(normalizedLibraryQuery\)/);
+  assert.match(studio, /title\.toLowerCase\(\)\.includes\(normalizedLibraryQuery\)/);
   assert.match(studio, /className="tag-filter-toggle" aria-expanded=\{tagsExpanded\}/);
   assert.match(studio, /visibleMineCreations\.map/);
   assert.match(studio, /applyTripoDesign\(metadata, parsed, false\)/);
@@ -108,8 +111,19 @@ test("Studio library search, stable Mine order, camera framing and adaptive envi
   assert.match(studio, /samplePreviewPalette/);
 });
 
-test("all low-poly Studio cards have checked-in geometry renders", async () => {
+test("all procedural Studio cards have checked-in geometry renders", async () => {
   const previews = (await readdir(new URL("../public/models/previews/lowpoly/", import.meta.url)))
     .filter((filename) => filename.endsWith(".jpg"));
   assert.equal(previews.length, 18);
+  const lowPolyIds = ["sprout", "pine", "cactus", "mushroom", "pumpkin", "acorn", "bonsai", "strawberry", "clover", "lotus", "aloe", "snakeplant", "eggplant", "grapes", "sunflower", "snail", "frog", "hedgehog"];
+  const realisticIds = ["tomato", "carrot", "chili", "basil", "rosemary", "parsley", "daisy", "rose", "lemon", "bamboo"];
+  await Promise.all(lowPolyIds.map((id) => access(new URL(`../public/models/previews/lowpoly/${id}.jpg`, import.meta.url))));
+  await Promise.all(realisticIds.map((id) => access(new URL(`../public/models/previews/procedural/${id}.jpg`, import.meta.url))));
+  assert.match(studio, /const collection = definition\.style === "lowpoly" \? "lowpoly" : "procedural"/);
+});
+
+test("Studio asset tags stay on one line and summarize hidden tags", () => {
+  assert.match(studio, /const visibleTags = item\.tags\.slice\(0, 2\)/);
+  assert.match(studio, /className="asset-tags-more"/);
+  assert.match(globalCss, /\.asset-tags \{[^}]*flex-wrap: nowrap;[^}]*overflow: hidden;/);
 });

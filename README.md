@@ -10,7 +10,7 @@ The project started from a simple gap: small hydroponic accessories are easy to 
 
 ## Current capabilities
 
-- Browse, search, and filter 80 checked-in printable designs, including 52 bundled Official neural meshes across eight collections and rendered covers for all 18 low-poly designs.
+- Browse, search, and filter 80 checked-in printable designs, including 52 bundled Official neural meshes across eight collections and rendered covers for all 28 procedural designs.
 - Preview the same parametric geometry used by the export pipeline on both the homepage and in Studio.
 - Customize topper height from 25–100 mm, width from 20–80 mm, model-specific details, colors, and surface style.
 - Export watertight STL parts, OBJ assemblies, manifests, and Bambu Studio 3MF projects.

@@ -117,7 +117,8 @@ const TAG_LABELS: Record<ModelTag, string> = {
 
 function modelPreviewPath(definition: ModelDefinition) {
   if (definition.officialMesh) return definition.officialMesh.previewPath;
-  return definition.style === "lowpoly" ? `/models/previews/lowpoly/${definition.id}.jpg` : undefined;
+  const collection = definition.style === "lowpoly" ? "lowpoly" : "procedural";
+  return `/models/previews/${collection}/${definition.id}.jpg`;
 }
 
 function mixHex(first: string, second: string, amount: number) {
@@ -829,8 +830,7 @@ export function Studio() {
   const normalizedLibraryQuery = libraryQuery.trim().toLowerCase();
   const visibleModels = useMemo(() => MODEL_LIBRARY.filter((item) => {
     const matchesTag = activeTag === "all" || item.tags.includes(activeTag);
-    const searchText = [item.number, item.name, item.subtitle, ...item.tags].join(" ").toLowerCase();
-    return matchesTag && (!normalizedLibraryQuery || searchText.includes(normalizedLibraryQuery));
+    return matchesTag && (!normalizedLibraryQuery || item.name.toLowerCase().includes(normalizedLibraryQuery));
   }), [activeTag, normalizedLibraryQuery]);
   const mineCreations = useMemo(() => [
     ...tripoCreations.map((creation) => ({ kind: "tripo" as const, id: creation.id, createdAt: creation.createdAt, creation })),
@@ -838,10 +838,8 @@ export function Studio() {
   ].sort((first, second) => second.createdAt.localeCompare(first.createdAt) || first.id.localeCompare(second.id)), [aiCreations, tripoCreations]);
   const visibleMineCreations = useMemo(() => mineCreations.filter((item) => {
     if (!normalizedLibraryQuery) return true;
-    const searchText = item.kind === "tripo"
-      ? [item.creation.name, item.creation.prompt, item.creation.source].join(" ")
-      : [item.creation.recipe.name, item.creation.prompt, item.creation.recipe.subtitle].join(" ");
-    return searchText.toLowerCase().includes(normalizedLibraryQuery);
+    const title = item.kind === "tripo" ? item.creation.name : item.creation.recipe.name;
+    return title.toLowerCase().includes(normalizedLibraryQuery);
   }), [mineCreations, normalizedLibraryQuery]);
   const activePreviewPath = aiDesign || tripoDesign ? undefined : modelPreviewPath(definition);
   const viewportModelKey = tripoDesign
@@ -1554,6 +1552,8 @@ export function Studio() {
           <div className="asset-list">
             {libraryMode === "official" && visibleModels.map((item) => {
               const previewPath = modelPreviewPath(item);
+              const visibleTags = item.tags.slice(0, 2);
+              const hiddenTagCount = item.tags.length - visibleTags.length;
               return (
                 <button key={item.id} className={`asset-card ${item.style} ${item.id === options.modelId ? "active" : ""}`} title={item.name} onClick={() => chooseModel(item.id)}>
                   {previewPath
@@ -1561,7 +1561,10 @@ export function Studio() {
                     : <span className="asset-number">{item.number}</span>}
                   <span className="asset-copy">
                     <strong>{item.name}</strong>
-                    <span className="asset-tags">{item.tags.slice(0, 3).map((tag) => <i key={tag}>{TAG_LABELS[tag]}</i>)}</span>
+                    <span className="asset-tags" aria-label={`Tags: ${item.tags.map((tag) => TAG_LABELS[tag]).join(", ")}`}>
+                      {visibleTags.map((tag) => <i key={tag}>{TAG_LABELS[tag]}</i>)}
+                      {hiddenTagCount > 0 && <i className="asset-tags-more" title={item.tags.slice(2).map((tag) => TAG_LABELS[tag]).join(", ")}>+{hiddenTagCount}</i>}
+                    </span>
                   </span>
                 </button>
               );
