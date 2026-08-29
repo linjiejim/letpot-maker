@@ -39,3 +39,4 @@ yarn-error.log*
 /dist/
 /outputs/
 /work/
+/tools/tripo-review/public/candidates/

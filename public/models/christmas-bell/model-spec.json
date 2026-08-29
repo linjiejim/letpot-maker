@@ -2,7 +2,7 @@
   "schema": "letpot-maker/model/v1",
   "model": {
     "id": "christmas-bell",
-    "number": "34",
+    "number": "35",
     "name": "Christmas Bell",
     "subtitle": "Bowed golden holiday bell",
     "difficulty": "Medium",
@@ -47,6 +47,8 @@
   "measurements": {
     "width": 41,
     "height": 42.4,
+    "topperWidth": 22.6,
+    "topperHeight": 36.8,
     "lowerDiameter": 33,
     "upperDiameter": 41
   },

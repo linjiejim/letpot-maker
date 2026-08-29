@@ -1,0 +1,99 @@
+{
+  "schema": "letpot-maker/official-meshes/v2",
+  "collection": "insects",
+  "units": "millimetres",
+  "texture": false,
+  "adapterIncluded": false,
+  "models": [
+    {
+      "id": "ladybug-friend",
+      "number": "65",
+      "name": "Ladybug Friend",
+      "tags": [
+        "realistic",
+        "insect",
+        "animal"
+      ],
+      "glb": "ladybug-friend.glb",
+      "preview": "previews/ladybug-friend.jpg",
+      "faces": 25414,
+      "generation": "Tripo H3.1 image-to-3D",
+      "defaultEnvelope": [
+        70,
+        60
+      ]
+    },
+    {
+      "id": "bumblebee-friend",
+      "number": "66",
+      "name": "Bumblebee Friend",
+      "tags": [
+        "realistic",
+        "insect",
+        "animal"
+      ],
+      "glb": "bumblebee-friend.glb",
+      "preview": "previews/bumblebee-friend.jpg",
+      "faces": 26938,
+      "generation": "Tripo H3.1 image-to-3D",
+      "defaultEnvelope": [
+        68,
+        64
+      ]
+    },
+    {
+      "id": "butterfly-friend",
+      "number": "67",
+      "name": "Butterfly Friend",
+      "tags": [
+        "realistic",
+        "insect",
+        "animal"
+      ],
+      "glb": "butterfly-friend.glb",
+      "preview": "previews/butterfly-friend.jpg",
+      "faces": 29546,
+      "generation": "Tripo H3.1 image-to-3D",
+      "defaultEnvelope": [
+        78,
+        72
+      ]
+    },
+    {
+      "id": "beetle-friend",
+      "number": "68",
+      "name": "Beetle Friend",
+      "tags": [
+        "realistic",
+        "insect",
+        "animal"
+      ],
+      "glb": "beetle-friend.glb",
+      "preview": "previews/beetle-friend.jpg",
+      "faces": 27064,
+      "generation": "Tripo H3.1 image-to-3D",
+      "defaultEnvelope": [
+        68,
+        62
+      ]
+    },
+    {
+      "id": "caterpillar-friend",
+      "number": "69",
+      "name": "Caterpillar Friend",
+      "tags": [
+        "realistic",
+        "insect",
+        "animal"
+      ],
+      "glb": "caterpillar-friend.glb",
+      "preview": "previews/caterpillar-friend.jpg",
+      "faces": 25248,
+      "generation": "Tripo H3.1 image-to-3D",
+      "defaultEnvelope": [
+        76,
+        58
+      ]
+    }
+  ]
+}

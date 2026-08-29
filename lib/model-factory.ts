@@ -1,8 +1,14 @@
 import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 import type { AiColorRole, AiShapeNode, AiShapeProgram } from "./ai-shape-program";
+import {
+  OFFICIAL_EXPANSION_MODELS,
+  OFFICIAL_MESH_UPGRADES,
+  type OfficialExpansionModelId,
+} from "./official-expansion";
 
 export type ModelId =
+  | OfficialExpansionModelId
   | "sprout"
   | "pine"
   | "cactus"
@@ -34,6 +40,7 @@ export type ModelId =
   | "santa"
   | "christmas-tree"
   | "snowman"
+  | "reindeer"
   | "gift-box"
   | "candy-cane"
   | "christmas-bell";
@@ -48,6 +55,12 @@ export const MODEL_TAGS = [
   "flower",
   "animal",
   "christmas",
+  "plant",
+  "space",
+  "insect",
+  "ocean",
+  "holiday",
+  "pet",
   "other",
 ] as const;
 
@@ -131,10 +144,16 @@ export interface ModelDefinition {
   subtitle: string;
   difficulty: "Easy" | "Medium";
   parts: number;
-  series: "01" | "02" | "03" | "04";
+  series: "01" | "02" | "03" | "04" | "05";
   style: "lowpoly" | "realistic";
   tags: ModelTag[];
   symbol: string;
+  officialMesh?: {
+    assetPath: string;
+    previewPath: string;
+    faceCount: number;
+    generation: "Tripo H3.1 image-to-3D" | "Tripo H3.1 text-to-3D";
+  };
   parameters?: ShapeParameterDefinition[];
   defaults: Pick<ModelOptions, "topperHeight" | "topperWidth" | "primaryColor" | "accentColor">;
   printNote: string;
@@ -235,7 +254,7 @@ export function getManufacturingProfile(modelId: ModelId): ManufacturingProfile 
   };
 }
 
-export const MODEL_LIBRARY: ModelDefinition[] = [
+const CORE_MODEL_LIBRARY: ModelDefinition[] = [
   {
     id: "sprout",
     number: "01",
@@ -668,92 +687,173 @@ export const MODEL_LIBRARY: ModelDefinition[] = [
     id: "santa",
     number: "29",
     name: "Jolly Santa",
-    subtitle: "Bearded Christmas character",
+    subtitle: "Rounded official image-to-3D character",
     difficulty: "Medium",
     parts: 3,
     series: "04",
     style: "realistic",
     tags: ["realistic", "christmas"],
     symbol: "✣",
-    defaults: { topperHeight: 45, topperWidth: 35, primaryColor: "#b92f34", accentColor: "#d7d0bf" },
-    printNote: "Print upright with automatic support enabled. The hat, beard, face, belt, arms and mittens overlap a reinforced central body for a detailed single-piece Santa topper.",
+    officialMesh: {
+      assetPath: "/models/official/christmas/santa.glb",
+      previewPath: "/models/official/christmas/previews/santa.jpg",
+      faceCount: 39_312,
+      generation: "Tripo H3.1 image-to-3D",
+    },
+    defaults: { topperHeight: 90, topperWidth: 62, primaryColor: "#b92f34", accentColor: "#d7d0bf" },
+    printNote: "Print upright with automatic snug supports. The rounded hat, beard and mitten arms are fused into one repaired official mesh with a code-owned blind socket.",
   },
   {
     id: "christmas-tree",
     number: "30",
     name: "Festive Fir",
-    subtitle: "Ornamented five-tier Christmas tree",
+    subtitle: "Rounded official image-to-3D fir",
     difficulty: "Medium",
     parts: 3,
     series: "04",
     style: "realistic",
     tags: ["realistic", "christmas", "tree"],
     symbol: "★",
-    parameters: [
-      { key: "tierCount", label: "Branch tiers", min: 4, max: 6, step: 1, defaultValue: 5, unit: "tiers" },
-      { key: "crownFullness", label: "Branch fullness", min: 0.85, max: 1.15, step: 0.05, defaultValue: 1, unit: "×" },
-      { key: "leafDensity", label: "Ornament density", min: 12, max: 28, step: 4, defaultValue: 24, unit: "baubles" },
-      { key: "tipRoundness", label: "Star size", min: 0.8, max: 1.2, step: 0.05, defaultValue: 1, unit: "×" },
-    ],
-    defaults: { topperHeight: 48, topperWidth: 36, primaryColor: "#23563b", accentColor: "#d7d0bf" },
-    printNote: "Print upright with automatic support enabled. Six selectable sculpted branch tiers, embedded baubles and a fused star create a richer Christmas-tree silhouette.",
+    officialMesh: {
+      assetPath: "/models/official/christmas/christmas-tree.glb",
+      previewPath: "/models/official/christmas/previews/christmas-tree.jpg",
+      faceCount: 38_788,
+      generation: "Tripo H3.1 image-to-3D",
+    },
+    defaults: { topperHeight: 96, topperWidth: 64, primaryColor: "#23563b", accentColor: "#d7d0bf" },
+    printNote: "Print upright with automatic snug supports. Three thick foliage tiers, embedded ornaments and the rounded star form one repaired mesh without a separate display disk.",
   },
   {
     id: "snowman",
     number: "31",
     name: "Winter Snowman",
-    subtitle: "Scarf-wrapped holiday companion",
+    subtitle: "Rounded official image-to-3D companion",
     difficulty: "Medium",
     parts: 3,
     series: "04",
     style: "realistic",
     tags: ["realistic", "christmas"],
     symbol: "☃",
-    defaults: { topperHeight: 46, topperWidth: 34, primaryColor: "#eef3ed", accentColor: "#d7d0bf" },
-    printNote: "Print upright with automatic support enabled. Three deeply overlapping snowballs carry a fused hat, scarf, carrot nose, buttons and sturdy branch arms.",
+    officialMesh: {
+      assetPath: "/models/official/christmas/snowman.glb",
+      previewPath: "/models/official/christmas/previews/snowman.jpg",
+      faceCount: 48_064,
+      generation: "Tripo H3.1 image-to-3D",
+    },
+    defaults: { topperHeight: 88, topperWidth: 62, primaryColor: "#eef3ed", accentColor: "#d7d0bf" },
+    printNote: "Print upright with automatic snug supports. The smooth two-ball body, hat, scarf and buttons are fused into one repaired official mesh with a direct blind socket.",
+  },
+  {
+    id: "reindeer",
+    number: "32",
+    name: "Cozy Reindeer",
+    subtitle: "Rounded official image-to-3D character",
+    difficulty: "Medium",
+    parts: 3,
+    series: "04",
+    style: "realistic",
+    tags: ["realistic", "christmas", "animal"],
+    symbol: "♢",
+    officialMesh: {
+      assetPath: "/models/official/christmas/reindeer.glb",
+      previewPath: "/models/official/christmas/previews/reindeer.jpg",
+      faceCount: 47_588,
+      generation: "Tripo H3.1 image-to-3D",
+    },
+    defaults: { topperHeight: 88, topperWidth: 66, primaryColor: "#a9774d", accentColor: "#d7d0bf" },
+    printNote: "Print upright with automatic snug supports. Thick two-branch antlers, close-set ears and seated hooves remain fused into a compact repaired official mesh.",
   },
   {
     id: "gift-box",
-    number: "32",
+    number: "33",
     name: "Wrapped Gift",
-    subtitle: "Ribboned Christmas present",
+    subtitle: "Rounded official image-to-3D present",
     difficulty: "Easy",
     parts: 3,
     series: "04",
     style: "realistic",
     tags: ["realistic", "christmas", "other"],
     symbol: "◇",
-    defaults: { topperHeight: 31, topperWidth: 32, primaryColor: "#b8323c", accentColor: "#d7d0bf" },
-    printNote: "Print upright. The box, lid, crossed ribbon, tails and rounded bow loops are generously fused into a sturdy festive topper.",
+    officialMesh: {
+      assetPath: "/models/official/christmas/gift-box.glb",
+      previewPath: "/models/official/christmas/previews/gift-box.jpg",
+      faceCount: OFFICIAL_MESH_UPGRADES["gift-box"].faces,
+      generation: "Tripo H3.1 image-to-3D",
+    },
+    defaults: { topperHeight: OFFICIAL_MESH_UPGRADES["gift-box"].height, topperWidth: OFFICIAL_MESH_UPGRADES["gift-box"].width, primaryColor: OFFICIAL_MESH_UPGRADES["gift-box"].color, accentColor: "#d7d0bf" },
+    printNote: "Print upright with snug supports. The rounded package, ribbon bands and low bow form one repaired official mesh with a direct blind socket.",
   },
   {
     id: "candy-cane",
-    number: "33",
+    number: "34",
     name: "Candy Cane",
-    subtitle: "Striped peppermint hook",
+    subtitle: "Rounded official image-to-3D cane",
     difficulty: "Medium",
     parts: 3,
     series: "04",
     style: "realistic",
     tags: ["realistic", "christmas", "other"],
     symbol: "⌁",
-    defaults: { topperHeight: 39, topperWidth: 29, primaryColor: "#c72f3b", accentColor: "#d7d0bf" },
-    printNote: "Print upright with automatic support enabled. Overlapping rounded segments form the hook, while embedded raised bands preserve the peppermint stripe at printable scale.",
+    officialMesh: {
+      assetPath: "/models/official/christmas/candy-cane.glb",
+      previewPath: "/models/official/christmas/previews/candy-cane.jpg",
+      faceCount: OFFICIAL_MESH_UPGRADES["candy-cane"].faces,
+      generation: "Tripo H3.1 image-to-3D",
+    },
+    defaults: { topperHeight: OFFICIAL_MESH_UPGRADES["candy-cane"].height, topperWidth: OFFICIAL_MESH_UPGRADES["candy-cane"].width, primaryColor: OFFICIAL_MESH_UPGRADES["candy-cane"].color, accentColor: "#d7d0bf" },
+    printNote: "Print upright with snug supports. The thick hook, compact inner gap and broad spiral relief form one repaired official mesh with a direct blind socket.",
   },
   {
     id: "christmas-bell",
-    number: "34",
+    number: "35",
     name: "Christmas Bell",
-    subtitle: "Bowed golden holiday bell",
+    subtitle: "Rounded official image-to-3D bell",
     difficulty: "Medium",
     parts: 3,
     series: "04",
     style: "realistic",
     tags: ["realistic", "christmas", "other"],
     symbol: "◒",
-    defaults: { topperHeight: 40, topperWidth: 31, primaryColor: "#d4a62f", accentColor: "#d7d0bf" },
-    printNote: "Print upright with automatic support enabled. A solid flared bell, reinforced clapper, raised rim and fused red bow form one durable holiday body.",
+    officialMesh: {
+      assetPath: "/models/official/christmas/christmas-bell.glb",
+      previewPath: "/models/official/christmas/previews/christmas-bell.jpg",
+      faceCount: OFFICIAL_MESH_UPGRADES["christmas-bell"].faces,
+      generation: "Tripo H3.1 image-to-3D",
+    },
+    defaults: { topperHeight: OFFICIAL_MESH_UPGRADES["christmas-bell"].height, topperWidth: OFFICIAL_MESH_UPGRADES["christmas-bell"].width, primaryColor: OFFICIAL_MESH_UPGRADES["christmas-bell"].color, accentColor: "#d7d0bf" },
+    printNote: "Print upright with snug supports. The thick bow, solid bell body and hidden socket land form one repaired official mesh with a direct blind socket.",
   },
+];
+
+const EXPANSION_MODEL_LIBRARY: ModelDefinition[] = OFFICIAL_EXPANSION_MODELS.map((entry) => ({
+  id: entry.id,
+  number: entry.number,
+  name: entry.name,
+  subtitle: entry.subtitle,
+  difficulty: "Medium",
+  parts: 3,
+  series: "05",
+  style: "realistic",
+  tags: ["realistic", ...entry.tags],
+  symbol: "◆",
+  officialMesh: {
+    assetPath: `/models/official/${entry.group}/${entry.id}.glb`,
+    previewPath: `/models/official/${entry.group}/previews/${entry.id}.jpg`,
+    faceCount: entry.faces,
+    generation: "generation" in entry ? entry.generation : "Tripo H3.1 image-to-3D",
+  },
+  defaults: {
+    topperHeight: entry.height,
+    topperWidth: entry.width,
+    primaryColor: entry.color,
+    accentColor: "#d7d0bf",
+  },
+  printNote: "Print upright with automatic snug supports. This rounded repaired official mesh uses thick fused details, a direct blind socket and no external transition tray.",
+}));
+
+export const MODEL_LIBRARY: ModelDefinition[] = [
+  ...CORE_MODEL_LIBRARY,
+  ...EXPANSION_MODEL_LIBRARY,
 ];
 
 export function getDefaultShapeParameters(definition: ModelDefinition) {
@@ -3065,6 +3165,75 @@ function buildBamboo(options: ModelOptions) {
   return group;
 }
 
+function buildReindeer(options: ModelOptions) {
+  const brown = options.primaryColor;
+  const darkBrown = "#6b4934";
+  const { group, sculpture } = createRealisticSculpture(options, 38, 48, brown);
+  addSmoothPlinth(sculpture, brown, 11.2, 4.5);
+
+  const body = mesh(new THREE.SphereGeometry(10.8, 26, 18), brown, false);
+  body.name = "reindeer_rounded_body";
+  body.scale.set(1.12, 1.2, 0.9);
+  body.position.set(0, 15.2, 0);
+  sculpture.add(body);
+
+  const head = mesh(new THREE.SphereGeometry(8.7, 26, 18), brown, false);
+  head.name = "reindeer_fused_head";
+  head.scale.set(1.04, 1.02, 0.9);
+  head.position.set(0, 30, 0.2);
+  sculpture.add(head);
+
+  const muzzle = mesh(new THREE.SphereGeometry(4.2, 22, 14), brown, false);
+  muzzle.name = "reindeer_short_muzzle";
+  muzzle.scale.set(1.12, 0.72, 0.52);
+  muzzle.position.set(0, 27.8, 7.2);
+  sculpture.add(muzzle);
+  const nose = mesh(new THREE.SphereGeometry(1.9, 18, 12), darkBrown, false);
+  nose.name = "reindeer_round_nose";
+  nose.position.set(0, 29.1, 9.2);
+  sculpture.add(nose);
+
+  [-1, 1].forEach((side) => {
+    const ear = mesh(new THREE.SphereGeometry(3.35, 20, 14), brown, false);
+    ear.name = `reindeer_${side < 0 ? "left" : "right"}_ear`;
+    ear.scale.set(1.05, 0.55, 0.42);
+    ear.rotation.z = side * 0.48;
+    ear.position.set(side * 7.15, 34.2, 0.3);
+    sculpture.add(ear);
+
+    const eye = mesh(new THREE.SphereGeometry(0.55, 14, 10), darkBrown, false);
+    eye.name = `reindeer_${side < 0 ? "left" : "right"}_eye`;
+    eye.position.set(side * 2.75, 31.6, 7.65);
+    sculpture.add(eye);
+
+    const root = new THREE.Vector3(side * 4.1, 36, 0);
+    const crown = new THREE.Vector3(side * 5.15, 44.3, 0);
+    const antler = cylinderBetween(root, crown, 2.35, 1.9, darkBrown, false, 18);
+    antler.name = `reindeer_${side < 0 ? "left" : "right"}_antler_stem`;
+    sculpture.add(antler);
+    const branch = cylinderBetween(
+      new THREE.Vector3(side * 4.75, 40.3, 0),
+      new THREE.Vector3(side * 8.05, 43.2, 0),
+      1.95,
+      1.65,
+      darkBrown,
+      false,
+      16,
+    );
+    branch.name = `reindeer_${side < 0 ? "left" : "right"}_antler_branch`;
+    sculpture.add(branch);
+  });
+
+  [-1, 1].forEach((side) => {
+    const hoof = mesh(new THREE.SphereGeometry(4.3, 20, 14), darkBrown, false);
+    hoof.name = `reindeer_${side < 0 ? "left" : "right"}_front_hoof`;
+    hoof.scale.set(0.9, 0.62, 0.82);
+    hoof.position.set(side * 5.5, 7.1, 5.2);
+    sculpture.add(hoof);
+  });
+  return group;
+}
+
 function buildSanta(options: ModelOptions) {
   const red = options.primaryColor;
   const white = "#f5f1e7";
@@ -3681,7 +3850,7 @@ export function createModel(options: ModelOptions): ModelBuild {
       );
     }
   } else {
-    const builders: Record<Exclude<ModelId, "mushroom" | "clover">, (value: ModelOptions) => THREE.Group> = {
+    const builders: Partial<Record<ModelId, (value: ModelOptions) => THREE.Group>> = {
       sprout: buildSprout,
       pine: buildPine,
       cactus: buildCactus,
@@ -3711,11 +3880,13 @@ export function createModel(options: ModelOptions): ModelBuild {
       santa: buildSanta,
       "christmas-tree": buildChristmasTree,
       snowman: buildSnowman,
+      reindeer: buildReindeer,
       "gift-box": buildGiftBox,
       "candy-cane": buildCandyCane,
       "christmas-bell": buildChristmasBell,
     };
-    const topper = constrainTopperArtwork(builders[options.modelId](options), options);
+    const builder = builders[options.modelId] ?? buildSprout;
+    const topper = constrainTopperArtwork(builder(options), options);
     if (integrated) {
       printableRoot.add(buildIntegratedBaseJoint(options), topper);
     } else {

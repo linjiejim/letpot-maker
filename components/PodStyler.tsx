@@ -242,6 +242,12 @@ const TAG_LABELS: Record<ModelTag, string> = {
   flower: "Flower",
   animal: "Animal",
   christmas: "Christmas",
+  plant: "Plant",
+  space: "Space",
+  insect: "Insect",
+  ocean: "Ocean",
+  holiday: "Holiday",
+  pet: "Pet",
   other: "Other",
 };
 const AVAILABLE_TAGS = MODEL_TAGS.filter((tag) => LOW_POLY_MODELS.some((model) => model.tags.includes(tag)));

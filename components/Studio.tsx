@@ -29,6 +29,7 @@ import {
   STACK_TRIAL_GAPS,
   TOPPER_SIZE_LIMITS,
   type ModelBuild,
+  type ModelDefinition,
   type ModelId,
   type ModelOptions,
   type ModelTag,
@@ -56,6 +57,7 @@ import {
 import {
   generateTripoMesh,
   parseTripoGlb,
+  TRIPO_LOCAL_MESH_FACE_LIMIT,
   TRIPO_MODEL_OPTIONS,
   TRIPO_REGION_OPTIONS,
   tripoErrorMessage,
@@ -63,10 +65,18 @@ import {
   type TripoModelVersion,
   type TripoRegion,
 } from "../lib/tripo-mesh";
+import { loadOfficialMesh } from "../lib/official-mesh-browser";
 
 type ViewName = "orbit" | "front" | "top";
 type PanelName = "library" | "inspector";
 type PanelWidths = Record<PanelName, number>;
+type ViewportPalette = {
+  background: string;
+  fog: string;
+  ground: string;
+  hemisphereGround: string;
+  fill: string;
+};
 
 const COLORS = ["#769567", "#294e35", "#a75f46", "#d3c5a5", "#d66c45"];
 const DEFAULT_PANEL_WIDTHS = { library: 264, inspector: 336 } as const;
@@ -75,6 +85,17 @@ const PANEL_WIDTH_BOUNDS = {
   inspector: { min: 300, max: 440 },
 } as const;
 const MIN_STAGE_WIDTH = 420;
+const MAX_LOCAL_GLB_BYTES = 40 * 1024 * 1024;
+const DEFAULT_IMPORTED_TOPPER_SIZE = { width: 70, height: 100 } as const;
+const ADAPTIVE_ENVIRONMENT_STORAGE_KEY = "letpot-maker:adaptive-environment:v1";
+const DEFAULT_VIEWPORT_PALETTE: ViewportPalette = {
+  background: "#f4f8f1",
+  fog: "#f4f8f1",
+  ground: "#3f4f42",
+  hemisphereGround: "#5c6d5e",
+  fill: "#c7ddd0",
+};
+const previewPaletteCache = new Map<string, Promise<ViewportPalette>>();
 const TAG_LABELS: Record<ModelTag, string> = {
   lowpoly: "Low poly",
   realistic: "Realistic",
@@ -85,8 +106,85 @@ const TAG_LABELS: Record<ModelTag, string> = {
   flower: "Flower",
   animal: "Animal",
   christmas: "Christmas",
+  plant: "Plant",
+  space: "Space",
+  insect: "Insect",
+  ocean: "Ocean",
+  holiday: "Holiday",
+  pet: "Pet",
   other: "Other",
 };
+
+function modelPreviewPath(definition: ModelDefinition) {
+  if (definition.officialMesh) return definition.officialMesh.previewPath;
+  const collection = definition.style === "lowpoly" ? "lowpoly" : "procedural";
+  return `/models/previews/${collection}/${definition.id}.jpg`;
+}
+
+function mixHex(first: string, second: string, amount: number) {
+  return `#${new THREE.Color(first).lerp(new THREE.Color(second), amount).getHexString()}`;
+}
+
+function paletteFromColor(color: string): ViewportPalette {
+  return {
+    background: mixHex(color, "#ffffff", 0.86),
+    fog: mixHex(color, "#ffffff", 0.8),
+    ground: mixHex(color, "#26302a", 0.62),
+    hemisphereGround: mixHex(color, "#3f4d43", 0.55),
+    fill: mixHex(color, "#ffffff", 0.62),
+  };
+}
+
+async function samplePreviewPalette(path: string, fallback: string) {
+  let pending = previewPaletteCache.get(path);
+  if (!pending) {
+    pending = (async () => {
+      const image = new Image();
+      image.decoding = "async";
+      image.src = path;
+      await image.decode();
+      const canvas = document.createElement("canvas");
+      canvas.width = 40;
+      canvas.height = 40;
+      const context = canvas.getContext("2d", { willReadFrequently: true });
+      if (!context) return paletteFromColor(fallback);
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+      const cornerIndexes = [0, 39, 1560, 1599];
+      const background = cornerIndexes.reduce((sum, pixel) => {
+        const offset = pixel * 4;
+        sum[0] += pixels[offset];
+        sum[1] += pixels[offset + 1];
+        sum[2] += pixels[offset + 2];
+        return sum;
+      }, [0, 0, 0]).map((value) => value / cornerIndexes.length);
+      let red = 0;
+      let green = 0;
+      let blue = 0;
+      let weight = 0;
+      for (let pixel = 0; pixel < canvas.width * canvas.height; pixel += 1) {
+        const offset = pixel * 4;
+        if (pixels[offset + 3] < 32) continue;
+        const distance = Math.hypot(
+          pixels[offset] - background[0],
+          pixels[offset + 1] - background[1],
+          pixels[offset + 2] - background[2],
+        );
+        if (distance < 18) continue;
+        const sampleWeight = Math.min(3, 0.5 + distance / 48);
+        red += pixels[offset] * sampleWeight;
+        green += pixels[offset + 1] * sampleWeight;
+        blue += pixels[offset + 2] * sampleWeight;
+        weight += sampleWeight;
+      }
+      if (weight < 24) return paletteFromColor(fallback);
+      const sampled = new THREE.Color(red / weight / 255, green / weight / 255, blue / weight / 255);
+      return paletteFromColor(`#${sampled.getHexString()}`);
+    })().catch(() => paletteFromColor(fallback));
+    previewPaletteCache.set(path, pending);
+  }
+  return pending;
+}
 
 function slugify(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
@@ -120,11 +218,20 @@ function objBlob(object: THREE.Object3D) {
   return new Blob([new OBJExporter().parse(object)], { type: "text/plain" });
 }
 
-function ModelViewport({ build, view }: { build: ModelBuild; view: { name: ViewName; nonce: number } }) {
+function ModelViewport({ build, view, modelKey, palette }: {
+  build: ModelBuild;
+  view: { name: ViewName; nonce: number };
+  modelKey: string;
+  palette: ViewportPalette;
+}) {
   const mountRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
+  const framedModelRef = useRef<string | null>(null);
+  const extentRef = useRef(0);
+  const centerRef = useRef(new THREE.Vector3());
+  const viewDistanceRef = useRef(100);
 
   useEffect(() => {
     const mount = mountRef.current;
@@ -149,13 +256,16 @@ function ModelViewport({ build, view }: { build: ModelBuild; view: { name: ViewN
     controls.minDistance = 45;
     controls.maxDistance = 190;
 
-    scene.add(new THREE.HemisphereLight("#fffdf5", "#5c6d5e", 2.5));
+    const hemisphere = new THREE.HemisphereLight("#fffdf5", DEFAULT_VIEWPORT_PALETTE.hemisphereGround, 2.5);
+    hemisphere.name = "adaptive_hemisphere";
+    scene.add(hemisphere);
     const key = new THREE.DirectionalLight("#fff4da", 4.8);
     key.position.set(52, 90, 62);
     key.castShadow = true;
     key.shadow.mapSize.set(1024, 1024);
     scene.add(key);
     const fill = new THREE.DirectionalLight("#c7ddd0", 1.7);
+    fill.name = "adaptive_fill";
     fill.position.set(-55, 36, -38);
     scene.add(fill);
 
@@ -166,6 +276,7 @@ function ModelViewport({ build, view }: { build: ModelBuild; view: { name: ViewN
     ground.rotation.x = -Math.PI / 2;
     ground.position.y = -0.05;
     ground.receiveShadow = true;
+    ground.name = "adaptive_ground";
     scene.add(ground);
 
     const resize = () => {
@@ -213,22 +324,34 @@ function ModelViewport({ build, view }: { build: ModelBuild; view: { name: ViewN
     const bounds = new THREE.Box3().setFromObject(build.assembly);
     const center = bounds.getCenter(new THREE.Vector3());
     const size = bounds.getSize(new THREE.Vector3());
+    const extent = Math.max(size.x, size.y, size.z);
+    const previousOffset = camera.position.clone().sub(controls.target);
+    const modelChanged = framedModelRef.current !== modelKey;
     controls.target.copy(center);
-    const distance = Math.max(size.x, size.y, size.z) * 2.25;
-    camera.position.set(distance * 0.72, center.y + distance * 0.42, distance * 0.78);
+    if (modelChanged || extentRef.current <= 0 || previousOffset.lengthSq() < 0.001) {
+      const distance = extent * 2.25;
+      camera.position.set(distance * 0.72, center.y + distance * 0.42, distance * 0.78);
+    } else {
+      const scale = THREE.MathUtils.clamp(extent / extentRef.current, 0.65, 1.6);
+      camera.position.copy(center).add(previousOffset.multiplyScalar(scale));
+    }
     camera.lookAt(center);
     controls.update();
+    framedModelRef.current = modelKey;
+    extentRef.current = extent;
+    centerRef.current.copy(center);
+    viewDistanceRef.current = extent * 2.4;
     return () => {
       scene.remove(build.assembly);
     };
-  }, [build]);
+  }, [build, modelKey]);
 
   useEffect(() => {
     const camera = cameraRef.current;
     const controls = controlsRef.current;
     if (!camera || !controls) return;
-    const center = new THREE.Box3().setFromObject(build.assembly).getCenter(new THREE.Vector3());
-    const distance = Math.max(build.measurements.width, build.measurements.height) * 2.4;
+    const center = centerRef.current;
+    const distance = viewDistanceRef.current;
     const positions: Record<ViewName, THREE.Vector3> = {
       orbit: new THREE.Vector3(distance * 0.7, center.y + distance * 0.45, distance * 0.76),
       front: new THREE.Vector3(0, center.y, distance),
@@ -238,9 +361,23 @@ function ModelViewport({ build, view }: { build: ModelBuild; view: { name: ViewN
     controls.target.copy(center);
     camera.lookAt(center);
     controls.update();
-  }, [build, view]);
+  }, [view]);
 
-  return <div className="viewport" ref={mountRef} role="img" aria-label="Interactive 3D preview of the selected printable model. Use the Orbit, Front, and Top buttons to change the view." />;
+  useEffect(() => {
+    const scene = sceneRef.current;
+    if (!scene) return;
+    scene.background = new THREE.Color(palette.background);
+    scene.fog = new THREE.Fog(palette.fog, 145, 240);
+    const ground = scene.getObjectByName("adaptive_ground") as THREE.Mesh | undefined;
+    const groundMaterial = ground?.material as THREE.ShadowMaterial | undefined;
+    groundMaterial?.color.set(palette.ground);
+    const hemisphere = scene.getObjectByName("adaptive_hemisphere") as THREE.HemisphereLight | undefined;
+    hemisphere?.groundColor.set(palette.hemisphereGround);
+    const fill = scene.getObjectByName("adaptive_fill") as THREE.DirectionalLight | undefined;
+    fill?.color.set(palette.fill);
+  }, [palette]);
+
+  return <div className="viewport" ref={mountRef} role="img" aria-label="Interactive 3D preview of the selected printable model. Use the Orbit, Front, and Top buttons to change the view." data-environment-color={palette.background} />;
 }
 
 function Slider({ label, value, min, max, step = 1, unit = "mm", onChange }: {
@@ -537,6 +674,7 @@ function AiGenerateModal({ open, onClose, onGenerated, onMeshGenerated }: {
           byteLength: generated.data.byteLength,
           meshCount: parsed.meshCount,
           faceCount: parsed.faceCount,
+          source: "tripo",
         };
         const record: LocalTripoMeshRecord = { ...metadata, glb: generated.data };
         await putLocalTripoMesh(record);
@@ -642,6 +780,8 @@ export function Studio() {
   const [exporting, setExporting] = useState(false);
   const [printerId, setPrinterId] = useState<BambuPrinterId>("a1-mini");
   const [activeTag, setActiveTag] = useState<"all" | ModelTag>("all");
+  const [libraryQuery, setLibraryQuery] = useState("");
+  const [tagsExpanded, setTagsExpanded] = useState(false);
   const [libraryMode, setLibraryMode] = useState<"official" | "mine">("official");
   const [message, setMessage] = useState("");
   const [aiOpen, setAiOpen] = useState(false);
@@ -652,31 +792,67 @@ export function Studio() {
   const [mobilePanel, setMobilePanel] = useState<"preview" | "library" | "adjust">("preview");
   const [panelWidths, setPanelWidths] = useState<PanelWidths>({ ...DEFAULT_PANEL_WIDTHS });
   const [resizingPanel, setResizingPanel] = useState<PanelName | null>(null);
+  const [adaptiveEnvironment, setAdaptiveEnvironment] = useState(false);
+  const [sampledViewportPalette, setSampledViewportPalette] = useState<{ path: string; palette: ViewportPalette } | null>(null);
   const workspaceRef = useRef<HTMLElement>(null);
+  const glbInputRef = useRef<HTMLInputElement>(null);
+  const officialLoadRef = useRef(0);
   const resizeCleanupRef = useRef<(() => void) | null>(null);
   const build = useMemo(() => createModel(options), [options]);
+  useEffect(() => {
+    const source = options.externalMesh;
+    return () => {
+      if (source) disposeObject(source);
+    };
+  }, [options.externalMesh]);
   const definition = MODEL_LIBRARY.find((item) => item.id === options.modelId) ?? MODEL_LIBRARY[0];
   const isAiSculpture = Boolean(aiDesign?.program && options.aiProgram);
   const isTripoMesh = Boolean(tripoDesign && options.externalMesh);
+  const isOfficialMesh = Boolean(definition.officialMesh && options.externalMesh && !tripoDesign);
+  const isExternalMesh = isTripoMesh || isOfficialMesh;
   const integrated = options.connectionMode === "integrated";
-  const designParts = integrated ? 1 : isAiSculpture || isTripoMesh ? 3 : definition.parts;
+  const designParts = integrated ? 1 : isAiSculpture || isExternalMesh ? 3 : definition.parts;
   const designName = tripoDesign?.name ?? aiDesign?.name ?? definition.name;
   const designSubtitle = tripoDesign
-    ? `Direct Tripo mesh · ${tripoDesign.faceCount.toLocaleString()} faces · local only`
-    : aiDesign?.subtitle ?? definition.subtitle;
+    ? `${tripoDesign.source === "local-file" ? "Imported GLB" : "Direct Tripo mesh"} · ${tripoDesign.faceCount.toLocaleString()} faces · local only`
+    : isOfficialMesh
+      ? `${definition.subtitle} · ${definition.officialMesh!.faceCount.toLocaleString()} faces · bundled asset`
+      : aiDesign?.subtitle ?? definition.subtitle;
   const detachablePrintNote = isTripoMesh
     ? "Print the socketed mesh upright with automatic snug supports. Neural meshes can contain thin walls, islands or non-manifold edges; validate the export and sliced preview before printing."
+    : isOfficialMesh ? definition.printNote
     : isAiSculpture
     ? "Print the socketed sculpture upright with automatic snug supports. Inspect small color details and overhangs in the sliced preview before the first prototype."
     : definition.printNote;
   const designPrintNote = integrated
     ? `One-piece mode: print upright on the Ø33 locator face; the adapter and topper are fused by a hidden internal core. ${detachablePrintNote}`
     : detachablePrintNote;
-  const visibleModels = useMemo(
-    () => activeTag === "all" ? MODEL_LIBRARY : MODEL_LIBRARY.filter((item) => item.tags.includes(activeTag)),
-    [activeTag],
-  );
-  const baseManufacturing = isTripoMesh
+  const normalizedLibraryQuery = libraryQuery.trim().toLowerCase();
+  const visibleModels = useMemo(() => MODEL_LIBRARY.filter((item) => {
+    const matchesTag = activeTag === "all" || item.tags.includes(activeTag);
+    return matchesTag && (!normalizedLibraryQuery || item.name.toLowerCase().includes(normalizedLibraryQuery));
+  }), [activeTag, normalizedLibraryQuery]);
+  const mineCreations = useMemo(() => [
+    ...tripoCreations.map((creation) => ({ kind: "tripo" as const, id: creation.id, createdAt: creation.createdAt, creation })),
+    ...aiCreations.map((creation) => ({ kind: "ai" as const, id: creation.id, createdAt: creation.createdAt, creation })),
+  ].sort((first, second) => second.createdAt.localeCompare(first.createdAt) || first.id.localeCompare(second.id)), [aiCreations, tripoCreations]);
+  const visibleMineCreations = useMemo(() => mineCreations.filter((item) => {
+    if (!normalizedLibraryQuery) return true;
+    const title = item.kind === "tripo" ? item.creation.name : item.creation.recipe.name;
+    return title.toLowerCase().includes(normalizedLibraryQuery);
+  }), [mineCreations, normalizedLibraryQuery]);
+  const activePreviewPath = aiDesign || tripoDesign ? undefined : modelPreviewPath(definition);
+  const viewportModelKey = tripoDesign
+    ? `tripo:${tripoDesign.id}`
+    : aiDesign ? `ai:${aiDesign.localId}` : `official:${definition.id}`;
+  const viewportPalette = useMemo(() => {
+    if (!adaptiveEnvironment) return DEFAULT_VIEWPORT_PALETTE;
+    if (!activePreviewPath) return paletteFromColor(options.primaryColor);
+    return sampledViewportPalette?.path === activePreviewPath
+      ? sampledViewportPalette.palette
+      : paletteFromColor(options.primaryColor);
+  }, [activePreviewPath, adaptiveEnvironment, options.primaryColor, sampledViewportPalette]);
+  const baseManufacturing = isExternalMesh
     ? TRIPO_MANUFACTURING_PROFILE
     : isAiSculpture ? AI_MANUFACTURING_PROFILE : getManufacturingProfile(options.modelId);
   const manufacturing = integrated ? {
@@ -697,6 +873,28 @@ export function Studio() {
   }, [options.externalMesh]);
 
   useEffect(() => () => resizeCleanupRef.current?.(), []);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      try {
+        setAdaptiveEnvironment(window.localStorage.getItem(ADAPTIVE_ENVIRONMENT_STORAGE_KEY) === "true");
+      } catch {
+        setAdaptiveEnvironment(false);
+      }
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+
+  useEffect(() => {
+    if (!adaptiveEnvironment || !activePreviewPath) return;
+    let cancelled = false;
+    void samplePreviewPalette(activePreviewPath, options.primaryColor).then((palette) => {
+      if (!cancelled) setSampledViewportPalette({ path: activePreviewPath, palette });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [activePreviewPath, adaptiveEnvironment, options.primaryColor]);
 
   useEffect(() => {
     const load = () => {
@@ -749,20 +947,9 @@ export function Studio() {
       const requestedModel = search.get("model");
       const selected = MODEL_LIBRARY.find((item) => item.id === requestedModel);
       if (!selected) return;
-      setOptions((current) => ({
-        ...current,
-        modelId: selected.id,
-        ...selected.defaults,
-        faceted: selected.style === "lowpoly",
-        shape: getDefaultShapeParameters(selected),
-        aiProgram: undefined,
-        externalMesh: undefined,
-      }));
+      chooseModel(selected.id);
       setLibraryMode("official");
       setActiveTag("all");
-      setAiDesign(null);
-      setTripoDesign(null);
-      setMessage(`${selected.name} loaded`);
     });
     return () => window.cancelAnimationFrame(frame);
   }, []);
@@ -836,9 +1023,11 @@ export function Studio() {
     }
   };
 
-  const chooseModel = (modelId: ModelId) => {
+  function chooseModel(modelId: ModelId) {
     const selected = MODEL_LIBRARY.find((item) => item.id === modelId);
     if (!selected) return;
+    const loadId = officialLoadRef.current + 1;
+    officialLoadRef.current = loadId;
     setOptions((current) => ({
       ...current,
       modelId,
@@ -850,9 +1039,25 @@ export function Studio() {
     }));
     setAiDesign(null);
     setTripoDesign(null);
-    setMessage(`${selected.name} loaded`);
+    setMessage(selected.officialMesh ? `Loading bundled ${selected.name} mesh…` : `${selected.name} loaded`);
     setMobilePanel("preview");
-  };
+    if (selected.officialMesh) {
+      void loadOfficialMesh(selected).then((parsed) => {
+        if (officialLoadRef.current !== loadId) {
+          disposeObject(parsed.object);
+          return;
+        }
+        setOptions((current) => current.modelId === selected.id
+          ? { ...current, externalMesh: parsed.object }
+          : current);
+        setMessage(`${selected.name} official mesh loaded · ${parsed.faceCount.toLocaleString()} faces`);
+      }).catch((error) => {
+        if (officialLoadRef.current === loadId) {
+          setMessage(error instanceof Error ? error.message : "The bundled official mesh could not be loaded");
+        }
+      });
+    }
+  }
 
   const persistCreations = (creations: LocalAiCreation[]) => {
     const next = creations.slice(0, 24);
@@ -867,6 +1072,7 @@ export function Studio() {
   const requestView = (name: ViewName) => setView((current) => ({ name, nonce: current.nonce + 1 }));
 
   const applyAiDesign = (recipe: AiDesignRecipe, prompt: string) => {
+    officialLoadRef.current += 1;
     const localId = window.crypto.randomUUID();
     const creation: LocalAiCreation = { id: localId, createdAt: new Date().toISOString(), prompt, recipe };
     setOptions((current) => ({
@@ -893,6 +1099,7 @@ export function Studio() {
   };
 
   const chooseAiCreation = (creation: LocalAiCreation) => {
+    officialLoadRef.current += 1;
     const recipe = normalizeAiRecipe(creation.recipe);
     setOptions((current) => ({
       ...current,
@@ -915,7 +1122,8 @@ export function Studio() {
     setMobilePanel("preview");
   };
 
-  const applyTripoDesign = (metadata: LocalTripoMeshMetadata, parsed: ParsedTripoMesh) => {
+  const applyTripoDesign = (metadata: LocalTripoMeshMetadata, parsed: ParsedTripoMesh, promote = true) => {
+    officialLoadRef.current += 1;
     setOptions((current) => ({
       ...current,
       modelId: "sprout",
@@ -926,7 +1134,7 @@ export function Studio() {
       aiProgram: undefined,
       externalMesh: parsed.object,
     }));
-    setTripoCreations((current) => [metadata, ...current.filter((item) => item.id !== metadata.id)]);
+    if (promote) setTripoCreations((current) => [metadata, ...current.filter((item) => item.id !== metadata.id)]);
     setTripoDesign(metadata);
     setAiDesign(null);
     setLibraryMode("mine");
@@ -940,11 +1148,49 @@ export function Studio() {
     try {
       const record = await getLocalTripoMesh(metadata.id);
       if (!record) throw new Error("This local mesh is no longer available.");
-      const parsed = await parseTripoGlb(record.glb.slice(0));
-      applyTripoDesign(metadata, parsed);
+      const parsed = await parseTripoGlb(record.glb.slice(0), {
+        maxFaceCount: metadata.source === "local-file" ? TRIPO_LOCAL_MESH_FACE_LIMIT : undefined,
+      });
+      applyTripoDesign(metadata, parsed, false);
       setMessage(`${metadata.name} loaded from this browser`);
     } catch (loadError) {
       setMessage(loadError instanceof Error ? loadError.message : "The local mesh could not be loaded");
+    }
+  };
+
+  const importLocalGlb = async (file?: File) => {
+    if (!file) return;
+    setMessage(`Checking ${file.name} locally…`);
+    let parsed: ParsedTripoMesh | null = null;
+    try {
+      if (!file.name.toLowerCase().endsWith(".glb")) throw new Error("Choose a binary .glb model file.");
+      if (!file.size || file.size > MAX_LOCAL_GLB_BYTES) throw new Error("Local GLB must be between 1 byte and 40 MB.");
+      const glb = await file.arrayBuffer();
+      parsed = await parseTripoGlb(glb.slice(0), { maxFaceCount: TRIPO_LOCAL_MESH_FACE_LIMIT });
+      const id = window.crypto.randomUUID();
+      const baseName = file.name.replace(/\.glb$/i, "").trim() || "Imported GLB";
+      const metadata: LocalTripoMeshMetadata = {
+        schema: TRIPO_MESH_SCHEMA,
+        id,
+        createdAt: new Date().toISOString(),
+        name: baseName.length > 42 ? `${baseName.slice(0, 41)}…` : baseName,
+        prompt: `Imported locally from ${file.name}`,
+        taskId: `local-file-${id}`,
+        modelVersion: "local-glb",
+        topperHeight: DEFAULT_IMPORTED_TOPPER_SIZE.height,
+        topperWidth: DEFAULT_IMPORTED_TOPPER_SIZE.width,
+        byteLength: glb.byteLength,
+        meshCount: parsed.meshCount,
+        faceCount: parsed.faceCount,
+        source: "local-file",
+      };
+      await putLocalTripoMesh({ ...metadata, glb });
+      applyTripoDesign(metadata, parsed);
+      parsed = null;
+      setMessage(`${metadata.name} imported locally · ${metadata.faceCount.toLocaleString()} faces`);
+    } catch (error) {
+      if (parsed) disposeObject(parsed.object);
+      setMessage(error instanceof Error ? error.message : "The local GLB could not be imported");
     }
   };
 
@@ -1054,7 +1300,7 @@ export function Studio() {
         manufacturing,
         warning: "Fixed Ø33/Ø41 pod-fit standard. Verify fit with a small adapter test before production.",
       }, null, 2));
-      root.file("PRINT-NOTES.txt", `${designName}\n\n${aiDesign ? `${aiDesign.creativeNote}\n\nGenerated from: ${aiDesign.prompt}\n\n` : tripoDesign ? `Generated as a direct Tripo mesh from: ${tripoDesign.prompt}\nTask: ${tripoDesign.taskId}\nModel: ${tripoDesign.modelVersion}\nThe API key is not included in this export.\n\n` : ""}${designPrintNote}\n\nManufacturing status: ${manufacturing.status}.\nOrientation: ${manufacturing.orientation}.\nSupport: ${manufacturing.supportStrategy}.\nMinimum designed wall: ${manufacturing.minWall.toFixed(1)} mm.\nMinimum designed feature: ${manufacturing.minFeature.toFixed(1)} mm.\nBatch mode: ${manufacturing.batchMode}.\n\nEvery STL is a single connected, watertight solid. ${integrated ? "This export contains one fused adapter-and-topper part with no loose connector." : "The adapter and topper use a flush embedded socket plus a removable double-ended connector pin; mushroom and clover include one additional upper part."}\n\nAdapter standard: Ø${ADAPTER_STANDARD.lowerDiameter.toFixed(2)} mm straight lower section × ${ADAPTER_STANDARD.lowerHeight.toFixed(2)} mm, then a ${ADAPTER_STANDARD.transitionHeight.toFixed(2)} mm transition to a Ø${ADAPTER_STANDARD.upperDiameter.toFixed(2)} mm × ${ADAPTER_STANDARD.upperBandHeight.toFixed(2)} mm vertical upper band; total height ${ADAPTER_STANDARD.totalHeight.toFixed(2)} mm. ${integrated ? `Print the complete model upright with the Ø${ADAPTER_STANDARD.lowerDiameter.toFixed(2)} mm locator face on the bed.` : `The adapter STL is pre-oriented with its Ø${ADAPTER_STANDARD.upperDiameter.toFixed(2)} mm logo face on the print bed and its Ø${ADAPTER_STANDARD.lowerDiameter.toFixed(2)} mm side facing upward.`} Verify fit with a small test print before production.\n`);
+      root.file("PRINT-NOTES.txt", `${designName}\n\n${aiDesign ? `${aiDesign.creativeNote}\n\nGenerated from: ${aiDesign.prompt}\n\n` : tripoDesign ? tripoDesign.source === "local-file" ? `Imported from a local GLB. The source file stayed on this device.\n\n` : `Generated as a direct Tripo mesh from: ${tripoDesign.prompt}\nTask: ${tripoDesign.taskId}\nModel: ${tripoDesign.modelVersion}\nThe API key is not included in this export.\n\n` : ""}${designPrintNote}\n\nManufacturing status: ${manufacturing.status}.\nOrientation: ${manufacturing.orientation}.\nSupport: ${manufacturing.supportStrategy}.\nMinimum designed wall: ${manufacturing.minWall.toFixed(1)} mm.\nMinimum designed feature: ${manufacturing.minFeature.toFixed(1)} mm.\nBatch mode: ${manufacturing.batchMode}.\n\nEvery STL is a single connected, watertight solid. ${integrated ? "This export contains one fused adapter-and-topper part with no loose connector." : "The adapter and topper use a flush embedded socket plus a removable double-ended connector pin; mushroom and clover include one additional upper part."}\n\nAdapter standard: Ø${ADAPTER_STANDARD.lowerDiameter.toFixed(2)} mm straight lower section × ${ADAPTER_STANDARD.lowerHeight.toFixed(2)} mm, then a ${ADAPTER_STANDARD.transitionHeight.toFixed(2)} mm transition to a Ø${ADAPTER_STANDARD.upperDiameter.toFixed(2)} mm × ${ADAPTER_STANDARD.upperBandHeight.toFixed(2)} mm vertical upper band; total height ${ADAPTER_STANDARD.totalHeight.toFixed(2)} mm. ${integrated ? `Print the complete model upright with the Ø${ADAPTER_STANDARD.lowerDiameter.toFixed(2)} mm locator face on the bed.` : `The adapter STL is pre-oriented with its Ø${ADAPTER_STANDARD.upperDiameter.toFixed(2)} mm logo face on the print bed and its Ø${ADAPTER_STANDARD.lowerDiameter.toFixed(2)} mm side facing upward.`} Verify fit with a small test print before production.\n`);
       const archive = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
       downloadBlob(archive, `${slugify(designName)}-print-pack.zip`);
       disposeObject(solidAssembly);
@@ -1142,12 +1388,14 @@ export function Studio() {
 
       for (const [modelIndex, modelDefinition] of MODEL_LIBRARY.entries()) {
         setMessage(`Packing ${modelIndex + 1} / ${MODEL_LIBRARY.length}: ${modelDefinition.name}`);
+        const officialSource = modelDefinition.officialMesh ? await loadOfficialMesh(modelDefinition) : null;
         const modelOptions: ModelOptions = {
           ...DEFAULT_OPTIONS,
           modelId: modelDefinition.id,
           ...modelDefinition.defaults,
           faceted: modelDefinition.style === "lowpoly",
           shape: getDefaultShapeParameters(modelDefinition),
+          externalMesh: officialSource?.object,
         };
         const modelBuild = createModel(modelOptions);
         const solids: THREE.Mesh[] = [];
@@ -1184,6 +1432,7 @@ export function Studio() {
         } finally {
           solids.forEach((solid) => disposeObject(solid));
           disposeObject(modelBuild.assembly);
+          if (officialSource) disposeObject(officialSource.object);
         }
       }
 
@@ -1255,48 +1504,91 @@ export function Studio() {
             <button className={libraryMode === "official" ? "active" : ""} onClick={() => setLibraryMode("official")}>Official <span>{MODEL_LIBRARY.length}</span></button>
             <button className={libraryMode === "mine" ? "active" : ""} onClick={() => setLibraryMode("mine")}>Mine <span>{aiCreations.length + tripoCreations.length}</span></button>
           </div>
-          {libraryMode === "official" && <div className="tag-filter" aria-label="Filter designs by tag">
-            <button className={activeTag === "all" ? "active" : ""} onClick={() => setActiveTag("all")} aria-pressed={activeTag === "all"}>
-              All <span>{MODEL_LIBRARY.length}</span>
+          <label className="library-search">
+            <span aria-hidden="true">⌕</span>
+            <input
+              type="search"
+              value={libraryQuery}
+              onChange={(event) => setLibraryQuery(event.target.value)}
+              placeholder={libraryMode === "official" ? "Search model titles…" : "Search Mine titles…"}
+              aria-label={libraryMode === "official" ? "Search Official model titles" : "Search Mine titles"}
+              autoComplete="off"
+            />
+            {libraryQuery && <button type="button" onClick={() => setLibraryQuery("")} aria-label="Clear model search">×</button>}
+          </label>
+          {libraryMode === "mine" && <div className="local-import-bar">
+            <input
+              ref={glbInputRef}
+              type="file"
+              accept=".glb,model/gltf-binary"
+              hidden
+              onChange={(event) => {
+                const file = event.currentTarget.files?.[0];
+                event.currentTarget.value = "";
+                void importLocalGlb(file);
+              }}
+            />
+            <button type="button" onClick={() => glbInputRef.current?.click()}>↑ Import local GLB</button>
+            <span>≤100k faces · stays in this browser</span>
+          </div>}
+          {libraryMode === "official" && <div className={`tag-filter-shell ${tagsExpanded ? "expanded" : ""}`}>
+            <div className="tag-filter" aria-label="Filter designs by tag">
+              <button className={activeTag === "all" ? "active" : ""} onClick={() => setActiveTag("all")} aria-pressed={activeTag === "all"}>
+                All <span>{MODEL_LIBRARY.length}</span>
+              </button>
+              {MODEL_TAGS.map((tag) => {
+                const count = MODEL_LIBRARY.filter((item) => item.tags.includes(tag)).length;
+                return (
+                  <button key={tag} className={activeTag === tag ? "active" : ""} onClick={() => setActiveTag(tag)} aria-pressed={activeTag === tag}>
+                    {TAG_LABELS[tag]} <span>{count}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <button type="button" className="tag-filter-toggle" aria-expanded={tagsExpanded} onClick={() => setTagsExpanded((current) => !current)}>
+              {tagsExpanded ? "Show fewer tags" : "Show all tags"}<span aria-hidden="true">{tagsExpanded ? "↑" : "↓"}</span>
             </button>
-            {MODEL_TAGS.map((tag) => {
-              const count = MODEL_LIBRARY.filter((item) => item.tags.includes(tag)).length;
+          </div>}
+          <div className="asset-list">
+            {libraryMode === "official" && visibleModels.map((item) => {
+              const previewPath = modelPreviewPath(item);
+              const visibleTags = item.tags.slice(0, 2);
+              const hiddenTagCount = item.tags.length - visibleTags.length;
               return (
-                <button key={tag} className={activeTag === tag ? "active" : ""} onClick={() => setActiveTag(tag)} aria-pressed={activeTag === tag}>
-                  {TAG_LABELS[tag]} <span>{count}</span>
+                <button key={item.id} className={`asset-card ${item.style} ${item.id === options.modelId ? "active" : ""}`} title={item.name} onClick={() => chooseModel(item.id)}>
+                  {previewPath
+                    ? <span className="asset-preview" aria-hidden="true" style={{ backgroundImage: `url(${previewPath})` }} />
+                    : <span className="asset-number">{item.number}</span>}
+                  <span className="asset-copy">
+                    <strong>{item.name}</strong>
+                    <span className="asset-tags" aria-label={`Tags: ${item.tags.map((tag) => TAG_LABELS[tag]).join(", ")}`}>
+                      {visibleTags.map((tag) => <i key={tag}>{TAG_LABELS[tag]}</i>)}
+                      {hiddenTagCount > 0 && <i className="asset-tags-more" title={item.tags.slice(2).map((tag) => TAG_LABELS[tag]).join(", ")}>+{hiddenTagCount}</i>}
+                    </span>
+                  </span>
                 </button>
               );
             })}
-          </div>}
-          <div className="asset-list">
-            {libraryMode === "official" && visibleModels.map((item) => (
-              <button key={item.id} className={`asset-card ${item.style} ${item.id === options.modelId ? "active" : ""}`} title={item.name} onClick={() => chooseModel(item.id)}>
-                <span className="asset-number">{item.number}</span>
-                <span className="asset-copy">
-                  <strong>{item.name}</strong>
-                  <span className="asset-tags">{item.tags.slice(0, 3).map((tag) => <i key={tag}>{TAG_LABELS[tag]}</i>)}</span>
-                </span>
-              </button>
-            ))}
-            {libraryMode === "mine" && tripoCreations.map((creation, index) => (
-              <div key={creation.id} className={`local-creation-card direct-mesh ${tripoDesign?.id === creation.id ? "active" : ""}`}>
-                <button className="local-creation-main" title={creation.name} onClick={() => void chooseTripoCreation(creation)}>
-                  <span className="asset-number">M{String(tripoCreations.length - index).padStart(2, "0")}</span>
-                  <span className="asset-copy"><strong>{creation.name}</strong><small>Tripo mesh · {(creation.faceCount / 1000).toFixed(1)}k faces</small></span>
+            {libraryMode === "mine" && visibleMineCreations.map((item) => item.kind === "tripo" ? (
+              <div key={`tripo:${item.id}`} className={`local-creation-card direct-mesh ${tripoDesign?.id === item.id ? "active" : ""}`}>
+                <button className="local-creation-main" title={item.creation.name} onClick={() => void chooseTripoCreation(item.creation)}>
+                  <span className="asset-number">3D</span>
+                  <span className="asset-copy"><strong>{item.creation.name}</strong><small>{item.creation.source === "local-file" ? "Imported GLB" : "Tripo mesh"} · {(item.creation.faceCount / 1000).toFixed(1)}k faces</small></span>
                 </button>
-                <button className="local-creation-remove" aria-label={`Remove ${creation.name}`} onClick={() => void removeTripoCreation(creation)}>×</button>
+                <button className="local-creation-remove" aria-label={`Remove ${item.creation.name}`} onClick={() => void removeTripoCreation(item.creation)}>×</button>
+              </div>
+            ) : (
+              <div key={`ai:${item.id}`} className={`local-creation-card ${aiDesign?.localId === item.id ? "active" : ""}`}>
+                <button className="local-creation-main" title={item.creation.recipe.name} onClick={() => chooseAiCreation(item.creation)}>
+                  <span className="asset-number">AI</span>
+                  <span className="asset-copy"><strong>{item.creation.recipe.name}</strong><small>{item.creation.recipe.program ? "Custom shape" : "AI variation"}</small></span>
+                </button>
+                <button className="local-creation-remove" aria-label={`Remove ${item.creation.recipe.name}`} onClick={() => removeAiCreation(item.creation)}>×</button>
               </div>
             ))}
-            {libraryMode === "mine" && aiCreations.map((creation, index) => (
-              <div key={creation.id} className={`local-creation-card ${aiDesign?.localId === creation.id ? "active" : ""}`}>
-                <button className="local-creation-main" title={creation.recipe.name} onClick={() => chooseAiCreation(creation)}>
-                  <span className="asset-number">AI{String(aiCreations.length - index).padStart(2, "0")}</span>
-                  <span className="asset-copy"><strong>{creation.recipe.name}</strong><small>{creation.recipe.program ? "Custom shape" : "AI variation"}</small></span>
-                </button>
-                <button className="local-creation-remove" aria-label={`Remove ${creation.recipe.name}`} onClick={() => removeAiCreation(creation)}>×</button>
-              </div>
-            ))}
-            {libraryMode === "mine" && aiCreations.length + tripoCreations.length === 0 && <div className="local-empty-state"><span>✦</span><b>No local creations yet</b><p>Generate a bounded shape or direct Tripo mesh and it will stay only in this browser.</p><button onClick={() => setAiOpen(true)}>Generate your first model</button></div>}
+            {libraryMode === "official" && visibleModels.length === 0 && <div className="local-empty-state"><span>⌕</span><b>No matching Official models</b><p>Try a shorter title or clear the selected tag.</p><button onClick={() => { setLibraryQuery(""); setActiveTag("all"); }}>Show all models</button></div>}
+            {libraryMode === "mine" && mineCreations.length > 0 && visibleMineCreations.length === 0 && <div className="local-empty-state"><span>⌕</span><b>No matching local titles</b><p>Clear the title search to restore your saved order.</p><button onClick={() => setLibraryQuery("")}>Clear search</button></div>}
+            {libraryMode === "mine" && mineCreations.length === 0 && <div className="local-empty-state"><span>✦</span><b>No local creations yet</b><p>Generate a bounded shape, direct Tripo mesh, or import a local GLB. It stays only in this browser.</p><button onClick={() => setAiOpen(true)}>Generate your first model</button></div>}
           </div>
         </aside>
 
@@ -1322,7 +1614,7 @@ export function Studio() {
               <button key={name} className={view.name === name ? "active" : ""} onClick={() => requestView(name)}>{name[0].toUpperCase() + name.slice(1)}</button>
             ))}
           </div>
-          <ModelViewport build={build} view={view} />
+          <ModelViewport build={build} view={view} modelKey={viewportModelKey} palette={viewportPalette} />
           <div className="dimension-summary" aria-label="Model dimensions">
             <span>TOPPER / ASSEMBLY</span><b>W {build.measurements.topperWidth.toFixed(1)} × H {build.measurements.topperHeight.toFixed(1)} / {build.measurements.width.toFixed(1)} × {build.measurements.height.toFixed(1)} mm</b>
           </div>
@@ -1347,7 +1639,7 @@ export function Studio() {
 
         <aside className="inspector-panel" id="studio-adjustments" aria-label="Model adjustments">
           <div className="inspector-title">
-            <div><p>{tripoDesign ? "TRIPO MESH" : aiDesign ? "AI DESIGN" : `MODEL ${definition.number}`}</p><h2>{designName}</h2><span>{designSubtitle}</span></div>
+            <div><p>{tripoDesign ? tripoDesign.source === "local-file" ? "LOCAL GLB" : "TRIPO MESH" : isOfficialMesh ? "OFFICIAL MESH" : aiDesign ? "AI DESIGN" : `MODEL ${definition.number}`}</p><h2>{designName}</h2><span>{designSubtitle}</span></div>
             <span className="part-count">{designParts} {designParts === 1 ? "PART" : "PARTS"}</span>
           </div>
           <div className="inspector-content">
@@ -1401,6 +1693,24 @@ export function Studio() {
             <section className="inspector-section appearance-section">
               <div className="section-heading"><div><p>APPEARANCE</p><span>{isTripoMesh ? "Single-color printable mesh" : isAiSculpture ? "Three-role generated palette" : definition.style === "realistic" ? "Smooth realistic model" : "Faceted printable model"}</span></div></div>
               {(isTripoMesh || isAiSculpture || definition.style === "lowpoly") && <div className="control-group compact"><label><span>Surface style</span><select value={options.faceted ? "low" : "soft"} onChange={(event) => update("faceted", event.target.value === "low")}><option value="low">Low poly</option><option value="soft">Smooth faceted</option></select></label></div>}
+              <label className="environment-toggle" htmlFor="adaptive-environment-toggle">
+                <span className="sr-only">Match preview environment</span>
+                <input
+                  id="adaptive-environment-toggle"
+                  type="checkbox"
+                  checked={adaptiveEnvironment}
+                  onChange={(event) => {
+                    const checked = event.target.checked;
+                    setAdaptiveEnvironment(checked);
+                    try {
+                      window.localStorage.setItem(ADAPTIVE_ENVIRONMENT_STORAGE_KEY, String(checked));
+                    } catch {
+                      setMessage("The environment preference could not be saved");
+                    }
+                  }}
+                />
+                <span><b>Match preview environment</b><small>{activePreviewPath ? "Samples the selected cover once and applies a subtle editor tint." : "Uses the active topper color for this local design."}</small></span>
+              </label>
               <div className="control-group color-control"><span>{options.modelId === "mushroom" ? "Cap color" : "Topper color"}</span><div>{COLORS.map((color) => <button key={color} className={`swatch ${options.primaryColor === color ? "active" : ""}`} style={{ background: color }} aria-label={`Use ${color}`} onClick={() => update("primaryColor", color)} />)}<input className="color-input" aria-label="Custom topper color" type="color" value={options.primaryColor} onChange={(event) => update("primaryColor", event.target.value)} /></div></div>
               {isAiSculpture && <div className="control-group color-control"><span>Secondary color</span><div><input className="color-input" aria-label="Custom secondary color" type="color" value={options.secondaryColor ?? "#d8a33e"} onChange={(event) => update("secondaryColor", event.target.value)} /></div></div>}
               {isAiSculpture && <div className="control-group color-control"><span>Detail color</span><div><input className="color-input" aria-label="Custom detail color" type="color" value={options.detailColor ?? "#f4eee2"} onChange={(event) => update("detailColor", event.target.value)} /></div></div>}

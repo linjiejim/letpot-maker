@@ -10,13 +10,14 @@ The project started from a simple gap: small hydroponic accessories are easy to 
 
 ## Current capabilities
 
-- Browse and filter 34 checked-in printable designs.
-- Preview the same parametric geometry used by the export pipeline.
+- Browse, search, and filter 80 checked-in printable designs, including 52 bundled Official neural meshes across eight collections and rendered covers for all 28 procedural designs.
+- Preview the same parametric geometry used by the export pipeline on both the homepage and in Studio.
 - Customize topper height from 25–100 mm, width from 20–80 mm, model-specific details, colors, and surface style.
 - Export watertight STL parts, OBJ assemblies, manifests, and Bambu Studio 3MF projects.
 - Arrange low-poly accessories across four LetPot device layouts in Pod Styler.
 - Turn a text idea into a constrained model recipe through an optional, provider-neutral AI endpoint.
 - Generate a neural mesh with a user-supplied Tripo key, a loopback-only device bridge, and device-local GLB caching.
+- Optionally tint the Studio environment from the selected model cover while keeping the preference in browser-local storage.
 - Validate model parameters, manifold geometry, printer-bed placement, and production routes.
 
 The bounded AI feature selects or composes allowlisted geometry and never evaluates executable code. A separate opt-in Tripo mode accepts a user key, keeps it in memory by default with optional browser-local persistence, and uses a loopback-only helper to work around Tripo's browser CORS restriction. The helper forwards to Tripo, keeps no history, and returns the untextured GLB to browser storage; the LetPot Maker application server never receives that key, prompt, or mesh. The core library, Studio, previews, and exports work without either provider.

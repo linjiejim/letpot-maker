@@ -2,7 +2,7 @@
   "schema": "letpot-maker/model/v1",
   "model": {
     "id": "candy-cane",
-    "number": "33",
+    "number": "34",
     "name": "Candy Cane",
     "subtitle": "Striped peppermint hook",
     "difficulty": "Medium",
@@ -47,6 +47,8 @@
   "measurements": {
     "width": 41,
     "height": 42.8,
+    "topperWidth": 21.4,
+    "topperHeight": 37.3,
     "lowerDiameter": 33,
     "upperDiameter": 41
   },

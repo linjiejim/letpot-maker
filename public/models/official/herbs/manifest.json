@@ -1,0 +1,118 @@
+{
+  "schema": "letpot-maker/official-meshes/v2",
+  "collection": "herbs",
+  "units": "millimetres",
+  "texture": false,
+  "adapterIncluded": false,
+  "models": [
+    {
+      "id": "basil-bundle",
+      "number": "50",
+      "name": "Basil Bundle",
+      "tags": [
+        "realistic",
+        "herbs",
+        "plant"
+      ],
+      "glb": "basil-bundle.glb",
+      "preview": "previews/basil-bundle.jpg",
+      "faces": 23828,
+      "generation": "Tripo H3.1 image-to-3D",
+      "defaultEnvelope": [
+        68,
+        82
+      ]
+    },
+    {
+      "id": "mint-bundle",
+      "number": "51",
+      "name": "Mint Bundle",
+      "tags": [
+        "realistic",
+        "herbs",
+        "plant"
+      ],
+      "glb": "mint-bundle.glb",
+      "preview": "previews/mint-bundle.jpg",
+      "faces": 22766,
+      "generation": "Tripo H3.1 image-to-3D",
+      "defaultEnvelope": [
+        68,
+        82
+      ]
+    },
+    {
+      "id": "rosemary-bundle",
+      "number": "52",
+      "name": "Rosemary Bundle",
+      "tags": [
+        "realistic",
+        "herbs",
+        "plant"
+      ],
+      "glb": "rosemary-bundle.glb",
+      "preview": "previews/rosemary-bundle.jpg",
+      "faces": 24944,
+      "generation": "Tripo H3.1 image-to-3D",
+      "defaultEnvelope": [
+        62,
+        90
+      ]
+    },
+    {
+      "id": "thyme-mound",
+      "number": "53",
+      "name": "Thyme Mound",
+      "tags": [
+        "realistic",
+        "herbs",
+        "plant"
+      ],
+      "glb": "thyme-mound.glb",
+      "preview": "previews/thyme-mound.jpg",
+      "faces": 25386,
+      "generation": "Tripo H3.1 image-to-3D",
+      "defaultEnvelope": [
+        68,
+        68
+      ]
+    },
+    {
+      "id": "lavender-bundle",
+      "number": "54",
+      "name": "Lavender Bundle",
+      "tags": [
+        "realistic",
+        "herbs",
+        "plant",
+        "flower"
+      ],
+      "glb": "lavender-bundle.glb",
+      "preview": "previews/lavender-bundle.jpg",
+      "faces": 24870,
+      "generation": "Tripo H3.1 image-to-3D",
+      "defaultEnvelope": [
+        62,
+        94
+      ]
+    },
+    {
+      "id": "sage-rosette",
+      "number": "55",
+      "name": "Sage Rosette",
+      "tags": [
+        "realistic",
+        "herbs",
+        "plant"
+      ],
+      "glb": "sage-rosette.glb",
+      "preview": "previews/sage-rosette.jpg",
+      "faces": 23280,
+      "generation": "Tripo H3.1 image-to-3D",
+      "defaultEnvelope": [
+        70,
+        70
+      ]
+    }
+  ]
+}

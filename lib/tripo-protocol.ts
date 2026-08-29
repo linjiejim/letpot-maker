@@ -21,7 +21,8 @@ export type TripoModelVersion = typeof TRIPO_MODEL_OPTIONS[number]["id"];
 
 const PRINTABLE_PROMPT_SUFFIX = [
   "Design this as a compact FDM-printable hydroponic pod topper.",
-  "Use one connected watertight solid with a sturdy centered flat base, no floating pieces, no text, and no thin fragile details.",
+  "Use one connected watertight solid with no floating pieces, no text, and no thin fragile details.",
+  "The subject's own body must reach a broad centered bottom contact; do not add a stand, pedestal, platform, plinth, base disk, floor, ground plane, tray, or support plate.",
   "Keep the object upright and centered; the mounting socket and adapter will be added separately.",
 ].join(" ");
 

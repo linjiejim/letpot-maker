@@ -4,7 +4,7 @@
     "id": "snowman",
     "number": "31",
     "name": "Winter Snowman",
-    "subtitle": "Scarf-wrapped holiday companion",
+    "subtitle": "Rounded official image-to-3D companion",
     "difficulty": "Medium",
     "parts": 3,
     "series": "04",
@@ -14,19 +14,25 @@
       "christmas"
     ],
     "symbol": "☃",
+    "officialMesh": {
+      "assetPath": "/models/official/christmas/snowman.glb",
+      "previewPath": "/models/official/christmas/previews/snowman.jpg",
+      "faceCount": 48064,
+      "generation": "Tripo H3.1 image-to-3D"
+    },
     "defaults": {
-      "topperHeight": 46,
-      "topperWidth": 34,
+      "topperHeight": 88,
+      "topperWidth": 62,
       "primaryColor": "#eef3ed",
       "accentColor": "#d7d0bf"
     },
-    "printNote": "Print upright with automatic support enabled. Three deeply overlapping snowballs carry a fused hat, scarf, carrot nose, buttons and sturdy branch arms."
+    "printNote": "Print upright with automatic snug supports. The smooth two-ball body, hat, scarf and buttons are fused into one repaired official mesh with a direct blind socket."
   },
   "options": {
     "modelId": "snowman",
     "connectionMode": "detachable",
-    "topperHeight": 46,
-    "topperWidth": 34,
+    "topperHeight": 88,
+    "topperWidth": 62,
     "primaryColor": "#eef3ed",
     "accentColor": "#d7d0bf",
     "secondaryColor": "#d8a33e",
@@ -44,8 +50,10 @@
     "logoRecessDepth": 0.6
   },
   "measurements": {
-    "width": 41,
-    "height": 50.4,
+    "width": 62,
+    "height": 93.6,
+    "topperWidth": 62,
+    "topperHeight": 88,
     "lowerDiameter": 33,
     "upperDiameter": 41
   },

@@ -10,7 +10,7 @@ import type {
 
 export type LandingModel = Pick<
   ModelDefinition,
-  "id" | "number" | "name" | "subtitle" | "parts" | "style" | "tags" | "defaults"
+  "id" | "number" | "name" | "subtitle" | "parts" | "style" | "tags" | "defaults" | "officialMesh"
 > & {
   shape: ModelOptions["shape"];
 };
@@ -35,6 +35,12 @@ const MODEL_TAGS: ModelTag[] = [
   "flower",
   "animal",
   "christmas",
+  "plant",
+  "space",
+  "insect",
+  "ocean",
+  "holiday",
+  "pet",
   "other",
 ];
 const TAG_LABELS: Record<ModelTag, string> = {
@@ -47,6 +53,12 @@ const TAG_LABELS: Record<ModelTag, string> = {
   flower: "Flower",
   animal: "Animal",
   christmas: "Christmas",
+  plant: "Plant",
+  space: "Space",
+  insect: "Insect",
+  ocean: "Ocean",
+  holiday: "Holiday",
+  pet: "Pet",
   other: "Other",
 };
 
@@ -113,20 +125,31 @@ function LiveModel({
 
     let cancelled = false;
     let disposeScene: (() => void) | undefined;
+    const definition = models.find((model) => model.id === modelId) ?? models[0];
 
     void Promise.all([
       import("three"),
       import("three/examples/jsm/controls/OrbitControls.js"),
       import("../lib/model-factory"),
-    ]).then(([THREE, { OrbitControls }, { createModel, disposeObject }]) => {
+      import("../lib/official-mesh-browser"),
+    ]).then(async ([THREE, { OrbitControls }, { createModel, disposeObject }, { loadOfficialMesh }]) => {
       if (cancelled) return;
 
-      const build = createModel(optionsFor(modelId, models));
+      const officialSource = definition.officialMesh ? await loadOfficialMesh(definition) : null;
+      if (cancelled) {
+        if (officialSource) disposeObject(officialSource.object);
+        return;
+      }
+      const build = createModel({
+        ...optionsFor(modelId, models),
+        externalMesh: officialSource?.object,
+      });
+      if (officialSource) disposeObject(officialSource.object);
       const scene = new THREE.Scene();
       const camera = new THREE.PerspectiveCamera(interactive ? 31 : 34, 1, 0.1, 600);
       const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
       renderer.setClearColor(0x000000, 0);
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, interactive ? 1.5 : 1.25));
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
       renderer.toneMappingExposure = 1.08;

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-25T06:46:50.445Z",
+  "generatedAt": "2026-08-28T16:35:08.670Z",
   "models": [
     {
       "id": "sprout",
@@ -355,7 +355,13 @@
       "tags": [
         "realistic",
         "christmas"
-      ]
+      ],
+      "officialMesh": {
+        "assetPath": "/models/official/christmas/santa.glb",
+        "previewPath": "/models/official/christmas/previews/santa.jpg",
+        "faceCount": 39312,
+        "generation": "Tripo H3.1 image-to-3D"
+      }
     },
     {
       "id": "christmas-tree",
@@ -368,7 +374,13 @@
         "realistic",
         "christmas",
         "tree"
-      ]
+      ],
+      "officialMesh": {
+        "assetPath": "/models/official/christmas/christmas-tree.glb",
+        "previewPath": "/models/official/christmas/previews/christmas-tree.jpg",
+        "faceCount": 38788,
+        "generation": "Tripo H3.1 image-to-3D"
+      }
     },
     {
       "id": "snowman",
@@ -380,7 +392,32 @@
       "tags": [
         "realistic",
         "christmas"
-      ]
+      ],
+      "officialMesh": {
+        "assetPath": "/models/official/christmas/snowman.glb",
+        "previewPath": "/models/official/christmas/previews/snowman.jpg",
+        "faceCount": 48064,
+        "generation": "Tripo H3.1 image-to-3D"
+      }
+    },
+    {
+      "id": "reindeer",
+      "name": "Cozy Reindeer",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "04",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "christmas",
+        "animal"
+      ],
+      "officialMesh": {
+        "assetPath": "/models/official/christmas/reindeer.glb",
+        "previewPath": "/models/official/christmas/previews/reindeer.jpg",
+        "faceCount": 47588,
+        "generation": "Tripo H3.1 image-to-3D"
+      }
     },
     {
       "id": "gift-box",

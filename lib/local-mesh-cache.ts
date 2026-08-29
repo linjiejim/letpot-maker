@@ -17,6 +17,7 @@ export interface LocalTripoMeshMetadata {
   byteLength: number;
   meshCount: number;
   faceCount: number;
+  source: "tripo" | "local-file";
 }
 
 export interface LocalTripoMeshRecord extends LocalTripoMeshMetadata {
@@ -82,6 +83,7 @@ export function normalizeLocalTripoMeshMetadata(value: unknown): LocalTripoMeshM
     byteLength: Math.max(0, Math.round(finite(input.byteLength, 0))),
     meshCount: Math.max(1, Math.round(finite(input.meshCount, 1))),
     faceCount: Math.max(1, Math.round(finite(input.faceCount, 1))),
+    source: input.source === "local-file" ? "local-file" : "tripo",
   };
 }
 
