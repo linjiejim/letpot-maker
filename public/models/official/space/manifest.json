@@ -1,0 +1,117 @@
+{
+  "schema": "letpot-maker/official-meshes/v2",
+  "collection": "space",
+  "units": "millimetres",
+  "texture": false,
+  "adapterIncluded": false,
+  "models": [
+    {
+      "id": "orbit-astronaut",
+      "number": "59",
+      "name": "Orbit Astronaut",
+      "tags": [
+        "realistic",
+        "space",
+        "other"
+      ],
+      "glb": "orbit-astronaut.glb",
+      "preview": "previews/orbit-astronaut.jpg",
+      "faces": 25168,
+      "generation": "Tripo H3.1 image-to-3D",
+      "defaultEnvelope": [
+        66,
+        90
+      ]
+    },
+    {
+      "id": "pocket-rocket",
+      "number": "60",
+      "name": "Pocket Rocket",
+      "tags": [
+        "realistic",
+        "space",
+        "other"
+      ],
+      "glb": "pocket-rocket.glb",
+      "preview": "previews/pocket-rocket.jpg",
+      "faces": 22936,
+      "generation": "Tripo H3.1 image-to-3D",
+      "defaultEnvelope": [
+        58,
+        96
+      ]
+    },
+    {
+      "id": "smiling-saturn",
+      "number": "61",
+      "name": "Smiling Saturn",
+      "tags": [
+        "realistic",
+        "space",
+        "other"
+      ],
+      "glb": "smiling-saturn.glb",
+      "preview": "previews/smiling-saturn.jpg",
+      "faces": 25146,
+      "generation": "Tripo H3.1 image-to-3D",
+      "defaultEnvelope": [
+        76,
+        70
+      ]
+    },
+    {
+      "id": "crescent-moon",
+      "number": "62",
+      "name": "Crescent Moon",
+      "tags": [
+        "realistic",
+        "space",
+        "other"
+      ],
+      "glb": "crescent-moon.glb",
+      "preview": "previews/crescent-moon.jpg",
+      "faces": 23778,
+      "generation": "Tripo H3.1 image-to-3D",
+      "defaultEnvelope": [
+        62,
+        92
+      ]
+    },
+    {
+      "id": "friendly-ufo",
+      "number": "63",
+      "name": "Friendly UFO",
+      "tags": [
+        "realistic",
+        "space",
+        "other"
+      ],
+      "glb": "friendly-ufo.glb",
+      "preview": "previews/friendly-ufo.jpg",
+      "faces": 24312,
+      "generation": "Tripo H3.1 image-to-3D",
+      "defaultEnvelope": [
+        76,
+        62
+      ]
+    },
+    {
+      "id": "retro-robot",
+      "number": "64",
+      "name": "Retro Robot",
+      "tags": [
+        "realistic",
+        "space",
+        "other"
+      ],
+      "glb": "retro-robot.glb",
+      "preview": "previews/retro-robot.jpg",
+      "faces": 25222,
+      "generation": "Tripo H3.1 image-to-3D",
+      "defaultEnvelope": [
+        64,
+        88
+      ]
+    }
+  ]
+}

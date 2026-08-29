@@ -4,7 +4,7 @@
     "id": "christmas-tree",
     "number": "30",
     "name": "Festive Fir",
-    "subtitle": "Ornamented five-tier Christmas tree",
+    "subtitle": "Rounded official image-to-3D fir",
     "difficulty": "Medium",
     "parts": 3,
     "series": "04",
@@ -15,68 +15,31 @@
       "tree"
     ],
     "symbol": "★",
-    "parameters": [
-      {
-        "key": "tierCount",
-        "label": "Branch tiers",
-        "min": 4,
-        "max": 6,
-        "step": 1,
-        "defaultValue": 5,
-        "unit": "tiers"
-      },
-      {
-        "key": "crownFullness",
-        "label": "Branch fullness",
-        "min": 0.85,
-        "max": 1.15,
-        "step": 0.05,
-        "defaultValue": 1,
-        "unit": "×"
-      },
-      {
-        "key": "leafDensity",
-        "label": "Ornament density",
-        "min": 12,
-        "max": 28,
-        "step": 4,
-        "defaultValue": 24,
-        "unit": "baubles"
-      },
-      {
-        "key": "tipRoundness",
-        "label": "Star size",
-        "min": 0.8,
-        "max": 1.2,
-        "step": 0.05,
-        "defaultValue": 1,
-        "unit": "×"
-      }
-    ],
+    "officialMesh": {
+      "assetPath": "/models/official/christmas/christmas-tree.glb",
+      "previewPath": "/models/official/christmas/previews/christmas-tree.jpg",
+      "faceCount": 38788,
+      "generation": "Tripo H3.1 image-to-3D"
+    },
     "defaults": {
-      "topperHeight": 48,
-      "topperWidth": 36,
+      "topperHeight": 96,
+      "topperWidth": 64,
       "primaryColor": "#23563b",
       "accentColor": "#d7d0bf"
     },
-    "printNote": "Print upright with automatic support enabled. Six selectable sculpted branch tiers, embedded baubles and a fused star create a richer Christmas-tree silhouette."
+    "printNote": "Print upright with automatic snug supports. Three thick foliage tiers, embedded ornaments and the rounded star form one repaired mesh without a separate display disk."
   },
   "options": {
     "modelId": "christmas-tree",
     "connectionMode": "detachable",
-    "topperHeight": 48,
-    "topperWidth": 36,
+    "topperHeight": 96,
+    "topperWidth": 64,
     "primaryColor": "#23563b",
     "accentColor": "#d7d0bf",
     "secondaryColor": "#d8a33e",
     "detailColor": "#f4eee2",
     "faceted": false,
-    "shape": {
-      "tierCount": 5,
-      "crownFullness": 1,
-      "leafDensity": 24,
-      "tipRoundness": 1
-    }
+    "shape": {}
   },
   "adapterStandard": {
     "lowerDiameter": 33,
@@ -88,8 +51,10 @@
     "logoRecessDepth": 0.6
   },
   "measurements": {
-    "width": 41,
-    "height": 50.4,
+    "width": 64,
+    "height": 101.6,
+    "topperWidth": 64,
+    "topperHeight": 96,
     "lowerDiameter": 33,
     "upperDiameter": 41
   },

@@ -44,7 +44,10 @@ function geometryToManifold(wasm: ManifoldToplevel, source: THREE.Mesh) {
       ? 2
       : source.userData.aiColorRole === "adapter" ? 3 : 0;
   const weldTolerances = source.userData.allowSmallGapRepair === true
-    ? [1e-5, 0.01, 0.03, 0.08]
+    // Neural seams scale with the requested topper envelope. The final two
+    // tolerances stay below a 0.4 mm nozzle line while repairing the same
+    // source seam after it is enlarged from a 45 mm preview to a 100 mm part.
+    ? [1e-5, 0.01, 0.03, 0.08, 0.16, 0.24]
     : [1e-5];
   let lastStatus = "NotManifold";
   try {
@@ -149,7 +152,7 @@ function manifoldToGeometry(solid: Manifold) {
 export async function solidifyObject(
   wasm: ManifoldToplevel,
   object: THREE.Object3D,
-  options: { printerAxes?: boolean; normalize?: boolean; flipZ?: boolean } = {},
+  options: { printerAxes?: boolean; normalize?: boolean; flipZ?: boolean; keepLargestComponent?: boolean } = {},
 ) {
   const root = object.clone(true);
   root.updateMatrixWorld(true);
@@ -212,7 +215,7 @@ export async function solidifyObject(
 
   const components = solid.decompose();
   const componentCount = components.length;
-  const componentSizes = components.map((component) => {
+  const componentBounds = components.map((component) => {
     const mesh = component.getMesh();
     const min = [Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY];
     const max = [Number.NEGATIVE_INFINITY, Number.NEGATIVE_INFINITY, Number.NEGATIVE_INFINITY];
@@ -223,12 +226,31 @@ export async function solidifyObject(
         max[axis] = Math.max(max[axis], value);
       }
     }
-    return max.map((value, axis) => Math.max(0, value - min[axis]).toFixed(1)).join("×");
+    const size = max.map((value, axis) => Math.max(0, value - min[axis]));
+    return {
+      size,
+      volume: size[0] * size[1] * size[2],
+      label: size.map((value) => value.toFixed(1)).join("×"),
+    };
   });
-  components.forEach((entry) => entry.delete());
   if (componentCount !== 1) {
-    solid.delete();
-    throw new Error(`${object.name || "Part"} has ${componentCount} disconnected solids (${componentSizes.join(", ")} mm); exactly one is required`);
+    if (options.keepLargestComponent) {
+      const largestIndex = componentBounds.reduce(
+        (best, component, index, entries) => component.volume > entries[best].volume ? index : best,
+        0,
+      );
+      solid.delete();
+      solid = components[largestIndex];
+      components.forEach((entry, index) => {
+        if (index !== largestIndex) entry.delete();
+      });
+    } else {
+      components.forEach((entry) => entry.delete());
+      solid.delete();
+      throw new Error(`${object.name || "Part"} has ${componentCount} disconnected solids (${componentBounds.map(({ label }) => label).join(", ")} mm); exactly one is required`);
+    }
+  } else {
+    components.forEach((entry) => entry.delete());
   }
 
   const geometry = manifoldToGeometry(solid);

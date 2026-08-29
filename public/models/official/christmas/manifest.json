@@ -1,0 +1,189 @@
+{
+  "schema": "letpot-maker/official-meshes/v2",
+  "collection": "christmas",
+  "units": "millimetres",
+  "texture": false,
+  "adapterIncluded": false,
+  "models": [
+    {
+      "id": "santa",
+      "number": "29",
+      "name": "Jolly Santa",
+      "tags": [
+        "realistic",
+        "christmas"
+      ],
+      "glb": "santa.glb",
+      "preview": "previews/santa.jpg",
+      "faces": 39312,
+      "generation": "Tripo H3.1 image-to-3D",
+      "defaultEnvelope": [
+        62,
+        90
+      ]
+    },
+    {
+      "id": "christmas-tree",
+      "number": "30",
+      "name": "Festive Fir",
+      "tags": [
+        "realistic",
+        "christmas",
+        "tree"
+      ],
+      "glb": "christmas-tree.glb",
+      "preview": "previews/christmas-tree.jpg",
+      "faces": 38788,
+      "generation": "Tripo H3.1 image-to-3D",
+      "defaultEnvelope": [
+        64,
+        96
+      ]
+    },
+    {
+      "id": "snowman",
+      "number": "31",
+      "name": "Winter Snowman",
+      "tags": [
+        "realistic",
+        "christmas"
+      ],
+      "glb": "snowman.glb",
+      "preview": "previews/snowman.jpg",
+      "faces": 48064,
+      "generation": "Tripo H3.1 image-to-3D",
+      "defaultEnvelope": [
+        62,
+        88
+      ]
+    },
+    {
+      "id": "reindeer",
+      "number": "32",
+      "name": "Cozy Reindeer",
+      "tags": [
+        "realistic",
+        "christmas",
+        "animal"
+      ],
+      "glb": "reindeer.glb",
+      "preview": "previews/reindeer.jpg",
+      "faces": 47588,
+      "generation": "Tripo H3.1 image-to-3D",
+      "defaultEnvelope": [
+        66,
+        88
+      ]
+    },
+    {
+      "id": "gift-box",
+      "number": "33",
+      "name": "Wrapped Gift",
+      "tags": [
+        "realistic",
+        "christmas",
+        "other"
+      ],
+      "glb": "gift-box.glb",
+      "preview": "previews/gift-box.jpg",
+      "faces": 21028,
+      "generation": "Tripo H3.1 image-to-3D",
+      "defaultEnvelope": [
+        66,
+        72
+      ]
+    },
+    {
+      "id": "candy-cane",
+      "number": "34",
+      "name": "Candy Cane",
+      "tags": [
+        "realistic",
+        "christmas",
+        "other"
+      ],
+      "glb": "candy-cane.glb",
+      "preview": "previews/candy-cane.jpg",
+      "faces": 20816,
+      "generation": "Tripo H3.1 image-to-3D",
+      "defaultEnvelope": [
+        54,
+        92
+      ]
+    },
+    {
+      "id": "christmas-bell",
+      "number": "35",
+      "name": "Christmas Bell",
+      "tags": [
+        "realistic",
+        "christmas",
+        "other"
+      ],
+      "glb": "christmas-bell.glb",
+      "preview": "previews/christmas-bell.jpg",
+      "faces": 23000,
+      "generation": "Tripo H3.1 image-to-3D",
+      "defaultEnvelope": [
+        66,
+        80
+      ]
+    },
+    {
+      "id": "gingerbread-friend",
+      "number": "56",
+      "name": "Gingerbread Friend",
+      "tags": [
+        "realistic",
+        "christmas",
+        "holiday"
+      ],
+      "glb": "gingerbread-friend.glb",
+      "preview": "previews/gingerbread-friend.jpg",
+      "faces": 23196,
+      "generation": "Tripo H3.1 image-to-3D",
+      "defaultEnvelope": [
+        62,
+        88
+      ]
+    },
+    {
+      "id": "winter-penguin",
+      "number": "57",
+      "name": "Winter Penguin",
+      "tags": [
+        "realistic",
+        "christmas",
+        "holiday",
+        "animal"
+      ],
+      "glb": "winter-penguin.glb",
+      "preview": "previews/winter-penguin.jpg",
+      "faces": 24018,
+      "generation": "Tripo H3.1 image-to-3D",
+      "defaultEnvelope": [
+        64,
+        88
+      ]
+    },
+    {
+      "id": "polar-bear-friend",
+      "number": "58",
+      "name": "Polar Bear Friend",
+      "tags": [
+        "realistic",
+        "christmas",
+        "holiday",
+        "animal"
+      ],
+      "glb": "polar-bear-friend.glb",
+      "preview": "previews/polar-bear-friend.jpg",
+      "faces": 24762,
+      "generation": "Tripo H3.1 image-to-3D",
+      "defaultEnvelope": [
+        66,
+        86
+      ]
+    }
+  ]
+}

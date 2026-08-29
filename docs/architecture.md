@@ -23,11 +23,11 @@ Model definitions + parameters
 
 ### Homepage
 
-`components/LandingPage.tsx` is the product entry point. It renders live library assets, supports text and tag filtering, and routes a selected asset into the Studio through a `model` query parameter.
+`components/LandingPage.tsx` is the product entry point. It lazily renders live Three.js previews for both procedural and bundled Official assets, supports text and tag filtering, and routes a selected asset into the Studio through a `model` query parameter. Gallery previews use bounded pixel ratios and visibility-triggered loading so checked-in GLBs do not all parse at page startup.
 
 ### Maker Studio
 
-`components/Studio.tsx` owns the interactive authoring flow. It selects a model definition, maintains parameter and color state, renders the assembly, stores optional AI recipes in localStorage and direct Tripo GLBs in IndexedDB, and packages exports on demand.
+`components/Studio.tsx` owns the interactive authoring flow. It selects and searches model definitions, maintains parameter, color, camera and optional cover-sampled environment state, renders the assembly, stores optional AI recipes in localStorage and direct Tripo GLBs in IndexedDB, and packages exports on demand. Saved Mine entries are ordered by immutable creation timestamps; selecting one does not rewrite its position.
 
 ### Pod Styler
 

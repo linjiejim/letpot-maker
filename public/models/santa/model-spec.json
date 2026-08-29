@@ -4,7 +4,7 @@
     "id": "santa",
     "number": "29",
     "name": "Jolly Santa",
-    "subtitle": "Bearded Christmas character",
+    "subtitle": "Rounded official image-to-3D character",
     "difficulty": "Medium",
     "parts": 3,
     "series": "04",
@@ -14,19 +14,25 @@
       "christmas"
     ],
     "symbol": "✣",
+    "officialMesh": {
+      "assetPath": "/models/official/christmas/santa.glb",
+      "previewPath": "/models/official/christmas/previews/santa.jpg",
+      "faceCount": 39312,
+      "generation": "Tripo H3.1 image-to-3D"
+    },
     "defaults": {
-      "topperHeight": 45,
-      "topperWidth": 35,
+      "topperHeight": 90,
+      "topperWidth": 62,
       "primaryColor": "#b92f34",
       "accentColor": "#d7d0bf"
     },
-    "printNote": "Print upright with automatic support enabled. The hat, beard, face, belt, arms and mittens overlap a reinforced central body for a detailed single-piece Santa topper."
+    "printNote": "Print upright with automatic snug supports. The rounded hat, beard and mitten arms are fused into one repaired official mesh with a code-owned blind socket."
   },
   "options": {
     "modelId": "santa",
     "connectionMode": "detachable",
-    "topperHeight": 45,
-    "topperWidth": 35,
+    "topperHeight": 90,
+    "topperWidth": 62,
     "primaryColor": "#b92f34",
     "accentColor": "#d7d0bf",
     "secondaryColor": "#d8a33e",
@@ -44,8 +50,10 @@
     "logoRecessDepth": 0.6
   },
   "measurements": {
-    "width": 41,
-    "height": 51.6,
+    "width": 62,
+    "height": 95.6,
+    "topperWidth": 62,
+    "topperHeight": 90,
     "lowerDiameter": 33,
     "upperDiameter": 41
   },

@@ -1,0 +1,992 @@
+{
+  "schema": "letpot-maker/official-meshes/v2",
+  "units": "millimetres",
+  "texture": false,
+  "adapterIncluded": false,
+  "connection": "Studio adds the code-owned direct blind socket, connector pin and fixed Ø33/Ø41 adapter at export time.",
+  "expansionBatch": {
+    "jobs": 48,
+    "credits": 950,
+    "imageTo3d": {
+      "jobs": 47,
+      "creditsEach": 20
+    },
+    "textTo3d": {
+      "jobs": 1,
+      "creditsEach": 10,
+      "model": "starfish-friend"
+    }
+  },
+  "collections": [
+    {
+      "id": "christmas",
+      "models": [
+        {
+          "id": "santa",
+          "number": "29",
+          "name": "Jolly Santa",
+          "tags": [
+            "realistic",
+            "christmas"
+          ],
+          "glb": "santa.glb",
+          "preview": "previews/santa.jpg",
+          "faces": 39312,
+          "generation": "Tripo H3.1 image-to-3D",
+          "defaultEnvelope": [
+            62,
+            90
+          ]
+        },
+        {
+          "id": "christmas-tree",
+          "number": "30",
+          "name": "Festive Fir",
+          "tags": [
+            "realistic",
+            "christmas",
+            "tree"
+          ],
+          "glb": "christmas-tree.glb",
+          "preview": "previews/christmas-tree.jpg",
+          "faces": 38788,
+          "generation": "Tripo H3.1 image-to-3D",
+          "defaultEnvelope": [
+            64,
+            96
+          ]
+        },
+        {
+          "id": "snowman",
+          "number": "31",
+          "name": "Winter Snowman",
+          "tags": [
+            "realistic",
+            "christmas"
+          ],
+          "glb": "snowman.glb",
+          "preview": "previews/snowman.jpg",
+          "faces": 48064,
+          "generation": "Tripo H3.1 image-to-3D",
+          "defaultEnvelope": [
+            62,
+            88
+          ]
+        },
+        {
+          "id": "reindeer",
+          "number": "32",
+          "name": "Cozy Reindeer",
+          "tags": [
+            "realistic",
+            "christmas",
+            "animal"
+          ],
+          "glb": "reindeer.glb",
+          "preview": "previews/reindeer.jpg",
+          "faces": 47588,
+          "generation": "Tripo H3.1 image-to-3D",
+          "defaultEnvelope": [
+            66,
+            88
+          ]
+        },
+        {
+          "id": "gift-box",
+          "number": "33",
+          "name": "Wrapped Gift",
+          "tags": [
+            "realistic",
+            "christmas",
+            "other"
+          ],
+          "glb": "gift-box.glb",
+          "preview": "previews/gift-box.jpg",
+          "faces": 21028,
+          "generation": "Tripo H3.1 image-to-3D",
+          "defaultEnvelope": [
+            66,
+            72
+          ]
+        },
+        {
+          "id": "candy-cane",
+          "number": "34",
+          "name": "Candy Cane",
+          "tags": [
+            "realistic",
+            "christmas",
+            "other"
+          ],
+          "glb": "candy-cane.glb",
+          "preview": "previews/candy-cane.jpg",
+          "faces": 20816,
+          "generation": "Tripo H3.1 image-to-3D",
+          "defaultEnvelope": [
+            54,
+            92
+          ]
+        },
+        {
+          "id": "christmas-bell",
+          "number": "35",
+          "name": "Christmas Bell",
+          "tags": [
+            "realistic",
+            "christmas",
+            "other"
+          ],
+          "glb": "christmas-bell.glb",
+          "preview": "previews/christmas-bell.jpg",
+          "faces": 23000,
+          "generation": "Tripo H3.1 image-to-3D",
+          "defaultEnvelope": [
+            66,
+            80
+          ]
+        },
+        {
+          "id": "gingerbread-friend",
+          "number": "56",
+          "name": "Gingerbread Friend",
+          "tags": [
+            "realistic",
+            "christmas",
+            "holiday"
+          ],
+          "glb": "gingerbread-friend.glb",
+          "preview": "previews/gingerbread-friend.jpg",
+          "faces": 23196,
+          "generation": "Tripo H3.1 image-to-3D",
+          "defaultEnvelope": [
+            62,
+            88
+          ]
+        },
+        {
+          "id": "winter-penguin",
+          "number": "57",
+          "name": "Winter Penguin",
+          "tags": [
+            "realistic",
+            "christmas",
+            "holiday",
+            "animal"
+          ],
+          "glb": "winter-penguin.glb",
+          "preview": "previews/winter-penguin.jpg",
+          "faces": 24018,
+          "generation": "Tripo H3.1 image-to-3D",
+          "defaultEnvelope": [
+            64,
+            88
+          ]
+        },
+        {
+          "id": "polar-bear-friend",
+          "number": "58",
+          "name": "Polar Bear Friend",
+          "tags": [
+            "realistic",
+            "christmas",
+            "holiday",
+            "animal"
+          ],
+          "glb": "polar-bear-friend.glb",
+          "preview": "previews/polar-bear-friend.jpg",
+          "faces": 24762,
+          "generation": "Tripo H3.1 image-to-3D",
+          "defaultEnvelope": [
+            66,
+            86
+          ]
+        }
+      ]
+    },
+    {
+      "id": "produce",
+      "models": [
+        {
+          "id": "tomato-pal",
+          "number": "36",
+          "name": "Tomato Pal",
+          "tags": [
+            "realistic",
+            "veggie",
+            "fruit"
+          ],
+          "glb": "tomato-pal.glb",
+          "preview": "previews/tomato-pal.jpg",
+          "faces": 19228,
+          "generation": "Tripo H3.1 image-to-3D",
+          "defaultEnvelope": [
+            66,
+            70
+          ]
+        },
+        {
+          "id": "strawberry-pal",
+          "number": "37",
+          "name": "Strawberry Pal",
+          "tags": [
+            "realistic",
+            "fruit"
+          ],
+          "glb": "strawberry-pal.glb",
+          "preview": "previews/strawberry-pal.jpg",
+          "faces": 19590,
+          "generation": "Tripo H3.1 image-to-3D",
+          "defaultEnvelope": [
+            58,
+            78
+          ]
+        },
+        {
+          "id": "carrot-pal",
+          "number": "38",
+          "name": "Carrot Pal",
+          "tags": [
+            "realistic",
+            "veggie"
+          ],
+          "glb": "carrot-pal.glb",
+          "preview": "previews/carrot-pal.jpg",
+          "faces": 18956,
+          "generation": "Tripo H3.1 image-to-3D",
+          "defaultEnvelope": [
+            52,
+            92
+          ]
+        },
+        {
+          "id": "pumpkin-pal",
+          "number": "39",
+          "name": "Pumpkin Pal",
+          "tags": [
+            "realistic",
+            "veggie",
+            "fruit"
+          ],
+          "glb": "pumpkin-pal.glb",
+          "preview": "previews/pumpkin-pal.jpg",
+          "faces": 18782,
+          "generation": "Tripo H3.1 image-to-3D",
+          "defaultEnvelope": [
+            70,
+            68
+          ]
+        },
+        {
+          "id": "chili-pal",
+          "number": "40",
+          "name": "Chili Pal",
+          "tags": [
+            "realistic",
+            "veggie",
+            "fruit"
+          ],
+          "glb": "chili-pal.glb",
+          "preview": "previews/chili-pal.jpg",
+          "faces": 19732,
+          "generation": "Tripo H3.1 image-to-3D",
+          "defaultEnvelope": [
+            54,
+            86
+          ]
+        },
+        {
+          "id": "eggplant-pal",
+          "number": "41",
+          "name": "Eggplant Pal",
+          "tags": [
+            "realistic",
+            "veggie",
+            "fruit"
+          ],
+          "glb": "eggplant-pal.glb",
+          "preview": "previews/eggplant-pal.jpg",
+          "faces": 18844,
+          "generation": "Tripo H3.1 image-to-3D",
+          "defaultEnvelope": [
+            58,
+            84
+          ]
+        },
+        {
+          "id": "lemon-pal",
+          "number": "42",
+          "name": "Lemon Pal",
+          "tags": [
+            "realistic",
+            "fruit"
+          ],
+          "glb": "lemon-pal.glb",
+          "preview": "previews/lemon-pal.jpg",
+          "faces": 19298,
+          "generation": "Tripo H3.1 image-to-3D",
+          "defaultEnvelope": [
+            70,
+            64
+          ]
+        }
+      ]
+    },
+    {
+      "id": "plants",
+      "models": [
+        {
+          "id": "monstera-cluster",
+          "number": "43",
+          "name": "Monstera Cluster",
+          "tags": [
+            "realistic",
+            "plant"
+          ],
+          "glb": "monstera-cluster.glb",
+          "preview": "previews/monstera-cluster.jpg",
+          "faces": 23894,
+          "generation": "Tripo H3.1 image-to-3D",
+          "defaultEnvelope": [
+            72,
+            92
+          ]
+        },
+        {
+          "id": "barrel-cactus",
+          "number": "44",
+          "name": "Barrel Cactus",
+          "tags": [
+            "realistic",
+            "plant"
+          ],
+          "glb": "barrel-cactus.glb",
+          "preview": "previews/barrel-cactus.jpg",
+          "faces": 21878,
+          "generation": "Tripo H3.1 image-to-3D",
+          "defaultEnvelope": [
+            62,
+            82
+          ]
+        },
+        {
+          "id": "succulent-rosette",
+          "number": "45",
+          "name": "Succulent Rosette",
+          "tags": [
+            "realistic",
+            "plant"
+          ],
+          "glb": "succulent-rosette.glb",
+          "preview": "previews/succulent-rosette.jpg",
+          "faces": 24354,
+          "generation": "Tripo H3.1 image-to-3D",
+          "defaultEnvelope": [
+            72,
+            62
+          ]
+        },
+        {
+          "id": "fern-sprout",
+          "number": "46",
+          "name": "Fern Sprout",
+          "tags": [
+            "realistic",
+            "plant"
+          ],
+          "glb": "fern-sprout.glb",
+          "preview": "previews/fern-sprout.jpg",
+          "faces": 24652,
+          "generation": "Tripo H3.1 image-to-3D",
+          "defaultEnvelope": [
+            68,
+            90
+          ]
+        },
+        {
+          "id": "cloud-bonsai",
+          "number": "47",
+          "name": "Cloud Crown Bonsai",
+          "tags": [
+            "realistic",
+            "plant",
+            "tree"
+          ],
+          "glb": "cloud-bonsai.glb",
+          "preview": "previews/cloud-bonsai.jpg",
+          "faces": 26380,
+          "generation": "Tripo H3.1 image-to-3D",
+          "defaultEnvelope": [
+            72,
+            92
+          ]
+        },
+        {
+          "id": "sunflower-smile",
+          "number": "48",
+          "name": "Sunflower Smile",
+          "tags": [
+            "realistic",
+            "plant",
+            "flower"
+          ],
+          "glb": "sunflower-smile.glb",
+          "preview": "previews/sunflower-smile.jpg",
+          "faces": 24822,
+          "generation": "Tripo H3.1 image-to-3D",
+          "defaultEnvelope": [
+            70,
+            94
+          ]
+        },
+        {
+          "id": "aloe-rosette",
+          "number": "49",
+          "name": "Aloe Rosette",
+          "tags": [
+            "realistic",
+            "plant"
+          ],
+          "glb": "aloe-rosette.glb",
+          "preview": "previews/aloe-rosette.jpg",
+          "faces": 23372,
+          "generation": "Tripo H3.1 image-to-3D",
+          "defaultEnvelope": [
+            68,
+            72
+          ]
+        }
+      ]
+    },
+    {
+      "id": "herbs",
+      "models": [
+        {
+          "id": "basil-bundle",
+          "number": "50",
+          "name": "Basil Bundle",
+          "tags": [
+            "realistic",
+            "herbs",
+            "plant"
+          ],
+          "glb": "basil-bundle.glb",
+          "preview": "previews/basil-bundle.jpg",
+          "faces": 23828,
+          "generation": "Tripo H3.1 image-to-3D",
+          "defaultEnvelope": [
+            68,
+            82
+          ]
+        },
+        {
+          "id": "mint-bundle",
+          "number": "51",
+          "name": "Mint Bundle",
+          "tags": [
+            "realistic",
+            "herbs",
+            "plant"
+          ],
+          "glb": "mint-bundle.glb",
+          "preview": "previews/mint-bundle.jpg",
+          "faces": 22766,
+          "generation": "Tripo H3.1 image-to-3D",
+          "defaultEnvelope": [
+            68,
+            82
+          ]
+        },
+        {
+          "id": "rosemary-bundle",
+          "number": "52",
+          "name": "Rosemary Bundle",
+          "tags": [
+            "realistic",
+            "herbs",
+            "plant"
+          ],
+          "glb": "rosemary-bundle.glb",
+          "preview": "previews/rosemary-bundle.jpg",
+          "faces": 24944,
+          "generation": "Tripo H3.1 image-to-3D",
+          "defaultEnvelope": [
+            62,
+            90
+          ]
+        },
+        {
+          "id": "thyme-mound",
+          "number": "53",
+          "name": "Thyme Mound",
+          "tags": [
+            "realistic",
+            "herbs",
+            "plant"
+          ],
+          "glb": "thyme-mound.glb",
+          "preview": "previews/thyme-mound.jpg",
+          "faces": 25386,
+          "generation": "Tripo H3.1 image-to-3D",
+          "defaultEnvelope": [
+            68,
+            68
+          ]
+        },
+        {
+          "id": "lavender-bundle",
+          "number": "54",
+          "name": "Lavender Bundle",
+          "tags": [
+            "realistic",
+            "herbs",
+            "plant",
+            "flower"
+          ],
+          "glb": "lavender-bundle.glb",
+          "preview": "previews/lavender-bundle.jpg",
+          "faces": 24870,
+          "generation": "Tripo H3.1 image-to-3D",
+          "defaultEnvelope": [
+            62,
+            94
+          ]
+        },
+        {
+          "id": "sage-rosette",
+          "number": "55",
+          "name": "Sage Rosette",
+          "tags": [
+            "realistic",
+            "herbs",
+            "plant"
+          ],
+          "glb": "sage-rosette.glb",
+          "preview": "previews/sage-rosette.jpg",
+          "faces": 23280,
+          "generation": "Tripo H3.1 image-to-3D",
+          "defaultEnvelope": [
+            70,
+            70
+          ]
+        }
+      ]
+    },
+    {
+      "id": "space",
+      "models": [
+        {
+          "id": "orbit-astronaut",
+          "number": "59",
+          "name": "Orbit Astronaut",
+          "tags": [
+            "realistic",
+            "space",
+            "other"
+          ],
+          "glb": "orbit-astronaut.glb",
+          "preview": "previews/orbit-astronaut.jpg",
+          "faces": 25168,
+          "generation": "Tripo H3.1 image-to-3D",
+          "defaultEnvelope": [
+            66,
+            90
+          ]
+        },
+        {
+          "id": "pocket-rocket",
+          "number": "60",
+          "name": "Pocket Rocket",
+          "tags": [
+            "realistic",
+            "space",
+            "other"
+          ],
+          "glb": "pocket-rocket.glb",
+          "preview": "previews/pocket-rocket.jpg",
+          "faces": 22936,
+          "generation": "Tripo H3.1 image-to-3D",
+          "defaultEnvelope": [
+            58,
+            96
+          ]
+        },
+        {
+          "id": "smiling-saturn",
+          "number": "61",
+          "name": "Smiling Saturn",
+          "tags": [
+            "realistic",
+            "space",
+            "other"
+          ],
+          "glb": "smiling-saturn.glb",
+          "preview": "previews/smiling-saturn.jpg",
+          "faces": 25146,
+          "generation": "Tripo H3.1 image-to-3D",
+          "defaultEnvelope": [
+            76,
+            70
+          ]
+        },
+        {
+          "id": "crescent-moon",
+          "number": "62",
+          "name": "Crescent Moon",
+          "tags": [
+            "realistic",
+            "space",
+            "other"
+          ],
+          "glb": "crescent-moon.glb",
+          "preview": "previews/crescent-moon.jpg",
+          "faces": 23778,
+          "generation": "Tripo H3.1 image-to-3D",
+          "defaultEnvelope": [
+            62,
+            92
+          ]
+        },
+        {
+          "id": "friendly-ufo",
+          "number": "63",
+          "name": "Friendly UFO",
+          "tags": [
+            "realistic",
+            "space",
+            "other"
+          ],
+          "glb": "friendly-ufo.glb",
+          "preview": "previews/friendly-ufo.jpg",
+          "faces": 24312,
+          "generation": "Tripo H3.1 image-to-3D",
+          "defaultEnvelope": [
+            76,
+            62
+          ]
+        },
+        {
+          "id": "retro-robot",
+          "number": "64",
+          "name": "Retro Robot",
+          "tags": [
+            "realistic",
+            "space",
+            "other"
+          ],
+          "glb": "retro-robot.glb",
+          "preview": "previews/retro-robot.jpg",
+          "faces": 25222,
+          "generation": "Tripo H3.1 image-to-3D",
+          "defaultEnvelope": [
+            64,
+            88
+          ]
+        }
+      ]
+    },
+    {
+      "id": "insects",
+      "models": [
+        {
+          "id": "ladybug-friend",
+          "number": "65",
+          "name": "Ladybug Friend",
+          "tags": [
+            "realistic",
+            "insect",
+            "animal"
+          ],
+          "glb": "ladybug-friend.glb",
+          "preview": "previews/ladybug-friend.jpg",
+          "faces": 25414,
+          "generation": "Tripo H3.1 image-to-3D",
+          "defaultEnvelope": [
+            70,
+            60
+          ]
+        },
+        {
+          "id": "bumblebee-friend",
+          "number": "66",
+          "name": "Bumblebee Friend",
+          "tags": [
+            "realistic",
+            "insect",
+            "animal"
+          ],
+          "glb": "bumblebee-friend.glb",
+          "preview": "previews/bumblebee-friend.jpg",
+          "faces": 26938,
+          "generation": "Tripo H3.1 image-to-3D",
+          "defaultEnvelope": [
+            68,
+            64
+          ]
+        },
+        {
+          "id": "butterfly-friend",
+          "number": "67",
+          "name": "Butterfly Friend",
+          "tags": [
+            "realistic",
+            "insect",
+            "animal"
+          ],
+          "glb": "butterfly-friend.glb",
+          "preview": "previews/butterfly-friend.jpg",
+          "faces": 29546,
+          "generation": "Tripo H3.1 image-to-3D",
+          "defaultEnvelope": [
+            78,
+            72
+          ]
+        },
+        {
+          "id": "beetle-friend",
+          "number": "68",
+          "name": "Beetle Friend",
+          "tags": [
+            "realistic",
+            "insect",
+            "animal"
+          ],
+          "glb": "beetle-friend.glb",
+          "preview": "previews/beetle-friend.jpg",
+          "faces": 27064,
+          "generation": "Tripo H3.1 image-to-3D",
+          "defaultEnvelope": [
+            68,
+            62
+          ]
+        },
+        {
+          "id": "caterpillar-friend",
+          "number": "69",
+          "name": "Caterpillar Friend",
+          "tags": [
+            "realistic",
+            "insect",
+            "animal"
+          ],
+          "glb": "caterpillar-friend.glb",
+          "preview": "previews/caterpillar-friend.jpg",
+          "faces": 25248,
+          "generation": "Tripo H3.1 image-to-3D",
+          "defaultEnvelope": [
+            76,
+            58
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ocean",
+      "models": [
+        {
+          "id": "whale-friend",
+          "number": "70",
+          "name": "Whale Friend",
+          "tags": [
+            "realistic",
+            "ocean",
+            "animal"
+          ],
+          "glb": "whale-friend.glb",
+          "preview": "previews/whale-friend.jpg",
+          "faces": 24674,
+          "generation": "Tripo H3.1 image-to-3D",
+          "defaultEnvelope": [
+            76,
+            62
+          ]
+        },
+        {
+          "id": "octopus-friend",
+          "number": "71",
+          "name": "Octopus Friend",
+          "tags": [
+            "realistic",
+            "ocean",
+            "animal"
+          ],
+          "glb": "octopus-friend.glb",
+          "preview": "previews/octopus-friend.jpg",
+          "faces": 27222,
+          "generation": "Tripo H3.1 image-to-3D",
+          "defaultEnvelope": [
+            72,
+            70
+          ]
+        },
+        {
+          "id": "sea-turtle-friend",
+          "number": "72",
+          "name": "Sea Turtle Friend",
+          "tags": [
+            "realistic",
+            "ocean",
+            "animal"
+          ],
+          "glb": "sea-turtle-friend.glb",
+          "preview": "previews/sea-turtle-friend.jpg",
+          "faces": 29236,
+          "generation": "Tripo H3.1 image-to-3D",
+          "defaultEnvelope": [
+            76,
+            58
+          ]
+        },
+        {
+          "id": "seahorse-friend",
+          "number": "73",
+          "name": "Seahorse Friend",
+          "tags": [
+            "realistic",
+            "ocean",
+            "animal"
+          ],
+          "glb": "seahorse-friend.glb",
+          "preview": "previews/seahorse-friend.jpg",
+          "faces": 27460,
+          "generation": "Tripo H3.1 image-to-3D",
+          "defaultEnvelope": [
+            58,
+            92
+          ]
+        },
+        {
+          "id": "ocean-fish",
+          "number": "74",
+          "name": "Ocean Fish",
+          "tags": [
+            "realistic",
+            "ocean",
+            "animal"
+          ],
+          "glb": "ocean-fish.glb",
+          "preview": "previews/ocean-fish.jpg",
+          "faces": 27338,
+          "generation": "Tripo H3.1 image-to-3D",
+          "defaultEnvelope": [
+            76,
+            64
+          ]
+        },
+        {
+          "id": "starfish-friend",
+          "number": "75",
+          "name": "Starfish Friend",
+          "tags": [
+            "realistic",
+            "ocean",
+            "animal"
+          ],
+          "glb": "starfish-friend.glb",
+          "preview": "previews/starfish-friend.jpg",
+          "faces": 9900,
+          "generation": "Tripo H3.1 text-to-3D",
+          "defaultEnvelope": [
+            76,
+            66
+          ]
+        }
+      ]
+    },
+    {
+      "id": "holiday-pets",
+      "models": [
+        {
+          "id": "jack-o-lantern",
+          "number": "76",
+          "name": "Jack-o'-Lantern",
+          "tags": [
+            "realistic",
+            "holiday",
+            "other"
+          ],
+          "glb": "jack-o-lantern.glb",
+          "preview": "previews/jack-o-lantern.jpg",
+          "faces": 23474,
+          "generation": "Tripo H3.1 image-to-3D",
+          "defaultEnvelope": [
+            70,
+            70
+          ]
+        },
+        {
+          "id": "friendly-ghost",
+          "number": "77",
+          "name": "Friendly Ghost",
+          "tags": [
+            "realistic",
+            "holiday",
+            "other"
+          ],
+          "glb": "friendly-ghost.glb",
+          "preview": "previews/friendly-ghost.jpg",
+          "faces": 23966,
+          "generation": "Tripo H3.1 image-to-3D",
+          "defaultEnvelope": [
+            66,
+            86
+          ]
+        },
+        {
+          "id": "easter-bunny",
+          "number": "78",
+          "name": "Easter Bunny",
+          "tags": [
+            "realistic",
+            "holiday",
+            "animal",
+            "pet"
+          ],
+          "glb": "easter-bunny.glb",
+          "preview": "previews/easter-bunny.jpg",
+          "faces": 25444,
+          "generation": "Tripo H3.1 image-to-3D",
+          "defaultEnvelope": [
+            64,
+            92
+          ]
+        },
+        {
+          "id": "cozy-cat",
+          "number": "79",
+          "name": "Cozy Cat",
+          "tags": [
+            "realistic",
+            "pet",
+            "animal"
+          ],
+          "glb": "cozy-cat.glb",
+          "preview": "previews/cozy-cat.jpg",
+          "faces": 24880,
+          "generation": "Tripo H3.1 image-to-3D",
+          "defaultEnvelope": [
+            66,
+            86
+          ]
+        },
+        {
+          "id": "cozy-dog",
+          "number": "80",
+          "name": "Cozy Dog",
+          "tags": [
+            "realistic",
+            "pet",
+            "animal"
+          ],
+          "glb": "cozy-dog.glb",
+          "preview": "previews/cozy-dog.jpg",
+          "faces": 25684,
+          "generation": "Tripo H3.1 image-to-3D",
+          "defaultEnvelope": [
+            68,
+            84
+          ]
+        }
+      ]
+    }
+  ]
+}

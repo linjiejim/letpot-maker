@@ -2,7 +2,7 @@
   "schema": "letpot-maker/model/v1",
   "model": {
     "id": "gift-box",
-    "number": "32",
+    "number": "33",
     "name": "Wrapped Gift",
     "subtitle": "Ribboned Christmas present",
     "difficulty": "Easy",
@@ -47,6 +47,8 @@
   "measurements": {
     "width": 41,
     "height": 34.2,
+    "topperWidth": 23,
+    "topperHeight": 28.7,
     "lowerDiameter": 33,
     "upperDiameter": 41
   },
