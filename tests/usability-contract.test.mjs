@@ -111,6 +111,20 @@ test("Studio library search, stable Mine order, camera framing and adaptive envi
   assert.match(studio, /samplePreviewPalette/);
 });
 
+test("Studio hides stale geometry behind an explicit model loading state", () => {
+  assert.match(studio, /const \[previewStatus, setPreviewStatus\] = useState<PreviewStatus \| null>/);
+  assert.match(studio, /selected\.officialMesh \? "Loading the bundled 3D mesh…" : "Preparing the procedural 3D model…"/);
+  assert.match(studio, /targetKey: `official:\$\{selected\.id\}:\$\{selected\.officialMesh \? "mesh" : "procedural"\}`/);
+  assert.match(studio, /onPresented\(modelKey\)/);
+  assert.match(studio, /current\.targetKey === presentedKey/);
+  assert.match(studio, /data-preview-state=\{previewStatus\?\.kind\}/);
+  assert.match(studio, /viewport-shell \$\{previewStatus \? "is-pending" : ""\}/);
+  assert.match(studio, /LOADING 3D MODEL/);
+  assert.match(studio, /setPreviewStatus\(\{ kind: "error", modelId: selected\.id/);
+  assert.match(globalCss, /\.viewport-shell\.is-pending \{ opacity: 0; pointer-events: none; \}/);
+  assert.match(globalCss, /\.stage-preview-status \{[^}]*background: var\(--surface\)/);
+});
+
 test("all procedural Studio cards have checked-in geometry renders", async () => {
   const previews = (await readdir(new URL("../public/models/previews/lowpoly/", import.meta.url)))
     .filter((filename) => filename.endsWith(".jpg"));

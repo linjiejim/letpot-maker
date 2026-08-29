@@ -77,6 +77,13 @@ type ViewportPalette = {
   hemisphereGround: string;
   fill: string;
 };
+type PreviewStatus = {
+  kind: "loading" | "error";
+  modelId?: ModelId;
+  targetKey?: string;
+  name: string;
+  detail: string;
+};
 
 const COLORS = ["#769567", "#294e35", "#a75f46", "#d3c5a5", "#d66c45"];
 const DEFAULT_PANEL_WIDTHS = { library: 264, inspector: 336 } as const;
@@ -218,11 +225,12 @@ function objBlob(object: THREE.Object3D) {
   return new Blob([new OBJExporter().parse(object)], { type: "text/plain" });
 }
 
-function ModelViewport({ build, view, modelKey, palette }: {
+function ModelViewport({ build, view, modelKey, palette, onPresented }: {
   build: ModelBuild;
   view: { name: ViewName; nonce: number };
   modelKey: string;
   palette: ViewportPalette;
+  onPresented: (modelKey: string) => void;
 }) {
   const mountRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -341,10 +349,11 @@ function ModelViewport({ build, view, modelKey, palette }: {
     extentRef.current = extent;
     centerRef.current.copy(center);
     viewDistanceRef.current = extent * 2.4;
+    onPresented(modelKey);
     return () => {
       scene.remove(build.assembly);
     };
-  }, [build, modelKey]);
+  }, [build, modelKey, onPresented]);
 
   useEffect(() => {
     const camera = cameraRef.current;
@@ -794,11 +803,23 @@ export function Studio() {
   const [resizingPanel, setResizingPanel] = useState<PanelName | null>(null);
   const [adaptiveEnvironment, setAdaptiveEnvironment] = useState(false);
   const [sampledViewportPalette, setSampledViewportPalette] = useState<{ path: string; palette: ViewportPalette } | null>(null);
+  const [previewStatus, setPreviewStatus] = useState<PreviewStatus | null>({
+    kind: "loading",
+    modelId: DEFAULT_OPTIONS.modelId,
+    targetKey: "pending-selection",
+    name: "Model preview",
+    detail: "Preparing the 3D workspace…",
+  });
   const workspaceRef = useRef<HTMLElement>(null);
   const glbInputRef = useRef<HTMLInputElement>(null);
   const officialLoadRef = useRef(0);
   const resizeCleanupRef = useRef<(() => void) | null>(null);
   const build = useMemo(() => createModel(options), [options]);
+  const handlePreviewPresented = useCallback((presentedKey: string) => {
+    setPreviewStatus((current) => current?.kind === "loading" && current.targetKey === presentedKey
+      ? null
+      : current);
+  }, []);
   useEffect(() => {
     const source = options.externalMesh;
     return () => {
@@ -843,8 +864,10 @@ export function Studio() {
   }), [mineCreations, normalizedLibraryQuery]);
   const activePreviewPath = aiDesign || tripoDesign ? undefined : modelPreviewPath(definition);
   const viewportModelKey = tripoDesign
-    ? `tripo:${tripoDesign.id}`
-    : aiDesign ? `ai:${aiDesign.localId}` : `official:${definition.id}`;
+    ? `tripo:${tripoDesign.id}:mesh`
+    : aiDesign
+      ? `ai:${aiDesign.localId}:procedural`
+      : `official:${definition.id}:${definition.officialMesh ? (options.externalMesh ? "mesh" : "fallback") : "procedural"}`;
   const viewportPalette = useMemo(() => {
     if (!adaptiveEnvironment) return DEFAULT_VIEWPORT_PALETTE;
     if (!activePreviewPath) return paletteFromColor(options.primaryColor);
@@ -941,12 +964,21 @@ export function Studio() {
         setAiDesign({ ...recipe, prompt: example.prompt, localId });
         setTripoDesign(null);
         setLibraryMode("mine");
+        setPreviewStatus({
+          kind: "loading",
+          targetKey: `ai:${localId}:procedural`,
+          name: recipe.name,
+          detail: "Preparing the generated 3D model…",
+        });
         setMessage(`${recipe.name} example loaded`);
         return;
       }
       const requestedModel = search.get("model");
       const selected = MODEL_LIBRARY.find((item) => item.id === requestedModel);
-      if (!selected) return;
+      if (!selected) {
+        setPreviewStatus(null);
+        return;
+      }
       chooseModel(selected.id);
       setLibraryMode("official");
       setActiveTag("all");
@@ -1028,6 +1060,13 @@ export function Studio() {
     if (!selected) return;
     const loadId = officialLoadRef.current + 1;
     officialLoadRef.current = loadId;
+    setPreviewStatus({
+      kind: "loading",
+      modelId: selected.id,
+      targetKey: `official:${selected.id}:${selected.officialMesh ? "mesh" : "procedural"}`,
+      name: selected.name,
+      detail: selected.officialMesh ? "Loading the bundled 3D mesh…" : "Preparing the procedural 3D model…",
+    });
     setOptions((current) => ({
       ...current,
       modelId,
@@ -1039,7 +1078,7 @@ export function Studio() {
     }));
     setAiDesign(null);
     setTripoDesign(null);
-    setMessage(selected.officialMesh ? `Loading bundled ${selected.name} mesh…` : `${selected.name} loaded`);
+    setMessage(selected.officialMesh ? "" : `${selected.name} loaded`);
     setMobilePanel("preview");
     if (selected.officialMesh) {
       void loadOfficialMesh(selected).then((parsed) => {
@@ -1053,7 +1092,9 @@ export function Studio() {
         setMessage(`${selected.name} official mesh loaded · ${parsed.faceCount.toLocaleString()} faces`);
       }).catch((error) => {
         if (officialLoadRef.current === loadId) {
-          setMessage(error instanceof Error ? error.message : "The bundled official mesh could not be loaded");
+          const detail = error instanceof Error ? error.message : "The bundled official mesh could not be loaded";
+          setPreviewStatus({ kind: "error", modelId: selected.id, name: selected.name, detail });
+          setMessage("");
         }
       });
     }
@@ -1074,6 +1115,12 @@ export function Studio() {
   const applyAiDesign = (recipe: AiDesignRecipe, prompt: string) => {
     officialLoadRef.current += 1;
     const localId = window.crypto.randomUUID();
+    setPreviewStatus({
+      kind: "loading",
+      targetKey: `ai:${localId}:procedural`,
+      name: recipe.name,
+      detail: "Preparing the generated 3D model…",
+    });
     const creation: LocalAiCreation = { id: localId, createdAt: new Date().toISOString(), prompt, recipe };
     setOptions((current) => ({
       ...current,
@@ -1101,6 +1148,12 @@ export function Studio() {
   const chooseAiCreation = (creation: LocalAiCreation) => {
     officialLoadRef.current += 1;
     const recipe = normalizeAiRecipe(creation.recipe);
+    setPreviewStatus({
+      kind: "loading",
+      targetKey: `ai:${creation.id}:procedural`,
+      name: recipe.name,
+      detail: "Preparing the saved 3D model…",
+    });
     setOptions((current) => ({
       ...current,
       modelId: recipe.templateId,
@@ -1124,6 +1177,12 @@ export function Studio() {
 
   const applyTripoDesign = (metadata: LocalTripoMeshMetadata, parsed: ParsedTripoMesh, promote = true) => {
     officialLoadRef.current += 1;
+    setPreviewStatus({
+      kind: "loading",
+      targetKey: `tripo:${metadata.id}:mesh`,
+      name: metadata.name,
+      detail: "Preparing the 3D mesh preview…",
+    });
     setOptions((current) => ({
       ...current,
       modelId: "sprout",
@@ -1144,29 +1203,46 @@ export function Studio() {
   };
 
   const chooseTripoCreation = async (metadata: LocalTripoMeshMetadata) => {
-    setMessage(`Loading ${metadata.name} from this browser…`);
+    const loadId = officialLoadRef.current + 1;
+    officialLoadRef.current = loadId;
+    setPreviewStatus({ kind: "loading", name: metadata.name, detail: "Loading the saved mesh from this browser…" });
+    setMessage("");
     try {
       const record = await getLocalTripoMesh(metadata.id);
       if (!record) throw new Error("This local mesh is no longer available.");
       const parsed = await parseTripoGlb(record.glb.slice(0), {
         maxFaceCount: metadata.source === "local-file" ? TRIPO_LOCAL_MESH_FACE_LIMIT : undefined,
       });
+      if (officialLoadRef.current !== loadId) {
+        disposeObject(parsed.object);
+        return;
+      }
       applyTripoDesign(metadata, parsed, false);
       setMessage(`${metadata.name} loaded from this browser`);
     } catch (loadError) {
-      setMessage(loadError instanceof Error ? loadError.message : "The local mesh could not be loaded");
+      if (officialLoadRef.current !== loadId) return;
+      const detail = loadError instanceof Error ? loadError.message : "The local mesh could not be loaded";
+      setPreviewStatus({ kind: "error", name: metadata.name, detail });
+      setMessage("");
     }
   };
 
   const importLocalGlb = async (file?: File) => {
     if (!file) return;
-    setMessage(`Checking ${file.name} locally…`);
+    const loadId = officialLoadRef.current + 1;
+    officialLoadRef.current = loadId;
+    setPreviewStatus({ kind: "loading", name: file.name, detail: "Checking and preparing this GLB locally…" });
+    setMessage("");
     let parsed: ParsedTripoMesh | null = null;
     try {
       if (!file.name.toLowerCase().endsWith(".glb")) throw new Error("Choose a binary .glb model file.");
       if (!file.size || file.size > MAX_LOCAL_GLB_BYTES) throw new Error("Local GLB must be between 1 byte and 40 MB.");
       const glb = await file.arrayBuffer();
       parsed = await parseTripoGlb(glb.slice(0), { maxFaceCount: TRIPO_LOCAL_MESH_FACE_LIMIT });
+      if (officialLoadRef.current !== loadId) {
+        disposeObject(parsed.object);
+        return;
+      }
       const id = window.crypto.randomUUID();
       const baseName = file.name.replace(/\.glb$/i, "").trim() || "Imported GLB";
       const metadata: LocalTripoMeshMetadata = {
@@ -1190,7 +1266,10 @@ export function Studio() {
       setMessage(`${metadata.name} imported locally · ${metadata.faceCount.toLocaleString()} faces`);
     } catch (error) {
       if (parsed) disposeObject(parsed.object);
-      setMessage(error instanceof Error ? error.message : "The local GLB could not be imported");
+      if (officialLoadRef.current !== loadId) return;
+      const detail = error instanceof Error ? error.message : "The local GLB could not be imported";
+      setPreviewStatus({ kind: "error", name: file.name, detail });
+      setMessage("");
     }
   };
 
@@ -1212,6 +1291,13 @@ export function Studio() {
         }));
         setTripoDesign(null);
         setLibraryMode("official");
+        setPreviewStatus({
+          kind: "loading",
+          modelId: selected.id,
+          targetKey: `official:${selected.id}:procedural`,
+          name: selected.name,
+          detail: "Preparing the procedural 3D model…",
+        });
       }
       setMessage(`${metadata.name} and its local GLB were removed`);
     } catch {
@@ -1608,17 +1694,28 @@ export function Studio() {
           onDoubleClick={() => setPanelWidths((current) => ({ ...current, library: DEFAULT_PANEL_WIDTHS.library }))}
         />
 
-        <section className="stage" id="studio-preview" aria-label="3D model preview">
-          <div className="view-tools" aria-label="View tools">
+        <section className="stage" id="studio-preview" aria-label="3D model preview" data-preview-state={previewStatus?.kind}>
+          {!previewStatus && <div className="view-tools" aria-label="View tools">
             {(["orbit", "front", "top"] as ViewName[]).map((name) => (
               <button key={name} className={view.name === name ? "active" : ""} onClick={() => requestView(name)}>{name[0].toUpperCase() + name.slice(1)}</button>
             ))}
+          </div>}
+          <div className={`viewport-shell ${previewStatus ? "is-pending" : ""}`} aria-hidden={previewStatus ? true : undefined}>
+            <ModelViewport build={build} view={view} modelKey={viewportModelKey} palette={viewportPalette} onPresented={handlePreviewPresented} />
           </div>
-          <ModelViewport build={build} view={view} modelKey={viewportModelKey} palette={viewportPalette} />
-          <div className="dimension-summary" aria-label="Model dimensions">
+          {!previewStatus && <div className="dimension-summary" aria-label="Model dimensions">
             <span>TOPPER / ASSEMBLY</span><b>W {build.measurements.topperWidth.toFixed(1)} × H {build.measurements.topperHeight.toFixed(1)} / {build.measurements.width.toFixed(1)} × {build.measurements.height.toFixed(1)} mm</b>
-          </div>
-          {message && <div className="stage-toast" role="status" aria-live="polite">{message}</div>}
+          </div>}
+          {previewStatus && <div className={`stage-preview-status ${previewStatus.kind}`} role={previewStatus.kind === "error" ? "alert" : "status"} aria-live="polite" aria-busy={previewStatus.kind === "loading"}>
+            {previewStatus.kind === "loading" ? <span className="stage-preview-spinner" aria-hidden="true" /> : <span className="stage-preview-error-mark" aria-hidden="true">!</span>}
+            <p>{previewStatus.kind === "loading" ? "LOADING 3D MODEL" : "MODEL COULD NOT LOAD"}</p>
+            <h3>{previewStatus.name}</h3>
+            <small>{previewStatus.detail}</small>
+            {previewStatus.kind === "error" && <button type="button" onClick={() => chooseModel(previewStatus.modelId ?? "sprout")}>
+              {previewStatus.modelId ? "Try again" : "Load Little Sprout"}
+            </button>}
+          </div>}
+          {!previewStatus && message && <div className="stage-toast" role="status" aria-live="polite">{message}</div>}
         </section>
 
         <button
