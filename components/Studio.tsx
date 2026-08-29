@@ -65,10 +65,18 @@ import {
   type TripoModelVersion,
   type TripoRegion,
 } from "../lib/tripo-mesh";
+import { loadOfficialMesh } from "../lib/official-mesh-browser";
 
 type ViewName = "orbit" | "front" | "top";
 type PanelName = "library" | "inspector";
 type PanelWidths = Record<PanelName, number>;
+type ViewportPalette = {
+  background: string;
+  fog: string;
+  ground: string;
+  hemisphereGround: string;
+  fill: string;
+};
 
 const COLORS = ["#769567", "#294e35", "#a75f46", "#d3c5a5", "#d66c45"];
 const DEFAULT_PANEL_WIDTHS = { library: 264, inspector: 336 } as const;
@@ -79,7 +87,15 @@ const PANEL_WIDTH_BOUNDS = {
 const MIN_STAGE_WIDTH = 420;
 const MAX_LOCAL_GLB_BYTES = 40 * 1024 * 1024;
 const DEFAULT_IMPORTED_TOPPER_SIZE = { width: 70, height: 100 } as const;
-const officialMeshBuffers = new Map<string, Promise<ArrayBuffer>>();
+const ADAPTIVE_ENVIRONMENT_STORAGE_KEY = "letpot-maker:adaptive-environment:v1";
+const DEFAULT_VIEWPORT_PALETTE: ViewportPalette = {
+  background: "#f4f8f1",
+  fog: "#f4f8f1",
+  ground: "#3f4f42",
+  hemisphereGround: "#5c6d5e",
+  fill: "#c7ddd0",
+};
+const previewPaletteCache = new Map<string, Promise<ViewportPalette>>();
 const TAG_LABELS: Record<ModelTag, string> = {
   lowpoly: "Low poly",
   realistic: "Realistic",
@@ -99,27 +115,74 @@ const TAG_LABELS: Record<ModelTag, string> = {
   other: "Other",
 };
 
-async function loadOfficialMesh(definition: ModelDefinition) {
-  const asset = definition.officialMesh;
-  if (!asset) throw new Error(`${definition.name} has no bundled mesh asset.`);
-  let pending = officialMeshBuffers.get(asset.assetPath);
+function modelPreviewPath(definition: ModelDefinition) {
+  if (definition.officialMesh) return definition.officialMesh.previewPath;
+  return definition.style === "lowpoly" ? `/models/previews/lowpoly/${definition.id}.jpg` : undefined;
+}
+
+function mixHex(first: string, second: string, amount: number) {
+  return `#${new THREE.Color(first).lerp(new THREE.Color(second), amount).getHexString()}`;
+}
+
+function paletteFromColor(color: string): ViewportPalette {
+  return {
+    background: mixHex(color, "#ffffff", 0.86),
+    fog: mixHex(color, "#ffffff", 0.8),
+    ground: mixHex(color, "#26302a", 0.62),
+    hemisphereGround: mixHex(color, "#3f4d43", 0.55),
+    fill: mixHex(color, "#ffffff", 0.62),
+  };
+}
+
+async function samplePreviewPalette(path: string, fallback: string) {
+  let pending = previewPaletteCache.get(path);
   if (!pending) {
-    pending = fetch(asset.assetPath, { cache: "force-cache" }).then(async (response) => {
-      if (!response.ok) throw new Error(`Bundled mesh returned HTTP ${response.status}.`);
-      const data = await response.arrayBuffer();
-      if (!data.byteLength || data.byteLength > MAX_LOCAL_GLB_BYTES) throw new Error("Bundled mesh has an invalid file size.");
-      return data;
-    });
-    officialMeshBuffers.set(asset.assetPath, pending);
-    void pending.catch(() => officialMeshBuffers.delete(asset.assetPath));
+    pending = (async () => {
+      const image = new Image();
+      image.decoding = "async";
+      image.src = path;
+      await image.decode();
+      const canvas = document.createElement("canvas");
+      canvas.width = 40;
+      canvas.height = 40;
+      const context = canvas.getContext("2d", { willReadFrequently: true });
+      if (!context) return paletteFromColor(fallback);
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+      const cornerIndexes = [0, 39, 1560, 1599];
+      const background = cornerIndexes.reduce((sum, pixel) => {
+        const offset = pixel * 4;
+        sum[0] += pixels[offset];
+        sum[1] += pixels[offset + 1];
+        sum[2] += pixels[offset + 2];
+        return sum;
+      }, [0, 0, 0]).map((value) => value / cornerIndexes.length);
+      let red = 0;
+      let green = 0;
+      let blue = 0;
+      let weight = 0;
+      for (let pixel = 0; pixel < canvas.width * canvas.height; pixel += 1) {
+        const offset = pixel * 4;
+        if (pixels[offset + 3] < 32) continue;
+        const distance = Math.hypot(
+          pixels[offset] - background[0],
+          pixels[offset + 1] - background[1],
+          pixels[offset + 2] - background[2],
+        );
+        if (distance < 18) continue;
+        const sampleWeight = Math.min(3, 0.5 + distance / 48);
+        red += pixels[offset] * sampleWeight;
+        green += pixels[offset + 1] * sampleWeight;
+        blue += pixels[offset + 2] * sampleWeight;
+        weight += sampleWeight;
+      }
+      if (weight < 24) return paletteFromColor(fallback);
+      const sampled = new THREE.Color(red / weight / 255, green / weight / 255, blue / weight / 255);
+      return paletteFromColor(`#${sampled.getHexString()}`);
+    })().catch(() => paletteFromColor(fallback));
+    previewPaletteCache.set(path, pending);
   }
-  const parsed = await parseTripoGlb((await pending).slice(0), { maxFaceCount: TRIPO_LOCAL_MESH_FACE_LIMIT });
-  if (parsed.faceCount !== asset.faceCount) {
-    disposeObject(parsed.object);
-    throw new Error(`Bundled mesh face count changed (${parsed.faceCount.toLocaleString()} instead of ${asset.faceCount.toLocaleString()}).`);
-  }
-  parsed.object.name = `official_${definition.id}_source`;
-  return parsed;
+  return pending;
 }
 
 function slugify(value: string) {
@@ -154,11 +217,20 @@ function objBlob(object: THREE.Object3D) {
   return new Blob([new OBJExporter().parse(object)], { type: "text/plain" });
 }
 
-function ModelViewport({ build, view }: { build: ModelBuild; view: { name: ViewName; nonce: number } }) {
+function ModelViewport({ build, view, modelKey, palette }: {
+  build: ModelBuild;
+  view: { name: ViewName; nonce: number };
+  modelKey: string;
+  palette: ViewportPalette;
+}) {
   const mountRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
+  const framedModelRef = useRef<string | null>(null);
+  const extentRef = useRef(0);
+  const centerRef = useRef(new THREE.Vector3());
+  const viewDistanceRef = useRef(100);
 
   useEffect(() => {
     const mount = mountRef.current;
@@ -183,13 +255,16 @@ function ModelViewport({ build, view }: { build: ModelBuild; view: { name: ViewN
     controls.minDistance = 45;
     controls.maxDistance = 190;
 
-    scene.add(new THREE.HemisphereLight("#fffdf5", "#5c6d5e", 2.5));
+    const hemisphere = new THREE.HemisphereLight("#fffdf5", DEFAULT_VIEWPORT_PALETTE.hemisphereGround, 2.5);
+    hemisphere.name = "adaptive_hemisphere";
+    scene.add(hemisphere);
     const key = new THREE.DirectionalLight("#fff4da", 4.8);
     key.position.set(52, 90, 62);
     key.castShadow = true;
     key.shadow.mapSize.set(1024, 1024);
     scene.add(key);
     const fill = new THREE.DirectionalLight("#c7ddd0", 1.7);
+    fill.name = "adaptive_fill";
     fill.position.set(-55, 36, -38);
     scene.add(fill);
 
@@ -200,6 +275,7 @@ function ModelViewport({ build, view }: { build: ModelBuild; view: { name: ViewN
     ground.rotation.x = -Math.PI / 2;
     ground.position.y = -0.05;
     ground.receiveShadow = true;
+    ground.name = "adaptive_ground";
     scene.add(ground);
 
     const resize = () => {
@@ -247,22 +323,34 @@ function ModelViewport({ build, view }: { build: ModelBuild; view: { name: ViewN
     const bounds = new THREE.Box3().setFromObject(build.assembly);
     const center = bounds.getCenter(new THREE.Vector3());
     const size = bounds.getSize(new THREE.Vector3());
+    const extent = Math.max(size.x, size.y, size.z);
+    const previousOffset = camera.position.clone().sub(controls.target);
+    const modelChanged = framedModelRef.current !== modelKey;
     controls.target.copy(center);
-    const distance = Math.max(size.x, size.y, size.z) * 2.25;
-    camera.position.set(distance * 0.72, center.y + distance * 0.42, distance * 0.78);
+    if (modelChanged || extentRef.current <= 0 || previousOffset.lengthSq() < 0.001) {
+      const distance = extent * 2.25;
+      camera.position.set(distance * 0.72, center.y + distance * 0.42, distance * 0.78);
+    } else {
+      const scale = THREE.MathUtils.clamp(extent / extentRef.current, 0.65, 1.6);
+      camera.position.copy(center).add(previousOffset.multiplyScalar(scale));
+    }
     camera.lookAt(center);
     controls.update();
+    framedModelRef.current = modelKey;
+    extentRef.current = extent;
+    centerRef.current.copy(center);
+    viewDistanceRef.current = extent * 2.4;
     return () => {
       scene.remove(build.assembly);
     };
-  }, [build]);
+  }, [build, modelKey]);
 
   useEffect(() => {
     const camera = cameraRef.current;
     const controls = controlsRef.current;
     if (!camera || !controls) return;
-    const center = new THREE.Box3().setFromObject(build.assembly).getCenter(new THREE.Vector3());
-    const distance = Math.max(build.measurements.width, build.measurements.height) * 2.4;
+    const center = centerRef.current;
+    const distance = viewDistanceRef.current;
     const positions: Record<ViewName, THREE.Vector3> = {
       orbit: new THREE.Vector3(distance * 0.7, center.y + distance * 0.45, distance * 0.76),
       front: new THREE.Vector3(0, center.y, distance),
@@ -272,9 +360,23 @@ function ModelViewport({ build, view }: { build: ModelBuild; view: { name: ViewN
     controls.target.copy(center);
     camera.lookAt(center);
     controls.update();
-  }, [build, view]);
+  }, [view]);
 
-  return <div className="viewport" ref={mountRef} role="img" aria-label="Interactive 3D preview of the selected printable model. Use the Orbit, Front, and Top buttons to change the view." />;
+  useEffect(() => {
+    const scene = sceneRef.current;
+    if (!scene) return;
+    scene.background = new THREE.Color(palette.background);
+    scene.fog = new THREE.Fog(palette.fog, 145, 240);
+    const ground = scene.getObjectByName("adaptive_ground") as THREE.Mesh | undefined;
+    const groundMaterial = ground?.material as THREE.ShadowMaterial | undefined;
+    groundMaterial?.color.set(palette.ground);
+    const hemisphere = scene.getObjectByName("adaptive_hemisphere") as THREE.HemisphereLight | undefined;
+    hemisphere?.groundColor.set(palette.hemisphereGround);
+    const fill = scene.getObjectByName("adaptive_fill") as THREE.DirectionalLight | undefined;
+    fill?.color.set(palette.fill);
+  }, [palette]);
+
+  return <div className="viewport" ref={mountRef} role="img" aria-label="Interactive 3D preview of the selected printable model. Use the Orbit, Front, and Top buttons to change the view." data-environment-color={palette.background} />;
 }
 
 function Slider({ label, value, min, max, step = 1, unit = "mm", onChange }: {
@@ -677,6 +779,8 @@ export function Studio() {
   const [exporting, setExporting] = useState(false);
   const [printerId, setPrinterId] = useState<BambuPrinterId>("a1-mini");
   const [activeTag, setActiveTag] = useState<"all" | ModelTag>("all");
+  const [libraryQuery, setLibraryQuery] = useState("");
+  const [tagsExpanded, setTagsExpanded] = useState(false);
   const [libraryMode, setLibraryMode] = useState<"official" | "mine">("official");
   const [message, setMessage] = useState("");
   const [aiOpen, setAiOpen] = useState(false);
@@ -687,6 +791,8 @@ export function Studio() {
   const [mobilePanel, setMobilePanel] = useState<"preview" | "library" | "adjust">("preview");
   const [panelWidths, setPanelWidths] = useState<PanelWidths>({ ...DEFAULT_PANEL_WIDTHS });
   const [resizingPanel, setResizingPanel] = useState<PanelName | null>(null);
+  const [adaptiveEnvironment, setAdaptiveEnvironment] = useState(false);
+  const [sampledViewportPalette, setSampledViewportPalette] = useState<{ path: string; palette: ViewportPalette } | null>(null);
   const workspaceRef = useRef<HTMLElement>(null);
   const glbInputRef = useRef<HTMLInputElement>(null);
   const officialLoadRef = useRef(0);
@@ -720,10 +826,34 @@ export function Studio() {
   const designPrintNote = integrated
     ? `One-piece mode: print upright on the Ø33 locator face; the adapter and topper are fused by a hidden internal core. ${detachablePrintNote}`
     : detachablePrintNote;
-  const visibleModels = useMemo(
-    () => activeTag === "all" ? MODEL_LIBRARY : MODEL_LIBRARY.filter((item) => item.tags.includes(activeTag)),
-    [activeTag],
-  );
+  const normalizedLibraryQuery = libraryQuery.trim().toLowerCase();
+  const visibleModels = useMemo(() => MODEL_LIBRARY.filter((item) => {
+    const matchesTag = activeTag === "all" || item.tags.includes(activeTag);
+    const searchText = [item.number, item.name, item.subtitle, ...item.tags].join(" ").toLowerCase();
+    return matchesTag && (!normalizedLibraryQuery || searchText.includes(normalizedLibraryQuery));
+  }), [activeTag, normalizedLibraryQuery]);
+  const mineCreations = useMemo(() => [
+    ...tripoCreations.map((creation) => ({ kind: "tripo" as const, id: creation.id, createdAt: creation.createdAt, creation })),
+    ...aiCreations.map((creation) => ({ kind: "ai" as const, id: creation.id, createdAt: creation.createdAt, creation })),
+  ].sort((first, second) => second.createdAt.localeCompare(first.createdAt) || first.id.localeCompare(second.id)), [aiCreations, tripoCreations]);
+  const visibleMineCreations = useMemo(() => mineCreations.filter((item) => {
+    if (!normalizedLibraryQuery) return true;
+    const searchText = item.kind === "tripo"
+      ? [item.creation.name, item.creation.prompt, item.creation.source].join(" ")
+      : [item.creation.recipe.name, item.creation.prompt, item.creation.recipe.subtitle].join(" ");
+    return searchText.toLowerCase().includes(normalizedLibraryQuery);
+  }), [mineCreations, normalizedLibraryQuery]);
+  const activePreviewPath = aiDesign || tripoDesign ? undefined : modelPreviewPath(definition);
+  const viewportModelKey = tripoDesign
+    ? `tripo:${tripoDesign.id}`
+    : aiDesign ? `ai:${aiDesign.localId}` : `official:${definition.id}`;
+  const viewportPalette = useMemo(() => {
+    if (!adaptiveEnvironment) return DEFAULT_VIEWPORT_PALETTE;
+    if (!activePreviewPath) return paletteFromColor(options.primaryColor);
+    return sampledViewportPalette?.path === activePreviewPath
+      ? sampledViewportPalette.palette
+      : paletteFromColor(options.primaryColor);
+  }, [activePreviewPath, adaptiveEnvironment, options.primaryColor, sampledViewportPalette]);
   const baseManufacturing = isExternalMesh
     ? TRIPO_MANUFACTURING_PROFILE
     : isAiSculpture ? AI_MANUFACTURING_PROFILE : getManufacturingProfile(options.modelId);
@@ -745,6 +875,28 @@ export function Studio() {
   }, [options.externalMesh]);
 
   useEffect(() => () => resizeCleanupRef.current?.(), []);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      try {
+        setAdaptiveEnvironment(window.localStorage.getItem(ADAPTIVE_ENVIRONMENT_STORAGE_KEY) === "true");
+      } catch {
+        setAdaptiveEnvironment(false);
+      }
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+
+  useEffect(() => {
+    if (!adaptiveEnvironment || !activePreviewPath) return;
+    let cancelled = false;
+    void samplePreviewPalette(activePreviewPath, options.primaryColor).then((palette) => {
+      if (!cancelled) setSampledViewportPalette({ path: activePreviewPath, palette });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [activePreviewPath, adaptiveEnvironment, options.primaryColor]);
 
   useEffect(() => {
     const load = () => {
@@ -972,7 +1124,7 @@ export function Studio() {
     setMobilePanel("preview");
   };
 
-  const applyTripoDesign = (metadata: LocalTripoMeshMetadata, parsed: ParsedTripoMesh) => {
+  const applyTripoDesign = (metadata: LocalTripoMeshMetadata, parsed: ParsedTripoMesh, promote = true) => {
     officialLoadRef.current += 1;
     setOptions((current) => ({
       ...current,
@@ -984,7 +1136,7 @@ export function Studio() {
       aiProgram: undefined,
       externalMesh: parsed.object,
     }));
-    setTripoCreations((current) => [metadata, ...current.filter((item) => item.id !== metadata.id)]);
+    if (promote) setTripoCreations((current) => [metadata, ...current.filter((item) => item.id !== metadata.id)]);
     setTripoDesign(metadata);
     setAiDesign(null);
     setLibraryMode("mine");
@@ -1001,7 +1153,7 @@ export function Studio() {
       const parsed = await parseTripoGlb(record.glb.slice(0), {
         maxFaceCount: metadata.source === "local-file" ? TRIPO_LOCAL_MESH_FACE_LIMIT : undefined,
       });
-      applyTripoDesign(metadata, parsed);
+      applyTripoDesign(metadata, parsed, false);
       setMessage(`${metadata.name} loaded from this browser`);
     } catch (loadError) {
       setMessage(loadError instanceof Error ? loadError.message : "The local mesh could not be loaded");
@@ -1354,6 +1506,18 @@ export function Studio() {
             <button className={libraryMode === "official" ? "active" : ""} onClick={() => setLibraryMode("official")}>Official <span>{MODEL_LIBRARY.length}</span></button>
             <button className={libraryMode === "mine" ? "active" : ""} onClick={() => setLibraryMode("mine")}>Mine <span>{aiCreations.length + tripoCreations.length}</span></button>
           </div>
+          <label className="library-search">
+            <span aria-hidden="true">⌕</span>
+            <input
+              type="search"
+              value={libraryQuery}
+              onChange={(event) => setLibraryQuery(event.target.value)}
+              placeholder={libraryMode === "official" ? "Search model titles…" : "Search Mine titles…"}
+              aria-label={libraryMode === "official" ? "Search Official model titles" : "Search Mine titles"}
+              autoComplete="off"
+            />
+            {libraryQuery && <button type="button" onClick={() => setLibraryQuery("")} aria-label="Clear model search">×</button>}
+          </label>
           {libraryMode === "mine" && <div className="local-import-bar">
             <input
               ref={glbInputRef}
@@ -1369,50 +1533,59 @@ export function Studio() {
             <button type="button" onClick={() => glbInputRef.current?.click()}>↑ Import local GLB</button>
             <span>≤100k faces · stays in this browser</span>
           </div>}
-          {libraryMode === "official" && <div className="tag-filter" aria-label="Filter designs by tag">
-            <button className={activeTag === "all" ? "active" : ""} onClick={() => setActiveTag("all")} aria-pressed={activeTag === "all"}>
-              All <span>{MODEL_LIBRARY.length}</span>
+          {libraryMode === "official" && <div className={`tag-filter-shell ${tagsExpanded ? "expanded" : ""}`}>
+            <div className="tag-filter" aria-label="Filter designs by tag">
+              <button className={activeTag === "all" ? "active" : ""} onClick={() => setActiveTag("all")} aria-pressed={activeTag === "all"}>
+                All <span>{MODEL_LIBRARY.length}</span>
+              </button>
+              {MODEL_TAGS.map((tag) => {
+                const count = MODEL_LIBRARY.filter((item) => item.tags.includes(tag)).length;
+                return (
+                  <button key={tag} className={activeTag === tag ? "active" : ""} onClick={() => setActiveTag(tag)} aria-pressed={activeTag === tag}>
+                    {TAG_LABELS[tag]} <span>{count}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <button type="button" className="tag-filter-toggle" aria-expanded={tagsExpanded} onClick={() => setTagsExpanded((current) => !current)}>
+              {tagsExpanded ? "Show fewer tags" : "Show all tags"}<span aria-hidden="true">{tagsExpanded ? "↑" : "↓"}</span>
             </button>
-            {MODEL_TAGS.map((tag) => {
-              const count = MODEL_LIBRARY.filter((item) => item.tags.includes(tag)).length;
+          </div>}
+          <div className="asset-list">
+            {libraryMode === "official" && visibleModels.map((item) => {
+              const previewPath = modelPreviewPath(item);
               return (
-                <button key={tag} className={activeTag === tag ? "active" : ""} onClick={() => setActiveTag(tag)} aria-pressed={activeTag === tag}>
-                  {TAG_LABELS[tag]} <span>{count}</span>
+                <button key={item.id} className={`asset-card ${item.style} ${item.id === options.modelId ? "active" : ""}`} title={item.name} onClick={() => chooseModel(item.id)}>
+                  {previewPath
+                    ? <span className="asset-preview" aria-hidden="true" style={{ backgroundImage: `url(${previewPath})` }} />
+                    : <span className="asset-number">{item.number}</span>}
+                  <span className="asset-copy">
+                    <strong>{item.name}</strong>
+                    <span className="asset-tags">{item.tags.slice(0, 3).map((tag) => <i key={tag}>{TAG_LABELS[tag]}</i>)}</span>
+                  </span>
                 </button>
               );
             })}
-          </div>}
-          <div className="asset-list">
-            {libraryMode === "official" && visibleModels.map((item) => (
-              <button key={item.id} className={`asset-card ${item.style} ${item.id === options.modelId ? "active" : ""}`} title={item.name} onClick={() => chooseModel(item.id)}>
-                {item.officialMesh
-                  ? <span className="asset-preview" aria-hidden="true" style={{ backgroundImage: `url(${item.officialMesh.previewPath})` }} />
-                  : <span className="asset-number">{item.number}</span>}
-                <span className="asset-copy">
-                  <strong>{item.name}</strong>
-                  <span className="asset-tags">{item.tags.slice(0, 3).map((tag) => <i key={tag}>{TAG_LABELS[tag]}</i>)}</span>
-                </span>
-              </button>
-            ))}
-            {libraryMode === "mine" && tripoCreations.map((creation, index) => (
-              <div key={creation.id} className={`local-creation-card direct-mesh ${tripoDesign?.id === creation.id ? "active" : ""}`}>
-                <button className="local-creation-main" title={creation.name} onClick={() => void chooseTripoCreation(creation)}>
-                  <span className="asset-number">M{String(tripoCreations.length - index).padStart(2, "0")}</span>
-                  <span className="asset-copy"><strong>{creation.name}</strong><small>{creation.source === "local-file" ? "Imported GLB" : "Tripo mesh"} · {(creation.faceCount / 1000).toFixed(1)}k faces</small></span>
+            {libraryMode === "mine" && visibleMineCreations.map((item) => item.kind === "tripo" ? (
+              <div key={`tripo:${item.id}`} className={`local-creation-card direct-mesh ${tripoDesign?.id === item.id ? "active" : ""}`}>
+                <button className="local-creation-main" title={item.creation.name} onClick={() => void chooseTripoCreation(item.creation)}>
+                  <span className="asset-number">3D</span>
+                  <span className="asset-copy"><strong>{item.creation.name}</strong><small>{item.creation.source === "local-file" ? "Imported GLB" : "Tripo mesh"} · {(item.creation.faceCount / 1000).toFixed(1)}k faces</small></span>
                 </button>
-                <button className="local-creation-remove" aria-label={`Remove ${creation.name}`} onClick={() => void removeTripoCreation(creation)}>×</button>
+                <button className="local-creation-remove" aria-label={`Remove ${item.creation.name}`} onClick={() => void removeTripoCreation(item.creation)}>×</button>
+              </div>
+            ) : (
+              <div key={`ai:${item.id}`} className={`local-creation-card ${aiDesign?.localId === item.id ? "active" : ""}`}>
+                <button className="local-creation-main" title={item.creation.recipe.name} onClick={() => chooseAiCreation(item.creation)}>
+                  <span className="asset-number">AI</span>
+                  <span className="asset-copy"><strong>{item.creation.recipe.name}</strong><small>{item.creation.recipe.program ? "Custom shape" : "AI variation"}</small></span>
+                </button>
+                <button className="local-creation-remove" aria-label={`Remove ${item.creation.recipe.name}`} onClick={() => removeAiCreation(item.creation)}>×</button>
               </div>
             ))}
-            {libraryMode === "mine" && aiCreations.map((creation, index) => (
-              <div key={creation.id} className={`local-creation-card ${aiDesign?.localId === creation.id ? "active" : ""}`}>
-                <button className="local-creation-main" title={creation.recipe.name} onClick={() => chooseAiCreation(creation)}>
-                  <span className="asset-number">AI{String(aiCreations.length - index).padStart(2, "0")}</span>
-                  <span className="asset-copy"><strong>{creation.recipe.name}</strong><small>{creation.recipe.program ? "Custom shape" : "AI variation"}</small></span>
-                </button>
-                <button className="local-creation-remove" aria-label={`Remove ${creation.recipe.name}`} onClick={() => removeAiCreation(creation)}>×</button>
-              </div>
-            ))}
-            {libraryMode === "mine" && aiCreations.length + tripoCreations.length === 0 && <div className="local-empty-state"><span>✦</span><b>No local creations yet</b><p>Generate a bounded shape, direct Tripo mesh, or import a local GLB. It stays only in this browser.</p><button onClick={() => setAiOpen(true)}>Generate your first model</button></div>}
+            {libraryMode === "official" && visibleModels.length === 0 && <div className="local-empty-state"><span>⌕</span><b>No matching Official models</b><p>Try a shorter title or clear the selected tag.</p><button onClick={() => { setLibraryQuery(""); setActiveTag("all"); }}>Show all models</button></div>}
+            {libraryMode === "mine" && mineCreations.length > 0 && visibleMineCreations.length === 0 && <div className="local-empty-state"><span>⌕</span><b>No matching local titles</b><p>Clear the title search to restore your saved order.</p><button onClick={() => setLibraryQuery("")}>Clear search</button></div>}
+            {libraryMode === "mine" && mineCreations.length === 0 && <div className="local-empty-state"><span>✦</span><b>No local creations yet</b><p>Generate a bounded shape, direct Tripo mesh, or import a local GLB. It stays only in this browser.</p><button onClick={() => setAiOpen(true)}>Generate your first model</button></div>}
           </div>
         </aside>
 
@@ -1438,7 +1611,7 @@ export function Studio() {
               <button key={name} className={view.name === name ? "active" : ""} onClick={() => requestView(name)}>{name[0].toUpperCase() + name.slice(1)}</button>
             ))}
           </div>
-          <ModelViewport build={build} view={view} />
+          <ModelViewport build={build} view={view} modelKey={viewportModelKey} palette={viewportPalette} />
           <div className="dimension-summary" aria-label="Model dimensions">
             <span>TOPPER / ASSEMBLY</span><b>W {build.measurements.topperWidth.toFixed(1)} × H {build.measurements.topperHeight.toFixed(1)} / {build.measurements.width.toFixed(1)} × {build.measurements.height.toFixed(1)} mm</b>
           </div>
@@ -1517,6 +1690,24 @@ export function Studio() {
             <section className="inspector-section appearance-section">
               <div className="section-heading"><div><p>APPEARANCE</p><span>{isTripoMesh ? "Single-color printable mesh" : isAiSculpture ? "Three-role generated palette" : definition.style === "realistic" ? "Smooth realistic model" : "Faceted printable model"}</span></div></div>
               {(isTripoMesh || isAiSculpture || definition.style === "lowpoly") && <div className="control-group compact"><label><span>Surface style</span><select value={options.faceted ? "low" : "soft"} onChange={(event) => update("faceted", event.target.value === "low")}><option value="low">Low poly</option><option value="soft">Smooth faceted</option></select></label></div>}
+              <label className="environment-toggle" htmlFor="adaptive-environment-toggle">
+                <span className="sr-only">Match preview environment</span>
+                <input
+                  id="adaptive-environment-toggle"
+                  type="checkbox"
+                  checked={adaptiveEnvironment}
+                  onChange={(event) => {
+                    const checked = event.target.checked;
+                    setAdaptiveEnvironment(checked);
+                    try {
+                      window.localStorage.setItem(ADAPTIVE_ENVIRONMENT_STORAGE_KEY, String(checked));
+                    } catch {
+                      setMessage("The environment preference could not be saved");
+                    }
+                  }}
+                />
+                <span><b>Match preview environment</b><small>{activePreviewPath ? "Samples the selected cover once and applies a subtle editor tint." : "Uses the active topper color for this local design."}</small></span>
+              </label>
               <div className="control-group color-control"><span>{options.modelId === "mushroom" ? "Cap color" : "Topper color"}</span><div>{COLORS.map((color) => <button key={color} className={`swatch ${options.primaryColor === color ? "active" : ""}`} style={{ background: color }} aria-label={`Use ${color}`} onClick={() => update("primaryColor", color)} />)}<input className="color-input" aria-label="Custom topper color" type="color" value={options.primaryColor} onChange={(event) => update("primaryColor", event.target.value)} /></div></div>
               {isAiSculpture && <div className="control-group color-control"><span>Secondary color</span><div><input className="color-input" aria-label="Custom secondary color" type="color" value={options.secondaryColor ?? "#d8a33e"} onChange={(event) => update("secondaryColor", event.target.value)} /></div></div>}
               {isAiSculpture && <div className="control-group color-control"><span>Detail color</span><div><input className="color-input" aria-label="Custom detail color" type="color" value={options.detailColor ?? "#f4eee2"} onChange={(event) => update("detailColor", event.target.value)} /></div></div>}

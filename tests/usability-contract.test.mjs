@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import test from "node:test";
 
 const [studio, podStyler, landingPage, globalCss, podCss] = await Promise.all([
@@ -91,6 +91,25 @@ test("Pod Styler offers a keyboard-operable pod picker", () => {
 test("landing 3D waits for idle time and exposes loading feedback", () => {
   assert.match(landingPage, /const \[shouldLoad, setShouldLoad\] = useState\(false\)/);
   assert.match(landingPage, /requestIdleCallback/);
+  assert.match(landingPage, /official-mesh-browser/);
   assert.match(landingPage, /Loading 3D preview…/);
+  assert.doesNotMatch(landingPage, /landing-official-preview|officialPreview/);
   assert.match(globalCss, /\.landing-model\[data-ready="true"\] \.landing-model-loading/);
+});
+
+test("Studio library search, stable Mine order, camera framing and adaptive environment stay explicit", () => {
+  assert.match(studio, /aria-label=\{libraryMode === "official" \? "Search Official model titles" : "Search Mine titles"\}/);
+  assert.match(studio, /className="tag-filter-toggle" aria-expanded=\{tagsExpanded\}/);
+  assert.match(studio, /visibleMineCreations\.map/);
+  assert.match(studio, /applyTripoDesign\(metadata, parsed, false\)/);
+  assert.match(studio, /framedModelRef\.current !== modelKey/);
+  assert.match(studio, /previousOffset\.multiplyScalar\(scale\)/);
+  assert.match(studio, /Match preview environment/);
+  assert.match(studio, /samplePreviewPalette/);
+});
+
+test("all low-poly Studio cards have checked-in geometry renders", async () => {
+  const previews = (await readdir(new URL("../public/models/previews/lowpoly/", import.meta.url)))
+    .filter((filename) => filename.endsWith(".jpg"));
+  assert.equal(previews.length, 18);
 });

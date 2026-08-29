@@ -58,6 +58,9 @@ test("renders the separate parametric Studio", async () => {
   assert.match(html, /LetPot Maker Studio: customize and export printable 3D accessories/);
   assert.match(html, /Maker Library/);
   assert.match(html, />Mine <span>0<\/span>/);
+  assert.match(html, /Search model titles/);
+  assert.match(html, /Show all tags/);
+  assert.match(html, /Match preview environment/);
   assert.match(html, /Resize model library/);
   assert.match(html, /Resize model adjustments/);
   assert.match(html, /title="Little Sprout"/);

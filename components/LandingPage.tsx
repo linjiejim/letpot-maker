@@ -85,11 +85,10 @@ function LiveModel({
   const mountRef = useRef<HTMLDivElement>(null);
   const [shouldLoad, setShouldLoad] = useState(false);
   const [isReady, setIsReady] = useState(false);
-  const officialPreview = models.find((model) => model.id === modelId)?.officialMesh?.previewPath;
 
   useEffect(() => {
     const mount = mountRef.current;
-    if (!mount || officialPreview || shouldLoad || interactive) return;
+    if (!mount || shouldLoad || interactive) return;
 
     const observer = new IntersectionObserver(
       ([entry]) => {
@@ -101,10 +100,10 @@ function LiveModel({
     );
     observer.observe(mount);
     return () => observer.disconnect();
-  }, [interactive, officialPreview, shouldLoad]);
+  }, [interactive, shouldLoad]);
 
   useEffect(() => {
-    if (officialPreview || !interactive || shouldLoad) return;
+    if (!interactive || shouldLoad) return;
     const load = () => setShouldLoad(true);
     const idleWindow = window as unknown as {
       requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
@@ -118,28 +117,39 @@ function LiveModel({
 
     const timer = globalThis.setTimeout(load, 350);
     return () => globalThis.clearTimeout(timer);
-  }, [interactive, officialPreview, shouldLoad]);
+  }, [interactive, shouldLoad]);
 
   useEffect(() => {
     const mount = mountRef.current;
-    if (!mount || officialPreview || !shouldLoad) return;
+    if (!mount || !shouldLoad) return;
 
     let cancelled = false;
     let disposeScene: (() => void) | undefined;
+    const definition = models.find((model) => model.id === modelId) ?? models[0];
 
     void Promise.all([
       import("three"),
       import("three/examples/jsm/controls/OrbitControls.js"),
       import("../lib/model-factory"),
-    ]).then(([THREE, { OrbitControls }, { createModel, disposeObject }]) => {
+      import("../lib/official-mesh-browser"),
+    ]).then(async ([THREE, { OrbitControls }, { createModel, disposeObject }, { loadOfficialMesh }]) => {
       if (cancelled) return;
 
-      const build = createModel(optionsFor(modelId, models));
+      const officialSource = definition.officialMesh ? await loadOfficialMesh(definition) : null;
+      if (cancelled) {
+        if (officialSource) disposeObject(officialSource.object);
+        return;
+      }
+      const build = createModel({
+        ...optionsFor(modelId, models),
+        externalMesh: officialSource?.object,
+      });
+      if (officialSource) disposeObject(officialSource.object);
       const scene = new THREE.Scene();
       const camera = new THREE.PerspectiveCamera(interactive ? 31 : 34, 1, 0.1, 600);
       const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
       renderer.setClearColor(0x000000, 0);
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, interactive ? 1.5 : 1.25));
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
       renderer.toneMappingExposure = 1.08;
@@ -224,13 +234,11 @@ function LiveModel({
       cancelled = true;
       disposeScene?.();
     };
-  }, [interactive, modelId, models, officialPreview, shouldLoad]);
+  }, [interactive, modelId, models, shouldLoad]);
 
   return (
-    <div className={`landing-model ${interactive ? "interactive" : ""} ${officialPreview ? "official-preview" : ""}`} ref={mountRef} data-ready={officialPreview ? true : isReady} aria-label={`${modelId} ${officialPreview ? "official mesh render" : "live 3D preview"}`} aria-busy={officialPreview ? false : !isReady}>
-      {officialPreview
-        ? <span className="landing-official-preview" aria-hidden="true" style={{ backgroundImage: `url(${officialPreview})` }} />
-        : <span className="landing-model-loading" aria-hidden="true">Loading 3D preview…</span>}
+    <div className={`landing-model ${interactive ? "interactive" : ""}`} ref={mountRef} data-ready={isReady} aria-label={`${modelId} live 3D preview`} aria-busy={!isReady}>
+      <span className="landing-model-loading" aria-hidden="true">Loading 3D preview…</span>
     </div>
   );
 }
