@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { MeshoptDecoder } from "meshoptimizer";
 import {
   buildTripoPrompt,
   TRIPO_MODEL_OPTIONS,
@@ -174,7 +175,7 @@ export function parseTripoGlb(
   if (signature !== "glTF") return Promise.reject(new Error("Tripo returned a model that is not a binary GLB."));
 
   return new Promise((resolve, reject) => {
-    new GLTFLoader().parse(data, "", (gltf) => {
+    new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).parse(data, "", (gltf) => {
       const object = gltf.scene;
       let meshCount = 0;
       let faceCount = 0;

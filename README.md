@@ -10,7 +10,7 @@ The project started from a simple gap: small hydroponic accessories are easy to 
 
 ## Current capabilities
 
-- Browse, search, and filter 80 checked-in printable designs, including 52 bundled Official neural meshes across eight collections and rendered covers for all 28 procedural designs.
+- Browse and search 80 checked-in printable designs with independent style and subject filters. The rounded `Soft Sculpt` collection is the default; 52 bundled Official neural meshes span eight collections, with rendered covers for all 28 procedural designs.
 - Preview the same parametric geometry used by the export pipeline on both the homepage and in Studio.
 - Customize topper height from 25–100 mm, width from 20–80 mm, model-specific details, colors, and surface style.
 - Export watertight STL parts, OBJ assemblies, manifests, and Bambu Studio 3MF projects.
@@ -82,6 +82,7 @@ Set `AI_API_KEY`, `AI_BASE_URL`, and `AI_MODEL` for a provider that implements t
 | `npm run docker:deploy` | Build and health-check a local Compose deployment |
 | `npm run docker:deploy-image` | Pull and deploy an immutable published image |
 | `npm run generate:assets` | Regenerate the checked-in STL, OBJ, manifest, and stack-test assets |
+| `npm run official:optimize` | Re-encode checked-in Official GLBs with face-count-preserving Meshopt compression |
 | `npm run validate:assets` | Validate generated STL topology and adapter orientation |
 | `npm run validate:parameters` | Exercise supported parameter boundaries |
 | `npm run validate:ai` | Validate constrained AI recipes and printable output |
