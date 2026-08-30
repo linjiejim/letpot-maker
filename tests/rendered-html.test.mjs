@@ -38,7 +38,9 @@ test("renders the LetPot Maker homepage and searchable asset library", async () 
   assert.match(html, /Loading 3D preview…/);
   assert.match(html, /BROWSE THE MAKER LIBRARY/);
   assert.match(html, /SEARCH THE LIBRARY/);
-  assert.match(html, /THE MAKER ROADMAP/);
+  assert.match(html, /THE SHARED LETPOT STANDARD/);
+  assert.match(html, /Your Key never reaches the LetPot Maker server/);
+  assert.match(html, /Explore the GitHub repo/);
   assert.match(html, /Source code/);
   assert.doesNotMatch(html, /<meta name="keywords"/i);
   assert.doesNotMatch(initialHead, /model-factory|three\.module/i);

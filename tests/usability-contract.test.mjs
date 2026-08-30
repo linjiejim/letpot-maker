@@ -35,7 +35,7 @@ test("full-screen tools expose skip links and visible focus styles", () => {
 });
 
 test("primary copy and form controls use the readable type contract", () => {
-  assert.match(globalCss, /\.hero-copy > p, \.intro-copy p \{ font-size: 16px;/);
+  assert.match(globalCss, /\.hero-copy > p, \.standard-copy > p \{ font-size: 16px;/);
   assert.match(globalCss, /\.ai-prompt-field input \{ min-height: 48px; font-size: 16px;/);
   assert.match(globalCss, /\.control-group label[^}]+font-size: 14px;/);
   assert.match(podCss, /\.filters button \{ min-height: 44px; font-size: 13px;/);
@@ -97,6 +97,21 @@ test("landing 3D waits for idle time and exposes loading feedback", () => {
   assert.match(landingPage, /Loading 3D preview…/);
   assert.doesNotMatch(landingPage, /landing-official-preview|officialPreview/);
   assert.match(globalCss, /\.landing-model\[data-ready="true"\] \.landing-model-loading/);
+});
+
+test("landing 3D pauses rendering when previews or the page are hidden", () => {
+  assert.match(landingPage, /const renderVisibilityObserver = new IntersectionObserver/);
+  assert.match(landingPage, /document\.addEventListener\("visibilitychange", handleDocumentVisibility\)/);
+  assert.match(landingPage, /mount\.setAttribute\("data-rendering", "false"\)/);
+  assert.match(landingPage, /renderVisibilityObserver\.disconnect\(\)/);
+});
+
+test("landing page explains the standard, open source path and local Tripo boundary", () => {
+  assert.match(landingPage, /THE SHARED LETPOT STANDARD/);
+  assert.match(landingPage, /Topper with blind socket/);
+  assert.match(landingPage, /Explore the GitHub repo/);
+  assert.match(landingPage, /Your Key never reaches the LetPot Maker server/);
+  assert.match(landingPage, /View all \{filteredGalleryModels\.length \|\| models\.length\} in Studio/);
 });
 
 test("Studio library search, stable Mine order, camera framing and adaptive environment stay explicit", () => {

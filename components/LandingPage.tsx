@@ -20,6 +20,7 @@ type LandingPageProps = {
   adapterStandard: {
     lowerDiameter: number;
     upperDiameter: number;
+    totalHeight: number;
   };
 };
 
@@ -197,23 +198,56 @@ function LiveModel({
         camera.aspect = width / height;
         camera.updateProjectionMatrix();
       };
-      const observer = new ResizeObserver(resize);
-      observer.observe(mount);
+      const resizeObserver = new ResizeObserver(resize);
+      resizeObserver.observe(mount);
       resize();
 
       let frame = 0;
+      let running = false;
+      let visible = true;
       const render = () => {
-        frame = window.requestAnimationFrame(render);
+        if (cancelled || !visible || document.hidden) {
+          frame = 0;
+          running = false;
+          mount.setAttribute("data-rendering", "false");
+          return;
+        }
         if (!interactive && !reduceMotion) build.assembly.rotation.y += 0.0032;
         controls.update();
         renderer.render(scene, camera);
+        frame = window.requestAnimationFrame(render);
       };
-      render();
+      const startRendering = () => {
+        if (running || cancelled || !visible || document.hidden) return;
+        running = true;
+        mount.setAttribute("data-rendering", "true");
+        render();
+      };
+      const stopRendering = () => {
+        if (frame) window.cancelAnimationFrame(frame);
+        frame = 0;
+        running = false;
+        mount.setAttribute("data-rendering", "false");
+      };
+      const renderVisibilityObserver = new IntersectionObserver(([entry]) => {
+        visible = entry.isIntersecting;
+        if (visible) startRendering();
+        else stopRendering();
+      }, { rootMargin: "80px" });
+      const handleDocumentVisibility = () => {
+        if (document.hidden) stopRendering();
+        else startRendering();
+      };
+      renderVisibilityObserver.observe(mount);
+      document.addEventListener("visibilitychange", handleDocumentVisibility);
+      startRendering();
       setIsReady(true);
 
       disposeScene = () => {
-        window.cancelAnimationFrame(frame);
-        observer.disconnect();
+        stopRendering();
+        resizeObserver.disconnect();
+        renderVisibilityObserver.disconnect();
+        document.removeEventListener("visibilitychange", handleDocumentVisibility);
         controls.dispose();
         renderer.dispose();
         shadow.geometry.dispose();
@@ -411,39 +445,40 @@ export function LandingPage({ models, adapterStandard }: LandingPageProps) {
         </div>
       </section>
 
-      <section className="landing-intro" id="about">
-        <div>
-          <span className="section-kicker">ONE STANDARD · MANY POSSIBILITIES</span>
-          <h2>One growing system.<br />Infinite ways to build.</h2>
+      <section className="maker-standard" id="system">
+        <div className="standard-copy">
+          <span className="section-kicker">THE SHARED LETPOT STANDARD</span>
+          <h2>One standard beneath every idea.</h2>
+          <p>The character, plant or useful accessory can change completely while the hidden connection stays predictable. LetPot Maker owns the socket, pin and adapter geometry so every Official model starts from the same measured fit.</p>
+          <dl className="standard-facts">
+            <div><dt>{models.length}</dt><dd>Checked-in models</dd></div>
+            <div><dt>Ø{adapterStandard.lowerDiameter} / Ø{adapterStandard.upperDiameter}</dt><dd>Locked pod adapter</dd></div>
+            <div><dt>{adapterStandard.totalHeight.toFixed(1)} mm</dt><dd>Adapter height</dd></div>
+          </dl>
+          <p className="standard-mode-note"><b>Detachable by default.</b> Print the artwork, reusable connector and adapter separately—or choose integrated mode to fuse the printable assembly into one solid.</p>
         </div>
-        <div className="intro-copy">
-          <p>LetPot Maker starts with printable pod accessories because they are small, useful, and easy to experiment with. Every asset is a practical starting point you can inspect, tune, and print.</p>
-          <p>That first collection is the foundation, not the boundary. The same maker library can grow into organizers, mounts, labels, light helpers, replacement pieces, and ideas the community has not imagined yet.</p>
+        <div className="standard-exploded">
+          <div className="standard-exploded-heading"><span>EXPLODED ASSEMBLY</span><b>Detachable mode · 3 printable parts</b></div>
+          <ol className="assembly-stack" aria-label="Standard detachable topper assembly">
+            <li>
+              <div className="assembly-part topper-part" aria-hidden="true"><i /><span /></div>
+              <div><span>01 · ARTWORK</span><b>Topper with blind socket</b><p>Artwork stays inside the selected width and height envelope; the socket remains hidden in its underside.</p></div>
+            </li>
+            <li>
+              <div className="assembly-part pin-part" aria-hidden="true"><i /></div>
+              <div><span>02 · CONNECTOR</span><b>Reusable double-ended pin</b><p>A keyed hex connector makes color changes and replacement parts straightforward.</p></div>
+            </li>
+            <li>
+              <div className="assembly-part adapter-part" aria-hidden="true"><i /></div>
+              <div><span>03 · ADAPTER</span><b>Locked Ø{adapterStandard.lowerDiameter} / Ø{adapterStandard.upperDiameter} base</b><p>This code-owned interface does not stretch when the artwork proportions change.</p></div>
+            </li>
+            <li>
+              <div className="assembly-part pod-part" aria-hidden="true"><i /></div>
+              <div><span>04 · EXISTING HARDWARE</span><b>Your LetPot pod opening</b><p>The printed adapter seats on the pod without modifying the growing system.</p></div>
+            </li>
+          </ol>
+          <p className="standard-rule">Change everything above the socket. Keep the fit below it.</p>
         </div>
-      </section>
-
-      <section className="system-grid" id="system">
-        <article>
-          <span className="system-number">01</span>
-          <div className="system-icon adapter-icon" aria-hidden="true"><i /></div>
-          <h3>Find a solid starting point</h3>
-          <p>Browse real 3D assets by style or subject instead of starting from a blank canvas. Every result opens directly in the Maker Studio with its printable geometry intact.</p>
-          <b>{models.length} tested assets in the first collection</b>
-        </article>
-        <article>
-          <span className="system-number">02</span>
-          <div className="system-icon connector-icon" aria-hidden="true"><i /></div>
-          <h3>Remix a shared system</h3>
-          <p>A measured Ø{adapterStandard.lowerDiameter}/{adapterStandard.upperDiameter} mm adapter and reusable connector language keep today&apos;s pod collection compatible while leaving room for new accessory families.</p>
-          <b>Change the idea without breaking the fit</b>
-        </article>
-        <article>
-          <span className="system-number">03</span>
-          <div className="system-icon solid-icon" aria-hidden="true"><i /></div>
-          <h3>Make it real</h3>
-          <p>Adjust within print-aware ranges, inspect the assembled model, and export watertight parts for common maker workflows. The browser preview and download pipeline share the same source geometry.</p>
-          <b>STL, OBJ and Bambu 3MF exports</b>
-        </article>
       </section>
 
       <section className="landing-workflow" id="workflow">
@@ -461,22 +496,27 @@ export function LandingPage({ models, adapterStandard }: LandingPageProps) {
 
       <section className="community-section">
         <div className="community-copy">
-          <span className="section-kicker">BUILT TO GROW IN THE OPEN</span>
-          <h2>A shared workshop for LetPot makers.</h2>
-          <p>LetPot Maker is being organized for open-source collaboration: clear geometry rules, reproducible assets, and a focused contribution path for growers, 3D-printing beginners, and model designers.</p>
+          <span className="section-kicker">OPEN SOURCE · LOCAL FIRST</span>
+          <h2>Built to inspect, remix, and trust.</h2>
+          <p>The models, geometry rules, validators and export pipeline are open for review. Growers can start with a finished design; model makers can trace exactly how the shared fit and printable files are produced.</p>
           <ul>
-            <li>Print an asset and share fit notes, material choices, and photos.</li>
-            <li>Remix existing models through safe parameters or contribute a new design.</li>
-            <li>Help expand beyond pod toppers into useful LetPot accessories.</li>
+            <li>Inspect the same geometry used by the browser preview and export pipeline.</li>
+            <li>Contribute a model, print profile, fit note, material choice or real-world photo.</li>
+            <li>Help expand the shared standard beyond toppers into useful LetPot accessories.</li>
           </ul>
+          <div className="community-actions">
+            <a href="https://github.com/linjiejim/letpot-maker" target="_blank" rel="noreferrer">Explore the GitHub repo <span>↗</span></a>
+            <a href="https://github.com/linjiejim/letpot-maker/tree/main/docs" target="_blank" rel="noreferrer">Read the project docs</a>
+          </div>
         </div>
         <aside className="local-privacy-card">
-          <span>THE MAKER ROADMAP</span>
-          <h3>Start focused. Expand carefully.</h3>
-          <p>The current release proves the library, customization, and export loop. New accessory families can plug into the same experience as their dimensions and safety rules are validated.</p>
-          <div><i>01</i> Now · printable pod collection</div>
-          <div><i>02</i> Next · community asset format</div>
-          <div><i>03</i> Later · broader accessory families</div>
+          <span>TRIPO · BRING YOUR OWN KEY</span>
+          <h3>Your Key never reaches the LetPot Maker server.</h3>
+          <p>Direct mesh generation goes from the browser through a loopback-only helper on this device to Tripo. The helper keeps no history, while the returned GLB stays in this browser.</p>
+          <div><i>01</i><span><b>Memory by default</b>The Key is cleared when the dialog closes unless you explicitly remember it.</span></div>
+          <div><i>02</i><span><b>Browser-local cache</b>Generated GLBs stay in local IndexedDB and are never published automatically.</span></div>
+          <div><i>03</i><span><b>Standardized output</b>The app adds the same locked socket, pin and adapter before export.</span></div>
+          <a href="/studio">Open AI Generate <span>→</span></a>
         </aside>
       </section>
 
