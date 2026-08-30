@@ -171,7 +171,10 @@ function LiveModel({
       fill.position.set(-45, 28, -34);
       scene.add(fill);
 
-      scene.add(build.assembly);
+      const presentationRig = new THREE.Group();
+      presentationRig.name = "landing_hero_presentation_rig";
+      presentationRig.add(build.assembly);
+      scene.add(presentationRig);
       const bounds = new THREE.Box3().setFromObject(build.assembly);
       const center = bounds.getCenter(new THREE.Vector3());
       const size = bounds.getSize(new THREE.Vector3());
@@ -211,6 +214,12 @@ function LiveModel({
       let frame = 0;
       let running = false;
       let visible = true;
+      let controlsActive = false;
+      let presentationMotion = 1;
+      const handleControlsStart = () => { controlsActive = true; };
+      const handleControlsEnd = () => { controlsActive = false; };
+      controls.addEventListener("start", handleControlsStart);
+      controls.addEventListener("end", handleControlsEnd);
       const render = () => {
         if (cancelled || !visible || document.hidden) {
           frame = 0;
@@ -219,6 +228,18 @@ function LiveModel({
           return;
         }
         if (!interactive && !reduceMotion) build.assembly.rotation.y += 0.0032;
+        if (interactive && !reduceMotion) {
+          presentationMotion += ((controlsActive ? 0 : 1) - presentationMotion) * 0.075;
+          const time = performance.now() * 0.001;
+          presentationRig.position.set(
+            Math.sin(time * 0.72 + 0.9) * diameter * 0.0045 * presentationMotion,
+            Math.sin(time * 1.08) * diameter * 0.01 * presentationMotion,
+            0,
+          );
+          presentationRig.rotation.z = Math.sin(time * 0.62 + 1.8) * 0.005 * presentationMotion;
+          const breathingScale = 1 + Math.sin(time * 0.86 + 1.7) * 0.005 * presentationMotion;
+          presentationRig.scale.setScalar(breathingScale);
+        }
         controls.update();
         renderer.render(scene, camera);
         frame = window.requestAnimationFrame(render);
@@ -254,6 +275,8 @@ function LiveModel({
         resizeObserver.disconnect();
         renderVisibilityObserver.disconnect();
         document.removeEventListener("visibilitychange", handleDocumentVisibility);
+        controls.removeEventListener("start", handleControlsStart);
+        controls.removeEventListener("end", handleControlsEnd);
         controls.dispose();
         renderer.dispose();
         shadow.geometry.dispose();

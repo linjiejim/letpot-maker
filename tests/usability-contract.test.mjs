@@ -120,6 +120,17 @@ test("landing hero cycles visual model choices while keeping the live model fron
   assert.match(globalCss, /\.featured-switcher \{[^}]*grid-template-columns: repeat\(4,minmax\(0,1fr\)\)/);
 });
 
+test("landing hero adds subtle reduced-motion-aware presentation movement without blocking free orbit", () => {
+  assert.match(landingPage, /landing_hero_presentation_rig/);
+  assert.match(landingPage, /if \(interactive && !reduceMotion\)/);
+  assert.match(landingPage, /controls\.addEventListener\("start", handleControlsStart\)/);
+  assert.match(landingPage, /presentationRig\.position\.set/);
+  assert.match(landingPage, /presentationRig\.rotation\.z/);
+  assert.match(landingPage, /presentationRig\.scale\.setScalar/);
+  assert.match(landingPage, /controls\.enabled = interactive/);
+  assert.match(landingPage, /controls\.autoRotate = false/);
+});
+
 test("landing page explains the standard, open source path and local Tripo boundary", () => {
   assert.match(landingPage, /THE SHARED LETPOT STANDARD/);
   assert.match(landingPage, /Topper with blind socket/);
