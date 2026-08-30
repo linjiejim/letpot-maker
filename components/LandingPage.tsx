@@ -23,8 +23,8 @@ type LandingPageProps = {
   };
 };
 
-const FEATURED_MODELS: ModelId[] = ["christmas-tree", "basil", "mushroom", "santa"];
-const INITIAL_GALLERY_MODELS: ModelId[] = ["cactus", "christmas-tree", "bamboo", "basil"];
+const FEATURED_MODELS: ModelId[] = ["monstera-cluster", "tomato-pal", "ladybug-friend", "orbit-astronaut"];
+const INITIAL_GALLERY_MODELS: ModelId[] = ["monstera-cluster", "tomato-pal", "ladybug-friend", "orbit-astronaut"];
 const MODEL_STYLE_FAMILIES = ["soft-sculpt", "low-poly", "smooth-organic"] as const;
 type ModelStyleFamily = typeof MODEL_STYLE_FAMILIES[number];
 const MODEL_TAGS: ModelTag[] = ["veggie", "herbs", "tree", "fruit", "flower", "animal", "christmas", "plant", "space", "insect", "ocean", "holiday", "pet", "other"];
@@ -264,6 +264,15 @@ export function LandingPage({ models, adapterStandard }: LandingPageProps) {
     const remainingIds = filteredGalleryModels.map((item) => item.id).filter((id) => !preferredIds.includes(id));
     return [...preferredIds, ...remainingIds].slice(0, 4);
   }, [filteredGalleryModels, galleryOrder]);
+  const galleryStudioHref = useMemo(() => {
+    const search = new URLSearchParams();
+    const query = galleryQuery.trim();
+    if (query) search.set("q", query);
+    if (galleryStyle !== "all") search.set("style", galleryStyle);
+    if (galleryTag !== "all") search.set("tag", galleryTag);
+    const suffix = search.toString();
+    return `/studio${suffix ? `?${suffix}` : ""}`;
+  }, [galleryQuery, galleryStyle, galleryTag]);
 
   useEffect(() => {
     const updateNav = () => setNavScrolled(window.scrollY > 18);
@@ -307,7 +316,10 @@ export function LandingPage({ models, adapterStandard }: LandingPageProps) {
             <a href="#workflow">Build guide</a>
             <a href="/pod-styler">Pod Styler</a>
           </nav>
-          <a className="landing-nav-cta" href="/studio">Open Maker Studio <span>→</span></a>
+          <div className="landing-nav-actions">
+            <a className="landing-github-link" href="https://github.com/linjiejim/letpot-maker" target="_blank" rel="noreferrer" aria-label="View LetPot Maker on GitHub">GitHub <span>↗</span></a>
+            <a className="landing-nav-cta" href="/studio">Open Maker Studio <span>→</span></a>
+          </div>
         </div>
       </header>
 
@@ -345,9 +357,63 @@ export function LandingPage({ models, adapterStandard }: LandingPageProps) {
         </div>
       </section>
 
+      <section className="landing-gallery" id="gallery">
+        <div className="gallery-heading">
+          <span className="section-kicker">BROWSE THE MAKER LIBRARY</span>
+          <h2>Find a solid start.<br /><em>Then make it yours.</em></h2>
+          <p>Search and filter printable assets by subject or style. Every preview is rendered from the same geometry used by the Studio and export pipeline—not a concept image.</p>
+        </div>
+        <div className="gallery-browser">
+          <div className="gallery-browser-heading">
+            <div><span>LETPOT MAKER · COLLECTION 01</span><h3>What do you want to make?</h3><p>Explore {models.length} printable starting points, with more accessory types planned.</p></div>
+            <button type="button" onClick={randomizeGallery} disabled={!filteredGalleryModels.length} aria-label={galleryTag === "all" ? "Show random models" : `Show random ${TAG_LABELS[galleryTag].toLowerCase()} models`}><i aria-hidden="true">↝</i> Random pick</button>
+          </div>
+          <label className="gallery-search" htmlFor="asset-search">
+            <span>SEARCH THE LIBRARY</span>
+            <div><i aria-hidden="true">⌕</i><input id="asset-search" type="search" value={galleryQuery} onChange={(event) => { setGalleryQuery(event.target.value); setGalleryOrder([]); }} placeholder="Try cactus, flower, animal, Christmas…" autoComplete="off" /></div>
+          </label>
+          <div className="gallery-styles" role="group" aria-label="Filter models by style">
+            {MODEL_STYLE_FAMILIES.map((style) => (
+              <button type="button" key={style} className={galleryStyle === style ? "active" : ""} onClick={() => chooseGalleryStyle(style)} aria-pressed={galleryStyle === style}><span>{STYLE_LABELS[style]}</span><b>{models.filter((item) => modelStyleFamily(item) === style).length}</b></button>
+            ))}
+            <button type="button" className={galleryStyle === "all" ? "active" : ""} onClick={() => chooseGalleryStyle("all")} aria-pressed={galleryStyle === "all"}><span>All styles</span><b>{models.length}</b></button>
+          </div>
+          <div className="gallery-tags" role="group" aria-label="Filter models by tag">
+            <button type="button" className={galleryTag === "all" ? "active" : ""} onClick={() => chooseGalleryTag("all")} aria-pressed={galleryTag === "all"}><span>All subjects</span><b>{models.filter((item) => galleryStyle === "all" || modelStyleFamily(item) === galleryStyle).length}</b></button>
+            {MODEL_TAGS.map((tag) => {
+              const count = models.filter((item) => (galleryStyle === "all" || modelStyleFamily(item) === galleryStyle) && item.tags.includes(tag)).length;
+              if (!count) return null;
+              return <button type="button" key={tag} className={galleryTag === tag ? "active" : ""} onClick={() => chooseGalleryTag(tag)} aria-pressed={galleryTag === tag}><span>{TAG_LABELS[tag]}</span><b>{count}</b></button>;
+            })}
+          </div>
+          <div className="gallery-result-note">
+            <div><span>{galleryQuery ? `Results for “${galleryQuery}”` : galleryTag === "all" ? galleryStyle === "all" ? "All printable assets" : STYLE_LABELS[galleryStyle] : TAG_LABELS[galleryTag]}</span><b>{filteredGalleryModels.length ? `Showing ${galleryModelIds.length} of ${filteredGalleryModels.length}` : "No matching assets yet"}</b></div>
+            <a href={galleryStudioHref}>View all {filteredGalleryModels.length || models.length} in Studio <span>→</span></a>
+          </div>
+        </div>
+        <div className="gallery-models">
+          {galleryModelIds.map((modelId) => {
+            const item = models.find((model) => model.id === modelId)!;
+            const subjectTag = item.tags.find((tag) => MODEL_TAGS.includes(tag));
+            return (
+              <article key={modelId}>
+                <a className="gallery-card-link" href={`/studio?model=${modelId}`} aria-label={`Open ${item.name} in Studio`}>
+                  <div className="gallery-live"><LiveModel modelId={modelId} models={models} /></div>
+                  <div className="gallery-card-copy">
+                    <div><span>{item.number} · {STYLE_LABELS[modelStyleFamily(item)]}{subjectTag ? ` · ${TAG_LABELS[subjectTag]}` : ""}</span><h3>{item.name}</h3><p>{item.subtitle}</p></div>
+                    <i aria-hidden="true">↗</i>
+                  </div>
+                </a>
+              </article>
+            );
+          })}
+          {!galleryModelIds.length && <div className="gallery-empty"><span>NO MATCH YET</span><h3>Try a broader idea.</h3><p>Clear the search or choose another category. The library is designed to keep growing.</p><button type="button" onClick={() => { setGalleryQuery(""); setGalleryStyle("all"); setGalleryTag("all"); setGalleryOrder([]); }}>Show all assets</button></div>}
+        </div>
+      </section>
+
       <section className="landing-intro" id="about">
         <div>
-          <span className="section-kicker">A MAKER PLATFORM, NOT A CHARACTER SHELF</span>
+          <span className="section-kicker">ONE STANDARD · MANY POSSIBILITIES</span>
           <h2>One growing system.<br />Infinite ways to build.</h2>
         </div>
         <div className="intro-copy">
@@ -378,54 +444,6 @@ export function LandingPage({ models, adapterStandard }: LandingPageProps) {
           <p>Adjust within print-aware ranges, inspect the assembled model, and export watertight parts for common maker workflows. The browser preview and download pipeline share the same source geometry.</p>
           <b>STL, OBJ and Bambu 3MF exports</b>
         </article>
-      </section>
-
-      <section className="landing-gallery" id="gallery">
-        <div className="gallery-heading">
-          <span className="section-kicker">BROWSE THE MAKER LIBRARY</span>
-          <h2>Find a solid start.<br /><em>Then make it yours.</em></h2>
-          <p>Search and filter printable assets by subject or style. Every preview is rendered from the same geometry used by the Studio and export pipeline—not a concept image.</p>
-        </div>
-        <div className="gallery-browser">
-          <div className="gallery-browser-heading">
-            <div><span>LETPOT MAKER · COLLECTION 01</span><h3>What do you want to make?</h3><p>Explore {models.length} printable starting points, with more accessory types planned.</p></div>
-            <button type="button" onClick={randomizeGallery} disabled={!filteredGalleryModels.length} aria-label={galleryTag === "all" ? "Show random models" : `Show random ${TAG_LABELS[galleryTag].toLowerCase()} models`}><i aria-hidden="true">↝</i> Random pick</button>
-          </div>
-          <label className="gallery-search" htmlFor="asset-search">
-            <span>SEARCH THE LIBRARY</span>
-            <div><i aria-hidden="true">⌕</i><input id="asset-search" type="search" value={galleryQuery} onChange={(event) => { setGalleryQuery(event.target.value); setGalleryOrder([]); }} placeholder="Try cactus, flower, animal, Christmas…" autoComplete="off" /></div>
-          </label>
-          <div className="gallery-styles" role="group" aria-label="Filter models by style">
-            {MODEL_STYLE_FAMILIES.map((style) => (
-              <button type="button" key={style} className={galleryStyle === style ? "active" : ""} onClick={() => chooseGalleryStyle(style)} aria-pressed={galleryStyle === style}><span>{STYLE_LABELS[style]}</span><b>{models.filter((item) => modelStyleFamily(item) === style).length}</b></button>
-            ))}
-            <button type="button" className={galleryStyle === "all" ? "active" : ""} onClick={() => chooseGalleryStyle("all")} aria-pressed={galleryStyle === "all"}><span>All styles</span><b>{models.length}</b></button>
-          </div>
-          <div className="gallery-tags" role="group" aria-label="Filter models by tag">
-            <button type="button" className={galleryTag === "all" ? "active" : ""} onClick={() => chooseGalleryTag("all")} aria-pressed={galleryTag === "all"}><span>All subjects</span><b>{models.filter((item) => galleryStyle === "all" || modelStyleFamily(item) === galleryStyle).length}</b></button>
-            {MODEL_TAGS.map((tag) => {
-              const count = models.filter((item) => (galleryStyle === "all" || modelStyleFamily(item) === galleryStyle) && item.tags.includes(tag)).length;
-              if (!count) return null;
-              return <button type="button" key={tag} className={galleryTag === tag ? "active" : ""} onClick={() => chooseGalleryTag(tag)} aria-pressed={galleryTag === tag}><span>{TAG_LABELS[tag]}</span><b>{count}</b></button>;
-            })}
-          </div>
-          <div className="gallery-result-note"><span>{galleryQuery ? `Results for “${galleryQuery}”` : galleryTag === "all" ? galleryStyle === "all" ? "All printable assets" : STYLE_LABELS[galleryStyle] : TAG_LABELS[galleryTag]}</span><b>{filteredGalleryModels.length ? `Showing ${galleryModelIds.length} of ${filteredGalleryModels.length}` : "No matching assets yet"}</b></div>
-        </div>
-        <div className="gallery-models">
-          {galleryModelIds.map((modelId) => {
-            const item = models.find((model) => model.id === modelId)!;
-            return (
-              <article key={modelId}>
-                <div className="gallery-live"><LiveModel modelId={modelId} models={models} /></div>
-                <div className="gallery-card-copy">
-                  <div><span>{item.number} · {item.style}</span><h3>{item.name}</h3><p>{item.subtitle}</p></div>
-                  <a href={`/studio?model=${modelId}`} aria-label={`Open ${item.name} in Studio`}><span>Open</span>↗</a>
-                </div>
-              </article>
-            );
-          })}
-          {!galleryModelIds.length && <div className="gallery-empty"><span>NO MATCH YET</span><h3>Try a broader idea.</h3><p>Clear the search or choose another category. The library is designed to keep growing.</p><button type="button" onClick={() => { setGalleryQuery(""); setGalleryStyle("all"); setGalleryTag("all"); setGalleryOrder([]); }}>Show all assets</button></div>}
-        </div>
       </section>
 
       <section className="landing-workflow" id="workflow">

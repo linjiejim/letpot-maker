@@ -1014,6 +1014,15 @@ export function Studio() {
         setMessage(`${recipe.name} example loaded`);
         return;
       }
+      const requestedStyle = search.get("style");
+      const initialStyle: "all" | ModelStyleFamily = requestedStyle === "all" || MODEL_STYLE_FAMILIES.includes(requestedStyle as ModelStyleFamily)
+        ? requestedStyle as "all" | ModelStyleFamily
+        : "soft-sculpt";
+      const requestedTag = search.get("tag");
+      const initialTag: "all" | ModelTag = requestedTag === "all" || SUBJECT_MODEL_TAGS.includes(requestedTag as typeof SUBJECT_MODEL_TAGS[number])
+        ? requestedTag as "all" | ModelTag
+        : "all";
+      setLibraryQuery((search.get("q") ?? "").slice(0, 80));
       const requestedModel = search.get("model");
       const selected = MODEL_LIBRARY.find((item) => item.id === requestedModel);
       if (!selected) {
@@ -1021,7 +1030,9 @@ export function Studio() {
           topperHeight: DEFAULT_STUDIO_OPTIONS.topperHeight,
           topperWidth: DEFAULT_STUDIO_OPTIONS.topperWidth,
         });
-        setActiveStyle("soft-sculpt");
+        setLibraryMode("official");
+        setActiveStyle(initialStyle);
+        setActiveTag(initialTag);
         return;
       }
       chooseModel(selected.id);
