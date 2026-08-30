@@ -24,8 +24,8 @@ type LandingPageProps = {
   };
 };
 
-const FEATURED_MODELS: ModelId[] = ["monstera-cluster", "tomato-pal", "ladybug-friend", "orbit-astronaut"];
-const INITIAL_GALLERY_MODELS: ModelId[] = ["monstera-cluster", "tomato-pal", "ladybug-friend", "orbit-astronaut"];
+const FEATURED_MODELS: ModelId[] = ["monstera-cluster", "tomato-pal", "reindeer", "orbit-astronaut"];
+const INITIAL_GALLERY_MODELS: ModelId[] = ["monstera-cluster", "tomato-pal", "reindeer", "orbit-astronaut"];
 const MODEL_STYLE_FAMILIES = ["soft-sculpt", "low-poly", "smooth-organic"] as const;
 type ModelStyleFamily = typeof MODEL_STYLE_FAMILIES[number];
 const MODEL_TAGS: ModelTag[] = ["veggie", "herbs", "tree", "fruit", "flower", "animal", "christmas", "plant", "space", "insect", "ocean", "holiday", "pet", "other"];
@@ -162,6 +162,10 @@ function LiveModel({
       controls.enabled = interactive;
       controls.autoRotate = interactive && !reduceMotion;
       controls.autoRotateSpeed = 0.55;
+      if (interactive) {
+        controls.minAzimuthAngle = -Math.PI / 4;
+        controls.maxAzimuthAngle = Math.PI / 4;
+      }
 
       scene.add(new THREE.HemisphereLight("#fffdf5", "#607362", 2.9));
       const key = new THREE.DirectionalLight("#fff8e7", 5.2);
@@ -178,7 +182,8 @@ function LiveModel({
       const size = bounds.getSize(new THREE.Vector3());
       const diameter = Math.max(size.x, size.y, size.z);
       controls.target.copy(center);
-      camera.position.set(diameter * 1.45, center.y + diameter * 0.72, diameter * 1.7);
+      const cameraOrbit = diameter * 2.24;
+      camera.position.set(cameraOrbit / Math.SQRT2, center.y + diameter * 0.72, cameraOrbit / Math.SQRT2);
       camera.lookAt(center);
       controls.update();
 
@@ -213,6 +218,14 @@ function LiveModel({
           return;
         }
         if (!interactive && !reduceMotion) build.assembly.rotation.y += 0.0032;
+        if (interactive && controls.autoRotate) {
+          const azimuth = controls.getAzimuthalAngle();
+          if (azimuth <= controls.minAzimuthAngle + 0.012) {
+            controls.autoRotateSpeed = -Math.abs(controls.autoRotateSpeed);
+          } else if (azimuth >= controls.maxAzimuthAngle - 0.012) {
+            controls.autoRotateSpeed = Math.abs(controls.autoRotateSpeed);
+          }
+        }
         controls.update();
         renderer.render(scene, camera);
         frame = window.requestAnimationFrame(render);
@@ -274,6 +287,7 @@ function LiveModel({
 
 export function LandingPage({ models, adapterStandard }: LandingPageProps) {
   const [featuredId, setFeaturedId] = useState<ModelId>(FEATURED_MODELS[0]);
+  const [featuredPaused, setFeaturedPaused] = useState(false);
   const [navScrolled, setNavScrolled] = useState(false);
   const [galleryStyle, setGalleryStyle] = useState<"all" | ModelStyleFamily>("soft-sculpt");
   const [galleryTag, setGalleryTag] = useState<"all" | ModelTag>("all");
@@ -314,6 +328,47 @@ export function LandingPage({ models, adapterStandard }: LandingPageProps) {
     window.addEventListener("scroll", updateNav, { passive: true });
     return () => window.removeEventListener("scroll", updateNav);
   }, []);
+
+  useEffect(() => {
+    if (featuredPaused || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const timer = window.setTimeout(() => {
+      setFeaturedId((current) => {
+        const currentIndex = FEATURED_MODELS.indexOf(current);
+        return FEATURED_MODELS[(currentIndex + 1) % FEATURED_MODELS.length];
+      });
+    }, 5000);
+    return () => window.clearTimeout(timer);
+  }, [featuredId, featuredPaused]);
+
+  useEffect(() => {
+    const nextIndex = (FEATURED_MODELS.indexOf(featuredId) + 1) % FEATURED_MODELS.length;
+    const nextModel = models.find((item) => item.id === FEATURED_MODELS[nextIndex]);
+    if (!nextModel?.officialMesh) return;
+
+    let cancelled = false;
+    const preload = () => {
+      if (cancelled) return;
+      void import("../lib/official-mesh-browser")
+        .then(({ preloadOfficialMesh }) => preloadOfficialMesh(nextModel))
+        .catch(() => undefined);
+    };
+    const idleWindow = window as unknown as {
+      requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
+      cancelIdleCallback?: (handle: number) => void;
+    };
+    if (idleWindow.requestIdleCallback) {
+      const idle = idleWindow.requestIdleCallback(preload, { timeout: 1800 });
+      return () => {
+        cancelled = true;
+        idleWindow.cancelIdleCallback?.(idle);
+      };
+    }
+    const timer = window.setTimeout(preload, 500);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [featuredId, models]);
 
   const chooseGalleryTag = (tag: "all" | ModelTag) => {
     setGalleryTag(tag);
@@ -375,17 +430,52 @@ export function LandingPage({ models, adapterStandard }: LandingPageProps) {
 
         <div className="hero-product">
           <div className="hero-orbit" aria-hidden="true" />
-          <div className="hero-preview-card">
+          <div
+            className="hero-preview-card"
+            onPointerDown={() => setFeaturedPaused(true)}
+            onPointerUp={() => setFeaturedPaused(false)}
+            onPointerCancel={() => setFeaturedPaused(false)}
+          >
             <LiveModel key={featuredId} modelId={featuredId} models={models} interactive />
             <div className="hero-model-meta">
               <span>LIVE PARAMETRIC MODEL · DRAG TO ROTATE</span>
               <div><h2>{featured.name}</h2><b>{featured.parts} detachable parts</b></div>
             </div>
           </div>
-          <div className="featured-switcher" aria-label="Choose featured model">
+          <div
+            className="featured-switcher"
+            role="group"
+            aria-label="Choose featured model"
+            onPointerEnter={() => setFeaturedPaused(true)}
+            onPointerLeave={() => setFeaturedPaused(false)}
+            onFocusCapture={() => setFeaturedPaused(true)}
+            onBlurCapture={() => setFeaturedPaused(false)}
+          >
             {FEATURED_MODELS.map((modelId) => {
               const item = models.find((model) => model.id === modelId)!;
-              return <button key={modelId} className={featuredId === modelId ? "active" : ""} onClick={() => setFeaturedId(modelId)}><span>{item.number}</span>{item.name}</button>;
+              return (
+                <button
+                  type="button"
+                  key={modelId}
+                  className={featuredId === modelId ? "active" : ""}
+                  onClick={() => setFeaturedId(modelId)}
+                  aria-pressed={featuredId === modelId}
+                >
+                  {item.officialMesh?.previewPath && (
+                    // These checked-in thumbnails are already compact 512 px JPEGs; native images avoid a runtime transform for four tiny UI assets.
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={item.officialMesh.previewPath}
+                      alt=""
+                      width={96}
+                      height={104}
+                      loading={modelId === FEATURED_MODELS[0] ? "eager" : "lazy"}
+                      decoding="async"
+                    />
+                  )}
+                  <span className="featured-switcher-copy"><small>{item.number}</small><b>{item.name}</b></span>
+                </button>
+              );
             })}
           </div>
         </div>
@@ -461,7 +551,11 @@ export function LandingPage({ models, adapterStandard }: LandingPageProps) {
           <div className="standard-exploded-heading"><span>EXPLODED ASSEMBLY</span><b>Detachable mode · 3 printable parts</b></div>
           <ol className="assembly-stack" aria-label="Standard detachable topper assembly">
             <li>
-              <div className="assembly-part topper-part" aria-hidden="true"><i /><span /></div>
+              <div className="assembly-part topper-part" aria-hidden="true">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/models/official/plants/previews/monstera-cluster.jpg" alt="" width={164} height={164} loading="lazy" decoding="async" />
+                <span className="socket-cutaway"><i /></span>
+              </div>
               <div><span>01 · ARTWORK</span><b>Topper with blind socket</b><p>Artwork stays inside the selected width and height envelope; the socket remains hidden in its underside.</p></div>
             </li>
             <li>

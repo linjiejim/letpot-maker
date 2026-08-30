@@ -106,12 +106,26 @@ test("landing 3D pauses rendering when previews or the page are hidden", () => {
   assert.match(landingPage, /renderVisibilityObserver\.disconnect\(\)/);
 });
 
+test("landing hero cycles visual model choices while keeping the live model front-facing", () => {
+  assert.match(landingPage, /FEATURED_MODELS: ModelId\[\] = \["monstera-cluster", "tomato-pal", "reindeer", "orbit-astronaut"\]/);
+  assert.match(landingPage, /INITIAL_GALLERY_MODELS: ModelId\[\] = \["monstera-cluster", "tomato-pal", "reindeer", "orbit-astronaut"\]/);
+  assert.match(landingPage, /\}, 5000\);/);
+  assert.match(landingPage, /item\.officialMesh\.previewPath/);
+  assert.match(landingPage, /controls\.minAzimuthAngle = -Math\.PI \/ 4/);
+  assert.match(landingPage, /controls\.maxAzimuthAngle = Math\.PI \/ 4/);
+  assert.match(landingPage, /controls\.getAzimuthalAngle\(\)/);
+  assert.match(landingPage, /cameraOrbit \/ Math\.SQRT2/);
+  assert.match(globalCss, /\.featured-switcher \{[^}]*grid-template-columns: repeat\(4,minmax\(0,1fr\)\)/);
+});
+
 test("landing page explains the standard, open source path and local Tripo boundary", () => {
   assert.match(landingPage, /THE SHARED LETPOT STANDARD/);
   assert.match(landingPage, /Topper with blind socket/);
   assert.match(landingPage, /Explore the GitHub repo/);
   assert.match(landingPage, /Your Key never reaches the LetPot Maker server/);
   assert.match(landingPage, /View all \{filteredGalleryModels\.length \|\| models\.length\} in Studio/);
+  assert.match(landingPage, /monstera-cluster\.jpg/);
+  assert.match(globalCss, /\.socket-cutaway::before/);
 });
 
 test("Studio library search, stable Mine order, camera framing and adaptive environment stay explicit", () => {
