@@ -10,10 +10,10 @@ The project started from a simple gap: small hydroponic accessories are easy to 
 
 ## Current capabilities
 
-- Browse, search, and filter 80 checked-in printable designs, including 52 bundled Official neural meshes across eight collections and rendered covers for all 28 procedural designs.
+- Browse and search 80 checked-in printable designs with independent style and subject filters. The rounded `Soft Sculpt` collection is the default; 52 bundled Official neural meshes span eight collections, with rendered covers for all 28 procedural designs.
 - Preview the same parametric geometry used by the export pipeline on both the homepage and in Studio.
 - Customize topper height from 25–100 mm, width from 20–80 mm, model-specific details, colors, and surface style.
-- Export watertight STL parts, OBJ assemblies, manifests, and Bambu Studio 3MF projects.
+- Export watertight STL parts, OBJ assemblies, manifests, and Bambu Studio 3MF projects. A Santa pilot demonstrates three printable face-color regions without changing the source GLB.
 - Arrange low-poly accessories across four LetPot device layouts in Pod Styler.
 - Turn a text idea into a constrained model recipe through an optional, provider-neutral AI endpoint.
 - Generate a neural mesh with a user-supplied Tripo key, a loopback-only device bridge, and device-local GLB caching.

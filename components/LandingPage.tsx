@@ -25,24 +25,19 @@ type LandingPageProps = {
 
 const FEATURED_MODELS: ModelId[] = ["christmas-tree", "basil", "mushroom", "santa"];
 const INITIAL_GALLERY_MODELS: ModelId[] = ["cactus", "christmas-tree", "bamboo", "basil"];
-const MODEL_TAGS: ModelTag[] = [
-  "lowpoly",
-  "realistic",
-  "veggie",
-  "herbs",
-  "tree",
-  "fruit",
-  "flower",
-  "animal",
-  "christmas",
-  "plant",
-  "space",
-  "insect",
-  "ocean",
-  "holiday",
-  "pet",
-  "other",
-];
+const MODEL_STYLE_FAMILIES = ["soft-sculpt", "low-poly", "smooth-organic"] as const;
+type ModelStyleFamily = typeof MODEL_STYLE_FAMILIES[number];
+const MODEL_TAGS: ModelTag[] = ["veggie", "herbs", "tree", "fruit", "flower", "animal", "christmas", "plant", "space", "insect", "ocean", "holiday", "pet", "other"];
+const STYLE_LABELS: Record<ModelStyleFamily, string> = {
+  "soft-sculpt": "Soft Sculpt",
+  "low-poly": "Low Poly",
+  "smooth-organic": "Smooth",
+};
+
+function modelStyleFamily(definition: Pick<LandingModel, "style" | "officialMesh">): ModelStyleFamily {
+  if (definition.officialMesh) return "soft-sculpt";
+  return definition.style === "lowpoly" ? "low-poly" : "smooth-organic";
+}
 const TAG_LABELS: Record<ModelTag, string> = {
   lowpoly: "Low poly",
   realistic: "Realistic",
@@ -246,6 +241,7 @@ function LiveModel({
 export function LandingPage({ models, adapterStandard }: LandingPageProps) {
   const [featuredId, setFeaturedId] = useState<ModelId>(FEATURED_MODELS[0]);
   const [navScrolled, setNavScrolled] = useState(false);
+  const [galleryStyle, setGalleryStyle] = useState<"all" | ModelStyleFamily>("soft-sculpt");
   const [galleryTag, setGalleryTag] = useState<"all" | ModelTag>("all");
   const [galleryQuery, setGalleryQuery] = useState("");
   const [galleryOrder, setGalleryOrder] = useState<ModelId[]>(INITIAL_GALLERY_MODELS);
@@ -256,11 +252,12 @@ export function LandingPage({ models, adapterStandard }: LandingPageProps) {
   const filteredGalleryModels = useMemo(() => {
     const query = galleryQuery.trim().toLowerCase();
     return models.filter((item) => {
+      const matchesStyle = galleryStyle === "all" || modelStyleFamily(item) === galleryStyle;
       const matchesTag = galleryTag === "all" || item.tags.includes(galleryTag);
       const searchText = [item.name, item.subtitle, item.style, ...item.tags].join(" ").toLowerCase();
-      return matchesTag && (!query || searchText.includes(query));
+      return matchesStyle && matchesTag && (!query || searchText.includes(query));
     });
-  }, [galleryQuery, galleryTag, models]);
+  }, [galleryQuery, galleryStyle, galleryTag, models]);
   const galleryModelIds = useMemo(() => {
     const availableIds = new Set(filteredGalleryModels.map((item) => item.id));
     const preferredIds = galleryOrder.filter((id) => availableIds.has(id));
@@ -277,6 +274,12 @@ export function LandingPage({ models, adapterStandard }: LandingPageProps) {
 
   const chooseGalleryTag = (tag: "all" | ModelTag) => {
     setGalleryTag(tag);
+    setGalleryOrder([]);
+  };
+
+  const chooseGalleryStyle = (style: "all" | ModelStyleFamily) => {
+    setGalleryStyle(style);
+    setGalleryTag("all");
     setGalleryOrder([]);
   };
 
@@ -392,13 +395,21 @@ export function LandingPage({ models, adapterStandard }: LandingPageProps) {
             <span>SEARCH THE LIBRARY</span>
             <div><i aria-hidden="true">⌕</i><input id="asset-search" type="search" value={galleryQuery} onChange={(event) => { setGalleryQuery(event.target.value); setGalleryOrder([]); }} placeholder="Try cactus, flower, animal, Christmas…" autoComplete="off" /></div>
           </label>
-          <div className="gallery-tags" role="group" aria-label="Filter models by tag">
-            <button type="button" className={galleryTag === "all" ? "active" : ""} onClick={() => chooseGalleryTag("all")} aria-pressed={galleryTag === "all"}><span>All</span><b>{models.length}</b></button>
-            {MODEL_TAGS.map((tag) => (
-              <button type="button" key={tag} className={galleryTag === tag ? "active" : ""} onClick={() => chooseGalleryTag(tag)} aria-pressed={galleryTag === tag}><span>{TAG_LABELS[tag]}</span><b>{models.filter((item) => item.tags.includes(tag)).length}</b></button>
+          <div className="gallery-styles" role="group" aria-label="Filter models by style">
+            {MODEL_STYLE_FAMILIES.map((style) => (
+              <button type="button" key={style} className={galleryStyle === style ? "active" : ""} onClick={() => chooseGalleryStyle(style)} aria-pressed={galleryStyle === style}><span>{STYLE_LABELS[style]}</span><b>{models.filter((item) => modelStyleFamily(item) === style).length}</b></button>
             ))}
+            <button type="button" className={galleryStyle === "all" ? "active" : ""} onClick={() => chooseGalleryStyle("all")} aria-pressed={galleryStyle === "all"}><span>All styles</span><b>{models.length}</b></button>
           </div>
-          <div className="gallery-result-note"><span>{galleryQuery ? `Results for “${galleryQuery}”` : galleryTag === "all" ? "All printable assets" : TAG_LABELS[galleryTag]}</span><b>{filteredGalleryModels.length ? `Showing ${galleryModelIds.length} of ${filteredGalleryModels.length}` : "No matching assets yet"}</b></div>
+          <div className="gallery-tags" role="group" aria-label="Filter models by tag">
+            <button type="button" className={galleryTag === "all" ? "active" : ""} onClick={() => chooseGalleryTag("all")} aria-pressed={galleryTag === "all"}><span>All subjects</span><b>{models.filter((item) => galleryStyle === "all" || modelStyleFamily(item) === galleryStyle).length}</b></button>
+            {MODEL_TAGS.map((tag) => {
+              const count = models.filter((item) => (galleryStyle === "all" || modelStyleFamily(item) === galleryStyle) && item.tags.includes(tag)).length;
+              if (!count) return null;
+              return <button type="button" key={tag} className={galleryTag === tag ? "active" : ""} onClick={() => chooseGalleryTag(tag)} aria-pressed={galleryTag === tag}><span>{TAG_LABELS[tag]}</span><b>{count}</b></button>;
+            })}
+          </div>
+          <div className="gallery-result-note"><span>{galleryQuery ? `Results for “${galleryQuery}”` : galleryTag === "all" ? galleryStyle === "all" ? "All printable assets" : STYLE_LABELS[galleryStyle] : TAG_LABELS[galleryTag]}</span><b>{filteredGalleryModels.length ? `Showing ${galleryModelIds.length} of ${filteredGalleryModels.length}` : "No matching assets yet"}</b></div>
         </div>
         <div className="gallery-models">
           {galleryModelIds.map((modelId) => {
@@ -413,7 +424,7 @@ export function LandingPage({ models, adapterStandard }: LandingPageProps) {
               </article>
             );
           })}
-          {!galleryModelIds.length && <div className="gallery-empty"><span>NO MATCH YET</span><h3>Try a broader idea.</h3><p>Clear the search or choose another category. The library is designed to keep growing.</p><button type="button" onClick={() => { setGalleryQuery(""); setGalleryTag("all"); setGalleryOrder([]); }}>Show all assets</button></div>}
+          {!galleryModelIds.length && <div className="gallery-empty"><span>NO MATCH YET</span><h3>Try a broader idea.</h3><p>Clear the search or choose another category. The library is designed to keep growing.</p><button type="button" onClick={() => { setGalleryQuery(""); setGalleryStyle("all"); setGalleryTag("all"); setGalleryOrder([]); }}>Show all assets</button></div>}
         </div>
       </section>
 

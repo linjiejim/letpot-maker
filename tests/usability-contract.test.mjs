@@ -2,10 +2,11 @@ import assert from "node:assert/strict";
 import { access, readFile, readdir } from "node:fs/promises";
 import test from "node:test";
 
-const [studio, podStyler, landingPage, globalCss, podCss] = await Promise.all([
+const [studio, podStyler, landingPage, modelFactory, globalCss, podCss] = await Promise.all([
   readFile(new URL("../components/Studio.tsx", import.meta.url), "utf8"),
   readFile(new URL("../components/PodStyler.tsx", import.meta.url), "utf8"),
   readFile(new URL("../components/LandingPage.tsx", import.meta.url), "utf8"),
+  readFile(new URL("../lib/model-factory.ts", import.meta.url), "utf8"),
   readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
   readFile(new URL("../components/PodStyler.module.css", import.meta.url), "utf8"),
 ]);
@@ -109,6 +110,12 @@ test("Studio library search, stable Mine order, camera framing and adaptive envi
   assert.match(studio, /previousOffset\.multiplyScalar\(scale\)/);
   assert.match(studio, /Match preview environment/);
   assert.match(studio, /samplePreviewPalette/);
+  assert.match(studio, /aria-label="Filter designs by style"/);
+  assert.match(studio, /useState<"all" \| ModelStyleFamily>\("soft-sculpt"\)/);
+  assert.match(studio, /modelStyleFamily\(item\) === activeStyle/);
+  assert.match(studio, /No ready-made match yet/);
+  assert.match(studio, /<button onClick=\{\(\) => setAiOpen\(true\)\}>AI Generate<\/button><button className="secondary"/);
+  assert.match(globalCss, /\.library-search input::-webkit-search-cancel-button/);
 });
 
 test("Studio hides stale geometry behind an explicit model loading state", () => {
@@ -134,10 +141,28 @@ test("Official meshes are prefetched, cached and report real transfer progress",
 
 test("Topper dimensions default to 65 mm and preserve aspect ratio", () => {
   assert.match(studio, /const \[topperAspectLocked, setTopperAspectLocked\] = useState\(true\)/);
-  assert.match(studio, /Lock width \/ height ratio/);
+  assert.match(studio, /Keep proportions/);
   assert.match(studio, /topperWidth: roundToStep\(topperHeight \* ratio\)/);
   assert.match(studio, /topperHeight: roundToStep\(topperWidth \/ ratio\)/);
-  assert.match(globalCss, /\.aspect-lock-control \{/);
+  assert.match(globalCss, /\.aspect-lock-row \{/);
+});
+
+test("Studio keeps advanced inspector information collapsed behind accessible help", () => {
+  assert.match(studio, /function InfoTip/);
+  assert.match(studio, /role="tooltip"/);
+  assert.match(studio, /<b>Print setup<\/b>/);
+  assert.match(studio, /<b>Fine tune shape<\/b>/);
+  assert.match(studio, /<b>Preview options<\/b>/);
+  assert.match(studio, /<b>Model &amp; print info<\/b>/);
+  assert.doesNotMatch(studio, /<b>Base &amp; fit<\/b>/);
+  assert.match(globalCss, /\.info-tip:hover > span\[role="tooltip"\], \.info-tip:focus-within/);
+});
+
+test("Santa is the only opt-in three-color official mesh study", () => {
+  assert.match(modelFactory, /paletteStudy: \["#c9483b", "#f2e3c7", "#e7aa84"\]/);
+  assert.match(modelFactory, /function paintOfficialMeshStudy/);
+  assert.match(modelFactory, /painted\.setAttribute\("aiColorRole"/);
+  assert.match(studio, /Experimental three-color mesh/);
 });
 
 test("all procedural Studio cards have checked-in geometry renders", async () => {
@@ -152,7 +177,7 @@ test("all procedural Studio cards have checked-in geometry renders", async () =>
 });
 
 test("Studio asset tags stay on one line and summarize hidden tags", () => {
-  assert.match(studio, /const visibleTags = item\.tags\.slice\(0, 2\)/);
+  assert.match(studio, /const visibleTags = subjectTags\.slice\(0, 2\)/);
   assert.match(studio, /className="asset-tags-more"/);
   assert.match(globalCss, /\.asset-tags \{[^}]*flex-wrap: nowrap;[^}]*overflow: hidden;/);
 });

@@ -25,13 +25,16 @@ import {
   getDefaultShapeParameters,
   getManufacturingProfile,
   MODEL_LIBRARY,
-  MODEL_TAGS,
+  MODEL_STYLE_FAMILIES,
+  modelStyleFamily,
   STACK_TRIAL_GAPS,
+  SUBJECT_MODEL_TAGS,
   TOPPER_SIZE_LIMITS,
   type ModelBuild,
   type ModelDefinition,
   type ModelId,
   type ModelOptions,
+  type ModelStyleFamily,
   type ModelTag,
   type ManufacturingProfile,
   type ShapeParameterKey,
@@ -121,6 +124,29 @@ const TAG_LABELS: Record<ModelTag, string> = {
   holiday: "Holiday",
   pet: "Pet",
   other: "Other",
+};
+
+const STYLE_LABELS: Record<ModelStyleFamily, string> = {
+  "soft-sculpt": "Soft Sculpt",
+  "low-poly": "Low Poly",
+  "smooth-organic": "Smooth",
+};
+
+const DEFAULT_STUDIO_DEFINITION = MODEL_LIBRARY.find((item) => item.id === "tomato-pal") ?? MODEL_LIBRARY[0];
+const DEFAULT_STUDIO_HEIGHT = 65;
+const DEFAULT_STUDIO_OPTIONS: ModelOptions = {
+  ...DEFAULT_OPTIONS,
+  modelId: DEFAULT_STUDIO_DEFINITION.id,
+  ...DEFAULT_STUDIO_DEFINITION.defaults,
+  topperHeight: DEFAULT_STUDIO_HEIGHT,
+  topperWidth: Math.round(
+    DEFAULT_STUDIO_DEFINITION.defaults.topperWidth
+      / DEFAULT_STUDIO_DEFINITION.defaults.topperHeight
+      * DEFAULT_STUDIO_HEIGHT
+      / TOPPER_SIZE_LIMITS.step,
+  ) * TOPPER_SIZE_LIMITS.step,
+  faceted: DEFAULT_STUDIO_DEFINITION.style === "lowpoly",
+  shape: getDefaultShapeParameters(DEFAULT_STUDIO_DEFINITION),
 };
 
 function modelPreviewPath(definition: ModelDefinition) {
@@ -406,6 +432,15 @@ function Slider({ label, value, min, max, step = 1, unit = "mm", onChange }: {
       <input aria-label={label} type="range" min={min} max={max} step={step} value={value} onChange={(event) => onChange(Number(event.target.value))} />
       <div className="range-label"><span>{min}</span><span>{max}</span></div>
     </div>
+  );
+}
+
+function InfoTip({ label, text }: { label: string; text: string }) {
+  return (
+    <span className="info-tip">
+      <button type="button" aria-label={label}>!</button>
+      <span role="tooltip">{text}</span>
+    </span>
   );
 }
 
@@ -785,11 +820,12 @@ function AiGenerateModal({ open, onClose, onGenerated, onMeshGenerated }: {
 }
 
 export function Studio() {
-  const [options, setOptions] = useState<ModelOptions>(DEFAULT_OPTIONS);
+  const [options, setOptions] = useState<ModelOptions>(DEFAULT_STUDIO_OPTIONS);
   const [view, setView] = useState<{ name: ViewName; nonce: number }>({ name: "orbit", nonce: 0 });
   const [exporting, setExporting] = useState(false);
   const [printerId, setPrinterId] = useState<BambuPrinterId>("a1-mini");
   const [activeTag, setActiveTag] = useState<"all" | ModelTag>("all");
+  const [activeStyle, setActiveStyle] = useState<"all" | ModelStyleFamily>("soft-sculpt");
   const [libraryQuery, setLibraryQuery] = useState("");
   const [tagsExpanded, setTagsExpanded] = useState(false);
   const [libraryMode, setLibraryMode] = useState<"official" | "mine">("official");
@@ -805,10 +841,10 @@ export function Studio() {
   const [adaptiveEnvironment, setAdaptiveEnvironment] = useState(false);
   const [sampledViewportPalette, setSampledViewportPalette] = useState<{ path: string; palette: ViewportPalette } | null>(null);
   const [topperAspectLocked, setTopperAspectLocked] = useState(true);
-  const topperAspectRatioRef = useRef(DEFAULT_OPTIONS.topperWidth / DEFAULT_OPTIONS.topperHeight);
+  const topperAspectRatioRef = useRef(DEFAULT_STUDIO_OPTIONS.topperWidth / DEFAULT_STUDIO_OPTIONS.topperHeight);
   const [previewStatus, setPreviewStatus] = useState<PreviewStatus | null>({
     kind: "loading",
-    modelId: DEFAULT_OPTIONS.modelId,
+    modelId: DEFAULT_STUDIO_OPTIONS.modelId,
     targetKey: "pending-selection",
     name: "Model preview",
     detail: "Preparing the 3D workspace…",
@@ -834,6 +870,8 @@ export function Studio() {
   const isTripoMesh = Boolean(tripoDesign && options.externalMesh);
   const isOfficialMesh = Boolean(definition.officialMesh && options.externalMesh && !tripoDesign);
   const isExternalMesh = isTripoMesh || isOfficialMesh;
+  const paletteStudy = isOfficialMesh ? definition.officialMesh?.paletteStudy : undefined;
+  const isPaletteStudy = Boolean(paletteStudy);
   const integrated = options.connectionMode === "integrated";
   const designParts = integrated ? 1 : isAiSculpture || isExternalMesh ? 3 : definition.parts;
   const designName = tripoDesign?.name ?? aiDesign?.name ?? definition.name;
@@ -854,8 +892,9 @@ export function Studio() {
   const normalizedLibraryQuery = libraryQuery.trim().toLowerCase();
   const visibleModels = useMemo(() => MODEL_LIBRARY.filter((item) => {
     const matchesTag = activeTag === "all" || item.tags.includes(activeTag);
-    return matchesTag && (!normalizedLibraryQuery || item.name.toLowerCase().includes(normalizedLibraryQuery));
-  }), [activeTag, normalizedLibraryQuery]);
+    const matchesStyle = activeStyle === "all" || modelStyleFamily(item) === activeStyle;
+    return matchesStyle && matchesTag && (!normalizedLibraryQuery || item.name.toLowerCase().includes(normalizedLibraryQuery));
+  }), [activeStyle, activeTag, normalizedLibraryQuery]);
   const mineCreations = useMemo(() => [
     ...tripoCreations.map((creation) => ({ kind: "tripo" as const, id: creation.id, createdAt: creation.createdAt, creation })),
     ...aiCreations.map((creation) => ({ kind: "ai" as const, id: creation.id, createdAt: creation.createdAt, creation })),
@@ -980,12 +1019,17 @@ export function Studio() {
       const requestedModel = search.get("model");
       const selected = MODEL_LIBRARY.find((item) => item.id === requestedModel);
       if (!selected) {
-        setPreviewStatus(null);
+        chooseModel(DEFAULT_STUDIO_DEFINITION.id, {
+          topperHeight: DEFAULT_STUDIO_OPTIONS.topperHeight,
+          topperWidth: DEFAULT_STUDIO_OPTIONS.topperWidth,
+        });
+        setActiveStyle("soft-sculpt");
         return;
       }
       chooseModel(selected.id);
       setLibraryMode("official");
       setActiveTag("all");
+      setActiveStyle(modelStyleFamily(selected));
     });
     return () => window.cancelAnimationFrame(frame);
   }, []);
@@ -1083,10 +1127,15 @@ export function Studio() {
     }
   };
 
-  function chooseModel(modelId: ModelId) {
+  function chooseModel(
+    modelId: ModelId,
+    dimensions?: Pick<ModelOptions, "topperHeight" | "topperWidth">,
+  ) {
     const selected = MODEL_LIBRARY.find((item) => item.id === modelId);
     if (!selected) return;
-    topperAspectRatioRef.current = selected.defaults.topperWidth / selected.defaults.topperHeight;
+    topperAspectRatioRef.current = dimensions
+      ? dimensions.topperWidth / dimensions.topperHeight
+      : selected.defaults.topperWidth / selected.defaults.topperHeight;
     const loadId = officialLoadRef.current + 1;
     officialLoadRef.current = loadId;
     setPreviewStatus({
@@ -1101,6 +1150,9 @@ export function Studio() {
       ...current,
       modelId,
       ...selected.defaults,
+      ...dimensions,
+      secondaryColor: selected.officialMesh?.paletteStudy?.[1] ?? DEFAULT_OPTIONS.secondaryColor,
+      detailColor: selected.officialMesh?.paletteStudy?.[2] ?? DEFAULT_OPTIONS.detailColor,
       faceted: selected.style === "lowpoly",
       shape: getDefaultShapeParameters(selected),
       aiProgram: undefined,
@@ -1532,7 +1584,7 @@ export function Studio() {
           for (const [partIndex, part] of modelBuild.parts.entries()) {
             const solid = await solidifyObject(wasm, part.object, { flipZ: part.printFlipZ });
             solids.push(solid);
-            projectParts.push({ name: part.label, mesh: solid, color: part.color });
+            projectParts.push({ name: part.label, mesh: solid, color: part.color, palette: part.palette });
             if (part.id === "adapter") {
               if (!adapterWritten) {
                 root.file("stl/00-universal-adapter-33x41.stl", stlBlob(solid));
@@ -1643,6 +1695,25 @@ export function Studio() {
             />
             {libraryQuery && <button type="button" onClick={() => setLibraryQuery("")} aria-label="Clear model search">×</button>}
           </label>
+          {libraryMode === "official" && <div className="style-filter-shell">
+            <span>STYLE</span>
+            <div className="style-filter" role="group" aria-label="Filter designs by style">
+              {MODEL_STYLE_FAMILIES.map((style) => (
+                <button
+                  type="button"
+                  key={style}
+                  className={activeStyle === style ? "active" : ""}
+                  onClick={() => { setActiveStyle(style); setActiveTag("all"); }}
+                  aria-pressed={activeStyle === style}
+                >
+                  {STYLE_LABELS[style]} <span>{MODEL_LIBRARY.filter((item) => modelStyleFamily(item) === style).length}</span>
+                </button>
+              ))}
+              <button type="button" className={activeStyle === "all" ? "active" : ""} onClick={() => setActiveStyle("all")} aria-pressed={activeStyle === "all"}>
+                All <span>{MODEL_LIBRARY.length}</span>
+              </button>
+            </div>
+          </div>}
           {libraryMode === "mine" && <div className="local-import-bar">
             <input
               ref={glbInputRef}
@@ -1661,10 +1732,13 @@ export function Studio() {
           {libraryMode === "official" && <div className={`tag-filter-shell ${tagsExpanded ? "expanded" : ""}`}>
             <div className="tag-filter" aria-label="Filter designs by tag">
               <button className={activeTag === "all" ? "active" : ""} onClick={() => setActiveTag("all")} aria-pressed={activeTag === "all"}>
-                All <span>{MODEL_LIBRARY.length}</span>
+                All <span>{MODEL_LIBRARY.filter((item) => activeStyle === "all" || modelStyleFamily(item) === activeStyle).length}</span>
               </button>
-              {MODEL_TAGS.map((tag) => {
-                const count = MODEL_LIBRARY.filter((item) => item.tags.includes(tag)).length;
+              {SUBJECT_MODEL_TAGS.map((tag) => {
+                const count = MODEL_LIBRARY.filter((item) => (
+                  activeStyle === "all" || modelStyleFamily(item) === activeStyle
+                ) && item.tags.includes(tag)).length;
+                if (!count) return null;
                 return (
                   <button key={tag} className={activeTag === tag ? "active" : ""} onClick={() => setActiveTag(tag)} aria-pressed={activeTag === tag}>
                     {TAG_LABELS[tag]} <span>{count}</span>
@@ -1679,8 +1753,9 @@ export function Studio() {
           <div className="asset-list">
             {libraryMode === "official" && visibleModels.map((item) => {
               const previewPath = modelPreviewPath(item);
-              const visibleTags = item.tags.slice(0, 2);
-              const hiddenTagCount = item.tags.length - visibleTags.length;
+              const subjectTags = item.tags.filter((tag) => SUBJECT_MODEL_TAGS.includes(tag as typeof SUBJECT_MODEL_TAGS[number]));
+              const visibleTags = subjectTags.slice(0, 2);
+              const hiddenTagCount = subjectTags.length - visibleTags.length;
               return (
                 <button
                   key={item.id}
@@ -1695,9 +1770,9 @@ export function Studio() {
                     : <span className="asset-number">{item.number}</span>}
                   <span className="asset-copy">
                     <strong>{item.name}</strong>
-                    <span className="asset-tags" aria-label={`Tags: ${item.tags.map((tag) => TAG_LABELS[tag]).join(", ")}`}>
+                    <span className="asset-tags" aria-label={`Style: ${STYLE_LABELS[modelStyleFamily(item)]}; tags: ${subjectTags.map((tag) => TAG_LABELS[tag]).join(", ") || "none"}`}>
                       {visibleTags.map((tag) => <i key={tag}>{TAG_LABELS[tag]}</i>)}
-                      {hiddenTagCount > 0 && <i className="asset-tags-more" title={item.tags.slice(2).map((tag) => TAG_LABELS[tag]).join(", ")}>+{hiddenTagCount}</i>}
+                      {hiddenTagCount > 0 && <i className="asset-tags-more" title={subjectTags.slice(2).map((tag) => TAG_LABELS[tag]).join(", ")}>+{hiddenTagCount}</i>}
                     </span>
                   </span>
                 </button>
@@ -1720,7 +1795,7 @@ export function Studio() {
                 <button className="local-creation-remove" aria-label={`Remove ${item.creation.recipe.name}`} onClick={() => removeAiCreation(item.creation)}>×</button>
               </div>
             ))}
-            {libraryMode === "official" && visibleModels.length === 0 && <div className="local-empty-state"><span>⌕</span><b>No matching Official models</b><p>Try a shorter title or clear the selected tag.</p><button onClick={() => { setLibraryQuery(""); setActiveTag("all"); }}>Show all models</button></div>}
+            {libraryMode === "official" && visibleModels.length === 0 && <div className="local-empty-state"><span>✦</span><b>No ready-made match yet</b><p>Generate a custom topper from this idea, or reset style, tags and search to browse the full library.</p><div className="empty-actions"><button onClick={() => setAiOpen(true)}>AI Generate</button><button className="secondary" onClick={() => { setLibraryQuery(""); setActiveTag("all"); setActiveStyle("all"); }}>Show all models</button></div></div>}
             {libraryMode === "mine" && mineCreations.length > 0 && visibleMineCreations.length === 0 && <div className="local-empty-state"><span>⌕</span><b>No matching local titles</b><p>Clear the title search to restore your saved order.</p><button onClick={() => setLibraryQuery("")}>Clear search</button></div>}
             {libraryMode === "mine" && mineCreations.length === 0 && <div className="local-empty-state"><span>✦</span><b>No local creations yet</b><p>Generate a bounded shape, direct Tripo mesh, or import a local GLB. It stays only in this browser.</p><button onClick={() => setAiOpen(true)}>Generate your first model</button></div>}
           </div>
@@ -1788,114 +1863,99 @@ export function Studio() {
 
         <aside className="inspector-panel" id="studio-adjustments" aria-label="Model adjustments">
           <div className="inspector-title">
-            <div><p>{tripoDesign ? tripoDesign.source === "local-file" ? "LOCAL GLB" : "TRIPO MESH" : isOfficialMesh ? "OFFICIAL MESH" : aiDesign ? "AI DESIGN" : `MODEL ${definition.number}`}</p><h2>{designName}</h2><span>{designSubtitle}</span></div>
-            <span className="part-count">{designParts} {designParts === 1 ? "PART" : "PARTS"}</span>
+            <div><p>{tripoDesign ? tripoDesign.source === "local-file" ? "LOCAL GLB" : "TRIPO MESH" : isOfficialMesh ? "OFFICIAL MESH" : aiDesign ? "AI DESIGN" : `MODEL ${definition.number}`}</p><h2>{designName}</h2><span>{tripoDesign ? "Local browser model" : aiDesign ? aiDesign.subtitle : definition.subtitle}</span></div>
+            <div className="inspector-title-actions"><span className="part-count">{designParts} {designParts === 1 ? "PART" : "PARTS"}</span><InfoTip label="Model details" text={`${designSubtitle}. ${manufacturing.status}; ${manufacturing.supportStrategy}.`} /></div>
           </div>
           <div className="inspector-content">
             <section className="inspector-section">
-              <div className="section-heading"><div><p>SHAPE</p><span>Maximum upper-shape envelope</span></div></div>
-              <label className="aspect-lock-control">
-                <input
-                  type="checkbox"
-                  checked={topperAspectLocked}
-                  onChange={(event) => toggleTopperAspectLock(event.target.checked)}
-                />
-                <span aria-hidden="true">↗</span>
-                <b>Lock width / height ratio</b>
-                <small>Scale both dimensions together</small>
-              </label>
+              <div className="section-heading"><div><p>SIZE</p><span>Topper envelope</span></div><InfoTip label="About topper size" text="Width and height define the maximum artwork envelope. Fine-tune controls cannot push geometry beyond it." /></div>
+              <div className="aspect-lock-row">
+                <label><input type="checkbox" checked={topperAspectLocked} onChange={(event) => toggleTopperAspectLock(event.target.checked)} /><span>Keep proportions</span></label>
+                <InfoTip label="About proportion lock" text="When enabled, changing height or width scales the other dimension with it." />
+              </div>
               <Slider label="Topper height" value={options.topperHeight} min={TOPPER_SIZE_LIMITS.height.min} max={TOPPER_SIZE_LIMITS.height.max} step={TOPPER_SIZE_LIMITS.step} onChange={(value) => updateTopperDimension("topperHeight", value)} />
               <Slider label="Topper width" value={options.topperWidth} min={TOPPER_SIZE_LIMITS.width.min} max={TOPPER_SIZE_LIMITS.width.max} step={TOPPER_SIZE_LIMITS.step} onChange={(value) => updateTopperDimension("topperWidth", value)} />
-              <p className="parameter-note">The upper artwork is centered and fitted inside this fixed envelope. Signature controls can change its form, but cannot push it beyond the selected width or height.</p>
             </section>
 
-            <section className="inspector-section connection-section">
-              <div className="section-heading"><div><p>CONNECTION</p><span>Flush fit or one-piece print</span></div></div>
-              <div className="control-group compact">
-                <label>
-                  <span>Assembly</span>
-                  <select
-                    aria-label="Connection mode"
-                    value={options.connectionMode}
-                    onChange={(event) => update("connectionMode", event.target.value as ModelOptions["connectionMode"])}
-                  >
-                    <option value="detachable">Flush detachable pin</option>
-                    <option value="integrated">One-piece print</option>
-                  </select>
-                </label>
+            <details className="inspector-disclosure settings-disclosure">
+              <summary><span><b>Print setup</b><small>{integrated ? "One-piece print" : "Flush detachable pin"}</small></span><i>+</i></summary>
+              <div className="disclosure-content">
+                <div className="control-group compact">
+                  <label>
+                    <span>Assembly</span>
+                    <select
+                      aria-label="Connection mode"
+                      value={options.connectionMode}
+                      onChange={(event) => update("connectionMode", event.target.value as ModelOptions["connectionMode"])}
+                    >
+                      <option value="detachable">Flush detachable pin</option>
+                      <option value="integrated">One-piece print</option>
+                    </select>
+                  </label>
+                </div>
+                <div className="inline-help"><InfoTip label="About connection mode" text={integrated ? "Adapter and topper are fused by a hidden internal core, so the export contains one part." : "A removable pin enters an embedded blind socket without a raised outer collar."} /><span>{integrated ? "Exports one fused part" : "Keeps the topper removable"}</span></div>
               </div>
-              <p className="parameter-note">{integrated
-                ? "Adapter and topper are fused by a hidden internal core; no pin or socket gap is exported."
-                : "The pin enters an embedded blind socket inside the object, without a raised outer collar."}</p>
-            </section>
+            </details>
 
-            {!isAiSculpture && !isTripoMesh && (definition.parameters?.length ?? 0) > 0 && <section className="inspector-section signature-section">
-              <div className="section-heading">
-                <div><p>SIGNATURE</p><span>{definition.parameters?.length} model-specific controls</span></div>
-                <div className="section-actions"><button onClick={randomizeShape}>Vary</button><button onClick={resetShape}>Reset</button></div>
+            {!isAiSculpture && !isTripoMesh && (definition.parameters?.length ?? 0) > 0 && <details className="inspector-disclosure settings-disclosure signature-section">
+              <summary><span><b>Fine tune shape</b><small>{definition.parameters?.length} model-specific controls</small></span><i>+</i></summary>
+              <div className="disclosure-content">
+                <div className="section-actions disclosure-actions"><button onClick={randomizeShape}>Vary</button><button onClick={resetShape}>Reset</button></div>
+                {definition.parameters?.map((parameter) => (
+                  <Slider
+                    key={parameter.key}
+                    label={parameter.label}
+                    value={options.shape[parameter.key] ?? parameter.defaultValue}
+                    min={parameter.min}
+                    max={parameter.max}
+                    step={parameter.step}
+                    unit={parameter.unit ?? ""}
+                    onChange={(value) => updateShape(parameter.key, value)}
+                  />
+                ))}
+                <div className="inline-help"><InfoTip label="About fine tuning" text="These print-safe ranges preserve minimum feature size and required intersections inside the selected envelope." /><span>Print-safe ranges</span></div>
               </div>
-              {definition.parameters?.map((parameter) => (
-                <Slider
-                  key={parameter.key}
-                  label={parameter.label}
-                  value={options.shape[parameter.key] ?? parameter.defaultValue}
-                  min={parameter.min}
-                  max={parameter.max}
-                  step={parameter.step}
-                  unit={parameter.unit ?? ""}
-                  onChange={(value) => updateShape(parameter.key, value)}
-                />
-              ))}
-              <p className="parameter-note">Ranges preserve the minimum printable feature size and required intersections while the fixed topper envelope remains the outer limit.</p>
-            </section>}
+            </details>}
 
             <section className="inspector-section appearance-section">
-              <div className="section-heading"><div><p>APPEARANCE</p><span>{isTripoMesh ? "Single-color printable mesh" : isAiSculpture ? "Three-role generated palette" : definition.style === "realistic" ? "Smooth realistic model" : "Faceted printable model"}</span></div></div>
-              {(isTripoMesh || isAiSculpture || definition.style === "lowpoly") && <div className="control-group compact"><label><span>Surface style</span><select value={options.faceted ? "low" : "soft"} onChange={(event) => update("faceted", event.target.value === "low")}><option value="low">Low poly</option><option value="soft">Smooth faceted</option></select></label></div>}
-              <label className="environment-toggle" htmlFor="adaptive-environment-toggle">
-                <span className="sr-only">Match preview environment</span>
-                <input
-                  id="adaptive-environment-toggle"
-                  type="checkbox"
-                  checked={adaptiveEnvironment}
-                  onChange={(event) => {
-                    const checked = event.target.checked;
-                    setAdaptiveEnvironment(checked);
-                    try {
-                      window.localStorage.setItem(ADAPTIVE_ENVIRONMENT_STORAGE_KEY, String(checked));
-                    } catch {
-                      setMessage("The environment preference could not be saved");
-                    }
-                  }}
-                />
-                <span><b>Match preview environment</b><small>{activePreviewPath ? "Samples the selected cover once and applies a subtle editor tint." : "Uses the active topper color for this local design."}</small></span>
-              </label>
+              <div className="section-heading"><div><p>COLORS</p><span>{isPaletteStudy ? "Experimental three-color mesh" : isAiSculpture ? "Three-color generated palette" : "Topper and adapter"}</span></div>{isPaletteStudy && <InfoTip label="About the Santa color study" text="This pilot assigns crisp face regions to three printable colors. It has not been rolled out to the rest of the catalog." />}</div>
               <div className="control-group color-control"><span>{options.modelId === "mushroom" ? "Cap color" : "Topper color"}</span><div>{COLORS.map((color) => <button key={color} className={`swatch ${options.primaryColor === color ? "active" : ""}`} style={{ background: color }} aria-label={`Use ${color}`} onClick={() => update("primaryColor", color)} />)}<input className="color-input" aria-label="Custom topper color" type="color" value={options.primaryColor} onChange={(event) => update("primaryColor", event.target.value)} /></div></div>
-              {isAiSculpture && <div className="control-group color-control"><span>Secondary color</span><div><input className="color-input" aria-label="Custom secondary color" type="color" value={options.secondaryColor ?? "#d8a33e"} onChange={(event) => update("secondaryColor", event.target.value)} /></div></div>}
-              {isAiSculpture && <div className="control-group color-control"><span>Detail color</span><div><input className="color-input" aria-label="Custom detail color" type="color" value={options.detailColor ?? "#f4eee2"} onChange={(event) => update("detailColor", event.target.value)} /></div></div>}
+              {(isAiSculpture || isPaletteStudy) && <div className="control-group color-control"><span>{isPaletteStudy ? "Beard + trim" : "Secondary color"}</span><div><input className="color-input" aria-label="Custom secondary color" type="color" value={options.secondaryColor ?? "#f2e3c7"} onChange={(event) => update("secondaryColor", event.target.value)} /></div></div>}
+              {(isAiSculpture || isPaletteStudy) && <div className="control-group color-control"><span>{isPaletteStudy ? "Face" : "Detail color"}</span><div><input className="color-input" aria-label="Custom detail color" type="color" value={options.detailColor ?? "#e7aa84"} onChange={(event) => update("detailColor", event.target.value)} /></div></div>}
               <div className="control-group color-control"><span>{options.modelId === "mushroom" ? "Stem + base color" : "Adapter color"}</span><div><button className={`swatch ${options.accentColor === "#d7d0bf" ? "active" : ""}`} style={{ background: "#d7d0bf" }} onClick={() => update("accentColor", "#d7d0bf")} aria-label="Warm stone" /><button className={`swatch ${options.accentColor === "#1f3f2e" ? "active" : ""}`} style={{ background: "#1f3f2e" }} onClick={() => update("accentColor", "#1f3f2e")} aria-label="LetPot green" /><input className="color-input" aria-label="Custom adapter color" type="color" value={options.accentColor} onChange={(event) => update("accentColor", event.target.value)} /></div></div>
             </section>
 
-            <details className="inspector-disclosure">
-              <summary><span><b>Base & fit</b><small>Ø33 / Ø41 mm · fixed standard</small></span><i>+</i></summary>
+            <details className="inspector-disclosure settings-disclosure">
+              <summary><span><b>Preview options</b><small>{adaptiveEnvironment ? "Matched environment" : "Neutral environment"}</small></span><i>+</i></summary>
               <div className="disclosure-content">
-                <div className="calibration-note">Locked pod-fit standard shared by every design. Base dimensions are intentionally not adjustable.</div>
-                <dl className="compact-spec">
-                  <div><dt>Lower section</dt><dd>Ø{ADAPTER_STANDARD.lowerDiameter} × {ADAPTER_STANDARD.lowerHeight.toFixed(1)} mm</dd></div>
-                  <div><dt>Transition layer</dt><dd>Ø{ADAPTER_STANDARD.lowerDiameter}→Ø{ADAPTER_STANDARD.upperDiameter} × {ADAPTER_STANDARD.transitionHeight.toFixed(1)} mm</dd></div>
-                  <div><dt>Upper vertical band</dt><dd>Ø{ADAPTER_STANDARD.upperDiameter} × {ADAPTER_STANDARD.upperBandHeight.toFixed(1)} mm</dd></div>
-                  <div><dt>Total height</dt><dd>{ADAPTER_STANDARD.totalHeight.toFixed(1)} mm</dd></div>
-                  <div><dt>Logo</dt><dd>Outer rim · crown outward</dd></div>
-                  <div><dt>Connection</dt><dd>{integrated ? "Hidden fused core · one part" : "Flush hex pin R3.96 · 7.4 mm"}</dd></div>
-                </dl>
+                {(isTripoMesh || isAiSculpture || definition.style === "lowpoly") && <div className="control-group compact"><label><span>Surface style</span><select value={options.faceted ? "low" : "soft"} onChange={(event) => update("faceted", event.target.value === "low")}><option value="low">Low poly</option><option value="soft">Smooth faceted</option></select></label></div>}
+                <label className="environment-toggle" htmlFor="adaptive-environment-toggle">
+                  <span className="sr-only">Match preview environment</span>
+                  <input
+                    id="adaptive-environment-toggle"
+                    type="checkbox"
+                    checked={adaptiveEnvironment}
+                    onChange={(event) => {
+                      const checked = event.target.checked;
+                      setAdaptiveEnvironment(checked);
+                      try {
+                        window.localStorage.setItem(ADAPTIVE_ENVIRONMENT_STORAGE_KEY, String(checked));
+                      } catch {
+                        setMessage("The environment preference could not be saved");
+                      }
+                    }}
+                  />
+                  <span><b>Match preview environment</b><small>{activePreviewPath ? "Samples the selected cover and applies a subtle editor tint." : "Uses the active topper color for this local design."}</small></span>
+                </label>
               </div>
             </details>
 
             <details className="inspector-disclosure readiness-disclosure">
-              <summary><span><b>Print readiness</b><small>{manufacturing.status} · {designParts} manifold parts</small></span><i className={manufacturing.status === "Production trial" ? "verified" : "review"}>{manufacturing.status === "Production trial" ? "✓" : "!"}</i></summary>
+              <summary><span><b>Model &amp; print info</b><small>Ø33 / Ø41 fit · {manufacturing.status}</small></span><i className={manufacturing.status === "Production trial" ? "verified" : "review"}>{manufacturing.status === "Production trial" ? "✓" : "!"}</i></summary>
               <div className="disclosure-content">
+                <div className="inline-help"><InfoTip label="About the fixed base" text={`Every design keeps the same Ø${ADAPTER_STANDARD.lowerDiameter}/${ADAPTER_STANDARD.upperDiameter} mm pod-fit geometry. These dimensions are intentionally not adjustable.`} /><span>Fixed base · {integrated ? "hidden fused core" : "flush removable pin"}</span></div>
                 <p className="print-note">{designPrintNote}</p>
-                <dl className="compact-spec"><div><dt>Orientation</dt><dd>{manufacturing.orientation}</dd></div><div><dt>Support</dt><dd>{manufacturing.supportStrategy}</dd></div><div><dt>Minimum wall</dt><dd>{manufacturing.minWall.toFixed(1)} mm</dd></div><div><dt>Minimum feature</dt><dd>{manufacturing.minFeature.toFixed(1)} mm</dd></div><div><dt>Batch mode</dt><dd>{manufacturing.batchMode}</dd></div></dl>
+                <dl className="compact-spec"><div><dt>Base</dt><dd>Ø{ADAPTER_STANDARD.lowerDiameter}→Ø{ADAPTER_STANDARD.upperDiameter} × {ADAPTER_STANDARD.totalHeight.toFixed(1)} mm</dd></div><div><dt>Connection</dt><dd>{integrated ? "Hidden fused core · one part" : "Flush hex pin R3.96 · 7.4 mm"}</dd></div><div><dt>Orientation</dt><dd>{manufacturing.orientation}</dd></div><div><dt>Support</dt><dd>{manufacturing.supportStrategy}</dd></div><div><dt>Minimum wall / feature</dt><dd>{manufacturing.minWall.toFixed(1)} / {manufacturing.minFeature.toFixed(1)} mm</dd></div><div><dt>Batch mode</dt><dd>{manufacturing.batchMode}</dd></div></dl>
                 <ul className="audit-list">{manufacturing.details.map((detail) => <li key={detail}>{detail}</li>)}</ul>
               </div>
             </details>

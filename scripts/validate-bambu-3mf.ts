@@ -82,6 +82,14 @@ for (const definition of MODEL_LIBRARY) {
           assert.equal(projectSettings.printer_variant, "0.4");
           assert.match(projectSettings.machine_start_gcode, printerId === "a1-mini" ? /machine: A1 mini/ : /machine: P1S-0\.4/);
           assert.notEqual(projectSettings.filament_density[0], "0");
+          if (definition.id === "santa") {
+            const materialColors = new Set<string>(manifest.materials.flatMap((material: { colors: string[] }) => material.colors));
+            assert.ok(materialColors.has(definition.defaults.primaryColor));
+            for (const color of definition.officialMesh!.paletteStudy!.slice(1)) {
+              assert.ok(materialColors.has(color), `Santa 3MF is missing ${color}; found ${[...materialColors].join(", ")}`);
+            }
+            assert.match(modelXml, /<triangle v1="\d+" v2="\d+" v3="\d+" pid="1" p1="\d+" p2="\d+" p3="\d+"\/>/);
+          }
           const modelSettings = await archive.file("Metadata/model_settings.config")!.async("text");
           assert.equal((modelSettings.match(/<model_instance>/g) ?? []).length, build.parts.length);
           if (!validatedNestedArchive) {
