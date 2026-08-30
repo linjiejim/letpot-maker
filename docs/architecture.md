@@ -23,11 +23,11 @@ Model definitions + parameters
 
 ### Homepage
 
-`components/LandingPage.tsx` is the product entry point. It lazily renders live Three.js previews for both procedural and bundled Official assets, supports text and tag filtering, and routes a selected asset into the Studio through a `model` query parameter. Gallery previews use bounded pixel ratios and visibility-triggered loading so checked-in GLBs do not all parse at page startup.
+`components/LandingPage.tsx` is the product entry point. It lazily renders live Three.js previews for both procedural and bundled Official assets, supports text plus independent style and subject filtering, and routes a selected asset into the Studio through a `model` query parameter. Gallery previews use bounded pixel ratios and visibility-triggered loading so checked-in GLBs do not all parse at page startup.
 
 ### Maker Studio
 
-`components/Studio.tsx` owns the interactive authoring flow. It selects and searches model definitions, maintains parameter, color, camera and optional cover-sampled environment state, renders the assembly, stores optional AI recipes in localStorage and direct Tripo GLBs in IndexedDB, and packages exports on demand. Saved Mine entries are ordered by immutable creation timestamps; selecting one does not rewrite its position.
+`components/Studio.tsx` owns the interactive authoring flow. It selects and searches model definitions, filters style separately from subject tags, maintains parameter, color, camera and optional cover-sampled environment state, renders the assembly, stores optional AI recipes in localStorage and direct Tripo GLBs in IndexedDB, and packages exports on demand. Saved Mine entries are ordered by immutable creation timestamps; selecting one does not rewrite its position.
 
 ### Pod Styler
 
@@ -37,7 +37,7 @@ Model definitions + parameters
 
 `lib/model-factory.ts` is the authoritative model catalog and geometry source. A definition contains identity, tags, defaults, bounded parameters, parts, and manufacturing guidance. `createModel()` turns those inputs into the Three.js assembly used everywhere else. Its shared connection layer supports a flush detachable pin/socket embedded inside the subject and an optional one-piece adapter/topper union with a hidden internal core.
 
-The browser preview is not exported directly as overlapping display meshes. `lib/solidify.ts` converts meshes through Manifold boolean operations so each exported part is a connected watertight solid.
+The browser preview is not exported directly as overlapping display meshes. `lib/solidify.ts` converts meshes through Manifold boolean operations so each exported part is a connected watertight solid. Generated sculptures preserve their semantic colors through those booleans, while bundled Official neural meshes remain single-color.
 
 `lib/three-mf.ts` arranges solid parts for the supported Bambu printer profiles and writes standards-based 3MF packages.
 

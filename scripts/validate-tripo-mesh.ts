@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import * as THREE from "three";
 import { normalizeLocalTripoMeshMetadata, TRIPO_MESH_SCHEMA } from "../lib/local-mesh-cache";
 import {
@@ -89,6 +91,11 @@ const officialDefinitions = MODEL_LIBRARY.filter((definition) => definition.offi
 assert.equal(officialDefinitions.length, 52);
 assert.deepEqual(officialDefinitions.slice(0, 4).map(({ id }) => id), ["santa", "christmas-tree", "snowman", "reindeer"]);
 for (const definition of officialDefinitions) {
+  const encoded = await readFile(path.resolve("public", definition.officialMesh!.assetPath.replace(/^\//, "")));
+  const jsonLength = encoded.readUInt32LE(12);
+  const gltf = JSON.parse(encoded.subarray(20, 20 + jsonLength).toString("utf8")) as { extensionsRequired?: string[] };
+  assert.ok(gltf.extensionsRequired?.includes("EXT_meshopt_compression"), `${definition.id} must use Meshopt compression`);
+  assert.ok(encoded.byteLength < 325 * 1024, `${definition.id} must stay below the 325 KiB delivery budget`);
   const official = await loadOfficialMeshForNode(definition);
   assert.ok(official);
   try {

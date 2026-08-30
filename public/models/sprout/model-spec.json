@@ -53,8 +53,8 @@
       }
     ],
     "defaults": {
-      "topperHeight": 35,
-      "topperWidth": 28,
+      "topperHeight": 65,
+      "topperWidth": 52,
       "primaryColor": "#769567",
       "accentColor": "#d7d0bf"
     },
@@ -63,8 +63,8 @@
   "options": {
     "modelId": "sprout",
     "connectionMode": "detachable",
-    "topperHeight": 35,
-    "topperWidth": 28,
+    "topperHeight": 65,
+    "topperWidth": 52,
     "primaryColor": "#769567",
     "accentColor": "#d7d0bf",
     "secondaryColor": "#d8a33e",
@@ -87,8 +87,10 @@
     "logoRecessDepth": 0.6
   },
   "measurements": {
-    "width": 41,
-    "height": 37.3,
+    "width": 52,
+    "height": 64.6,
+    "topperWidth": 52,
+    "topperHeight": 59,
     "lowerDiameter": 33,
     "upperDiameter": 41
   },

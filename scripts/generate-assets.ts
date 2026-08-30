@@ -24,7 +24,11 @@ const wasm = await loadNodeManifold();
 
 await mkdir(outputRoot, { recursive: true });
 
-for (const definition of MODEL_LIBRARY) {
+const requestedIds = new Set(process.argv.slice(2).filter((argument) => !argument.startsWith("--")));
+const definitions = MODEL_LIBRARY.filter((definition) => !requestedIds.size || requestedIds.has(definition.id));
+if (!definitions.length) throw new Error("No matching model IDs were provided.");
+
+for (const definition of definitions) {
   const officialSource = await loadOfficialMeshForNode(definition);
   const options = {
     ...DEFAULT_OPTIONS,
@@ -110,4 +114,4 @@ await writeFile(resolve(outputRoot, "manifest.json"), JSON.stringify({
   note: "Fixed Ø33/Ø41 mm pod-fit standard. Verify fit with a small test print before production.",
 }, null, 2));
 
-console.log(`Generated ${MODEL_LIBRARY.length} model packs in ${outputRoot}`);
+console.log(`Generated ${definitions.length} selected model pack${definitions.length === 1 ? "" : "s"} in ${outputRoot}`);

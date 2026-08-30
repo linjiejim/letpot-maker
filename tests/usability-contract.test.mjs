@@ -2,10 +2,11 @@ import assert from "node:assert/strict";
 import { access, readFile, readdir } from "node:fs/promises";
 import test from "node:test";
 
-const [studio, podStyler, landingPage, globalCss, podCss] = await Promise.all([
+const [studio, podStyler, landingPage, modelFactory, globalCss, podCss] = await Promise.all([
   readFile(new URL("../components/Studio.tsx", import.meta.url), "utf8"),
   readFile(new URL("../components/PodStyler.tsx", import.meta.url), "utf8"),
   readFile(new URL("../components/LandingPage.tsx", import.meta.url), "utf8"),
+  readFile(new URL("../lib/model-factory.ts", import.meta.url), "utf8"),
   readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
   readFile(new URL("../components/PodStyler.module.css", import.meta.url), "utf8"),
 ]);
@@ -34,7 +35,7 @@ test("full-screen tools expose skip links and visible focus styles", () => {
 });
 
 test("primary copy and form controls use the readable type contract", () => {
-  assert.match(globalCss, /\.hero-copy > p, \.intro-copy p \{ font-size: 16px;/);
+  assert.match(globalCss, /\.hero-copy > p, \.standard-copy > p \{ font-size: 16px;/);
   assert.match(globalCss, /\.ai-prompt-field input \{ min-height: 48px; font-size: 16px;/);
   assert.match(globalCss, /\.control-group label[^}]+font-size: 14px;/);
   assert.match(podCss, /\.filters button \{ min-height: 44px; font-size: 13px;/);
@@ -98,6 +99,48 @@ test("landing 3D waits for idle time and exposes loading feedback", () => {
   assert.match(globalCss, /\.landing-model\[data-ready="true"\] \.landing-model-loading/);
 });
 
+test("landing 3D pauses rendering when previews or the page are hidden", () => {
+  assert.match(landingPage, /const renderVisibilityObserver = new IntersectionObserver/);
+  assert.match(landingPage, /document\.addEventListener\("visibilitychange", handleDocumentVisibility\)/);
+  assert.match(landingPage, /mount\.setAttribute\("data-rendering", "false"\)/);
+  assert.match(landingPage, /renderVisibilityObserver\.disconnect\(\)/);
+});
+
+test("landing hero cycles visual model choices while keeping the live model front-facing", () => {
+  assert.match(landingPage, /FEATURED_MODELS: ModelId\[\] = \["monstera-cluster", "tomato-pal", "reindeer", "orbit-astronaut"\]/);
+  assert.match(landingPage, /INITIAL_GALLERY_MODELS: ModelId\[\] = \["monstera-cluster", "tomato-pal", "reindeer", "orbit-astronaut"\]/);
+  assert.match(landingPage, /\}, 5000\);/);
+  assert.match(landingPage, /item\.officialMesh\.previewPath/);
+  assert.match(landingPage, /definition\.officialMesh \? Math\.PI \/ 2 : 0/);
+  assert.match(landingPage, /controls\.autoRotate = false/);
+  assert.match(landingPage, /controls\.enabled = interactive/);
+  assert.match(landingPage, /Math\.sin\(frontAzimuth\) \* cameraOrbit/);
+  assert.match(landingPage, /Math\.cos\(frontAzimuth\) \* cameraOrbit/);
+  assert.doesNotMatch(landingPage, /controls\.minAzimuthAngle|controls\.maxAzimuthAngle/);
+  assert.match(globalCss, /\.featured-switcher \{[^}]*grid-template-columns: repeat\(4,minmax\(0,1fr\)\)/);
+});
+
+test("landing hero adds subtle reduced-motion-aware presentation movement without blocking free orbit", () => {
+  assert.match(landingPage, /landing_hero_presentation_rig/);
+  assert.match(landingPage, /if \(interactive && !reduceMotion\)/);
+  assert.match(landingPage, /controls\.addEventListener\("start", handleControlsStart\)/);
+  assert.match(landingPage, /presentationRig\.position\.set/);
+  assert.match(landingPage, /presentationRig\.rotation\.z/);
+  assert.match(landingPage, /presentationRig\.scale\.setScalar/);
+  assert.match(landingPage, /controls\.enabled = interactive/);
+  assert.match(landingPage, /controls\.autoRotate = false/);
+});
+
+test("landing page explains the standard, open source path and local Tripo boundary", () => {
+  assert.match(landingPage, /THE SHARED LETPOT STANDARD/);
+  assert.match(landingPage, /Topper with blind socket/);
+  assert.match(landingPage, /Explore the GitHub repo/);
+  assert.match(landingPage, /Your Key never reaches the LetPot Maker server/);
+  assert.match(landingPage, /View all \{filteredGalleryModels\.length \|\| models\.length\} in Studio/);
+  assert.match(landingPage, /monstera-cluster\.jpg/);
+  assert.match(globalCss, /\.socket-cutaway::before/);
+});
+
 test("Studio library search, stable Mine order, camera framing and adaptive environment stay explicit", () => {
   assert.match(studio, /aria-label=\{libraryMode === "official" \? "Search Official model titles" : "Search Mine titles"\}/);
   assert.match(studio, /item\.name\.toLowerCase\(\)\.includes\(normalizedLibraryQuery\)/);
@@ -109,6 +152,58 @@ test("Studio library search, stable Mine order, camera framing and adaptive envi
   assert.match(studio, /previousOffset\.multiplyScalar\(scale\)/);
   assert.match(studio, /Match preview environment/);
   assert.match(studio, /samplePreviewPalette/);
+  assert.match(studio, /aria-label="Filter designs by style"/);
+  assert.match(studio, /useState<"all" \| ModelStyleFamily>\("soft-sculpt"\)/);
+  assert.match(studio, /modelStyleFamily\(item\) === activeStyle/);
+  assert.match(studio, /No ready-made match yet/);
+  assert.match(studio, /<button onClick=\{\(\) => setAiOpen\(true\)\}>AI Generate<\/button><button className="secondary"/);
+  assert.match(globalCss, /\.library-search input::-webkit-search-cancel-button/);
+});
+
+test("Studio hides stale geometry behind an explicit model loading state", () => {
+  assert.match(studio, /const \[previewStatus, setPreviewStatus\] = useState<PreviewStatus \| null>/);
+  assert.match(studio, /selected\.officialMesh \? "Loading the bundled 3D mesh…" : "Preparing the procedural 3D model…"/);
+  assert.match(studio, /targetKey: `official:\$\{selected\.id\}:\$\{selected\.officialMesh \? "mesh" : "procedural"\}`/);
+  assert.match(studio, /onPresented\(modelKey\)/);
+  assert.match(studio, /current\.targetKey === presentedKey/);
+  assert.match(studio, /data-preview-state=\{previewStatus\?\.kind\}/);
+  assert.match(studio, /viewport-shell \$\{previewStatus \? "is-pending" : ""\}/);
+  assert.match(studio, /LOADING 3D MODEL/);
+  assert.match(studio, /setPreviewStatus\(\{ kind: "error", modelId: selected\.id/);
+  assert.match(globalCss, /\.viewport-shell\.is-pending \{ opacity: 0; pointer-events: none; \}/);
+  assert.match(globalCss, /\.stage-preview-status \{[^}]*background: var\(--surface\)/);
+});
+
+test("Official meshes are prefetched, cached and report real transfer progress", () => {
+  assert.match(studio, /preloadOfficialMesh\(item\)/);
+  assert.match(studio, /onProgress: \(\{ ratio \}\)/);
+  assert.match(studio, /stage-preview-progress/);
+  assert.match(globalCss, /\.stage-preview-progress \{/);
+});
+
+test("Topper dimensions default to 65 mm and preserve aspect ratio", () => {
+  assert.match(studio, /const \[topperAspectLocked, setTopperAspectLocked\] = useState\(true\)/);
+  assert.match(studio, /Keep proportions/);
+  assert.match(studio, /topperWidth: roundToStep\(topperHeight \* ratio\)/);
+  assert.match(studio, /topperHeight: roundToStep\(topperWidth \/ ratio\)/);
+  assert.match(globalCss, /\.aspect-lock-row \{/);
+});
+
+test("Studio keeps advanced inspector information collapsed behind accessible help", () => {
+  assert.match(studio, /function InfoTip/);
+  assert.match(studio, /role="tooltip"/);
+  assert.match(studio, /<b>Print setup<\/b>/);
+  assert.match(studio, /<b>Fine tune shape<\/b>/);
+  assert.match(studio, /<b>Preview options<\/b>/);
+  assert.match(studio, /<b>Model &amp; print info<\/b>/);
+  assert.doesNotMatch(studio, /<b>Base &amp; fit<\/b>/);
+  assert.match(globalCss, /\.info-tip:hover > span\[role="tooltip"\], \.info-tip:focus-within/);
+});
+
+test("Official neural meshes, including Santa, stay single-color", () => {
+  assert.doesNotMatch(modelFactory, /paletteStudy|paintOfficialMeshStudy/);
+  assert.match(modelFactory, /printableMesh\.userData\.aiColorRole = "primary"/);
+  assert.doesNotMatch(studio, /Experimental three-color mesh|Beard \+ trim|Santa color study/);
 });
 
 test("all procedural Studio cards have checked-in geometry renders", async () => {
@@ -123,7 +218,7 @@ test("all procedural Studio cards have checked-in geometry renders", async () =>
 });
 
 test("Studio asset tags stay on one line and summarize hidden tags", () => {
-  assert.match(studio, /const visibleTags = item\.tags\.slice\(0, 2\)/);
+  assert.match(studio, /const visibleTags = subjectTags\.slice\(0, 2\)/);
   assert.match(studio, /className="asset-tags-more"/);
   assert.match(globalCss, /\.asset-tags \{[^}]*flex-wrap: nowrap;[^}]*overflow: hidden;/);
 });

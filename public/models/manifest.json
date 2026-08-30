@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-28T16:35:08.670Z",
+  "generatedAt": "2026-08-29T16:30:11.911Z",
   "models": [
     {
       "id": "sprout",
@@ -430,7 +430,13 @@
         "realistic",
         "christmas",
         "other"
-      ]
+      ],
+      "officialMesh": {
+        "assetPath": "/models/official/christmas/gift-box.glb",
+        "previewPath": "/models/official/christmas/previews/gift-box.jpg",
+        "faceCount": 21028,
+        "generation": "Tripo H3.1 image-to-3D"
+      }
     },
     {
       "id": "candy-cane",
@@ -443,7 +449,13 @@
         "realistic",
         "christmas",
         "other"
-      ]
+      ],
+      "officialMesh": {
+        "assetPath": "/models/official/christmas/candy-cane.glb",
+        "previewPath": "/models/official/christmas/previews/candy-cane.jpg",
+        "faceCount": 20816,
+        "generation": "Tripo H3.1 image-to-3D"
+      }
     },
     {
       "id": "christmas-bell",
@@ -456,7 +468,864 @@
         "realistic",
         "christmas",
         "other"
-      ]
+      ],
+      "officialMesh": {
+        "assetPath": "/models/official/christmas/christmas-bell.glb",
+        "previewPath": "/models/official/christmas/previews/christmas-bell.jpg",
+        "faceCount": 23000,
+        "generation": "Tripo H3.1 image-to-3D"
+      }
+    },
+    {
+      "id": "tomato-pal",
+      "name": "Tomato Pal",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "05",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "veggie",
+        "fruit"
+      ],
+      "officialMesh": {
+        "assetPath": "/models/official/produce/tomato-pal.glb",
+        "previewPath": "/models/official/produce/previews/tomato-pal.jpg",
+        "faceCount": 19228,
+        "generation": "Tripo H3.1 image-to-3D"
+      }
+    },
+    {
+      "id": "strawberry-pal",
+      "name": "Strawberry Pal",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "05",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "fruit"
+      ],
+      "officialMesh": {
+        "assetPath": "/models/official/produce/strawberry-pal.glb",
+        "previewPath": "/models/official/produce/previews/strawberry-pal.jpg",
+        "faceCount": 19590,
+        "generation": "Tripo H3.1 image-to-3D"
+      }
+    },
+    {
+      "id": "carrot-pal",
+      "name": "Carrot Pal",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "05",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "veggie"
+      ],
+      "officialMesh": {
+        "assetPath": "/models/official/produce/carrot-pal.glb",
+        "previewPath": "/models/official/produce/previews/carrot-pal.jpg",
+        "faceCount": 18956,
+        "generation": "Tripo H3.1 image-to-3D"
+      }
+    },
+    {
+      "id": "pumpkin-pal",
+      "name": "Pumpkin Pal",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "05",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "veggie",
+        "fruit"
+      ],
+      "officialMesh": {
+        "assetPath": "/models/official/produce/pumpkin-pal.glb",
+        "previewPath": "/models/official/produce/previews/pumpkin-pal.jpg",
+        "faceCount": 18782,
+        "generation": "Tripo H3.1 image-to-3D"
+      }
+    },
+    {
+      "id": "chili-pal",
+      "name": "Chili Pal",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "05",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "veggie",
+        "fruit"
+      ],
+      "officialMesh": {
+        "assetPath": "/models/official/produce/chili-pal.glb",
+        "previewPath": "/models/official/produce/previews/chili-pal.jpg",
+        "faceCount": 19732,
+        "generation": "Tripo H3.1 image-to-3D"
+      }
+    },
+    {
+      "id": "eggplant-pal",
+      "name": "Eggplant Pal",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "05",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "veggie",
+        "fruit"
+      ],
+      "officialMesh": {
+        "assetPath": "/models/official/produce/eggplant-pal.glb",
+        "previewPath": "/models/official/produce/previews/eggplant-pal.jpg",
+        "faceCount": 18844,
+        "generation": "Tripo H3.1 image-to-3D"
+      }
+    },
+    {
+      "id": "lemon-pal",
+      "name": "Lemon Pal",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "05",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "fruit"
+      ],
+      "officialMesh": {
+        "assetPath": "/models/official/produce/lemon-pal.glb",
+        "previewPath": "/models/official/produce/previews/lemon-pal.jpg",
+        "faceCount": 19298,
+        "generation": "Tripo H3.1 image-to-3D"
+      }
+    },
+    {
+      "id": "monstera-cluster",
+      "name": "Monstera Cluster",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "05",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "plant"
+      ],
+      "officialMesh": {
+        "assetPath": "/models/official/plants/monstera-cluster.glb",
+        "previewPath": "/models/official/plants/previews/monstera-cluster.jpg",
+        "faceCount": 23894,
+        "generation": "Tripo H3.1 image-to-3D"
+      }
+    },
+    {
+      "id": "barrel-cactus",
+      "name": "Barrel Cactus",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "05",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "plant"
+      ],
+      "officialMesh": {
+        "assetPath": "/models/official/plants/barrel-cactus.glb",
+        "previewPath": "/models/official/plants/previews/barrel-cactus.jpg",
+        "faceCount": 21878,
+        "generation": "Tripo H3.1 image-to-3D"
+      }
+    },
+    {
+      "id": "succulent-rosette",
+      "name": "Succulent Rosette",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "05",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "plant"
+      ],
+      "officialMesh": {
+        "assetPath": "/models/official/plants/succulent-rosette.glb",
+        "previewPath": "/models/official/plants/previews/succulent-rosette.jpg",
+        "faceCount": 24354,
+        "generation": "Tripo H3.1 image-to-3D"
+      }
+    },
+    {
+      "id": "fern-sprout",
+      "name": "Fern Sprout",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "05",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "plant"
+      ],
+      "officialMesh": {
+        "assetPath": "/models/official/plants/fern-sprout.glb",
+        "previewPath": "/models/official/plants/previews/fern-sprout.jpg",
+        "faceCount": 24652,
+        "generation": "Tripo H3.1 image-to-3D"
+      }
+    },
+    {
+      "id": "cloud-bonsai",
+      "name": "Cloud Crown Bonsai",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "05",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "plant",
+        "tree"
+      ],
+      "officialMesh": {
+        "assetPath": "/models/official/plants/cloud-bonsai.glb",
+        "previewPath": "/models/official/plants/previews/cloud-bonsai.jpg",
+        "faceCount": 26380,
+        "generation": "Tripo H3.1 image-to-3D"
+      }
+    },
+    {
+      "id": "sunflower-smile",
+      "name": "Sunflower Smile",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "05",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "plant",
+        "flower"
+      ],
+      "officialMesh": {
+        "assetPath": "/models/official/plants/sunflower-smile.glb",
+        "previewPath": "/models/official/plants/previews/sunflower-smile.jpg",
+        "faceCount": 24822,
+        "generation": "Tripo H3.1 image-to-3D"
+      }
+    },
+    {
+      "id": "aloe-rosette",
+      "name": "Aloe Rosette",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "05",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "plant"
+      ],
+      "officialMesh": {
+        "assetPath": "/models/official/plants/aloe-rosette.glb",
+        "previewPath": "/models/official/plants/previews/aloe-rosette.jpg",
+        "faceCount": 23372,
+        "generation": "Tripo H3.1 image-to-3D"
+      }
+    },
+    {
+      "id": "basil-bundle",
+      "name": "Basil Bundle",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "05",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "herbs",
+        "plant"
+      ],
+      "officialMesh": {
+        "assetPath": "/models/official/herbs/basil-bundle.glb",
+        "previewPath": "/models/official/herbs/previews/basil-bundle.jpg",
+        "faceCount": 23828,
+        "generation": "Tripo H3.1 image-to-3D"
+      }
+    },
+    {
+      "id": "mint-bundle",
+      "name": "Mint Bundle",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "05",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "herbs",
+        "plant"
+      ],
+      "officialMesh": {
+        "assetPath": "/models/official/herbs/mint-bundle.glb",
+        "previewPath": "/models/official/herbs/previews/mint-bundle.jpg",
+        "faceCount": 22766,
+        "generation": "Tripo H3.1 image-to-3D"
+      }
+    },
+    {
+      "id": "rosemary-bundle",
+      "name": "Rosemary Bundle",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "05",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "herbs",
+        "plant"
+      ],
+      "officialMesh": {
+        "assetPath": "/models/official/herbs/rosemary-bundle.glb",
+        "previewPath": "/models/official/herbs/previews/rosemary-bundle.jpg",
+        "faceCount": 24944,
+        "generation": "Tripo H3.1 image-to-3D"
+      }
+    },
+    {
+      "id": "thyme-mound",
+      "name": "Thyme Mound",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "05",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "herbs",
+        "plant"
+      ],
+      "officialMesh": {
+        "assetPath": "/models/official/herbs/thyme-mound.glb",
+        "previewPath": "/models/official/herbs/previews/thyme-mound.jpg",
+        "faceCount": 25386,
+        "generation": "Tripo H3.1 image-to-3D"
+      }
+    },
+    {
+      "id": "lavender-bundle",
+      "name": "Lavender Bundle",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "05",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "herbs",
+        "plant",
+        "flower"
+      ],
+      "officialMesh": {
+        "assetPath": "/models/official/herbs/lavender-bundle.glb",
+        "previewPath": "/models/official/herbs/previews/lavender-bundle.jpg",
+        "faceCount": 24870,
+        "generation": "Tripo H3.1 image-to-3D"
+      }
+    },
+    {
+      "id": "sage-rosette",
+      "name": "Sage Rosette",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "05",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "herbs",
+        "plant"
+      ],
+      "officialMesh": {
+        "assetPath": "/models/official/herbs/sage-rosette.glb",
+        "previewPath": "/models/official/herbs/previews/sage-rosette.jpg",
+        "faceCount": 23280,
+        "generation": "Tripo H3.1 image-to-3D"
+      }
+    },
+    {
+      "id": "gingerbread-friend",
+      "name": "Gingerbread Friend",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "05",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "christmas",
+        "holiday"
+      ],
+      "officialMesh": {
+        "assetPath": "/models/official/christmas/gingerbread-friend.glb",
+        "previewPath": "/models/official/christmas/previews/gingerbread-friend.jpg",
+        "faceCount": 23196,
+        "generation": "Tripo H3.1 image-to-3D"
+      }
+    },
+    {
+      "id": "winter-penguin",
+      "name": "Winter Penguin",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "05",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "christmas",
+        "holiday",
+        "animal"
+      ],
+      "officialMesh": {
+        "assetPath": "/models/official/christmas/winter-penguin.glb",
+        "previewPath": "/models/official/christmas/previews/winter-penguin.jpg",
+        "faceCount": 24018,
+        "generation": "Tripo H3.1 image-to-3D"
+      }
+    },
+    {
+      "id": "polar-bear-friend",
+      "name": "Polar Bear Friend",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "05",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "christmas",
+        "holiday",
+        "animal"
+      ],
+      "officialMesh": {
+        "assetPath": "/models/official/christmas/polar-bear-friend.glb",
+        "previewPath": "/models/official/christmas/previews/polar-bear-friend.jpg",
+        "faceCount": 24762,
+        "generation": "Tripo H3.1 image-to-3D"
+      }
+    },
+    {
+      "id": "orbit-astronaut",
+      "name": "Orbit Astronaut",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "05",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "space",
+        "other"
+      ],
+      "officialMesh": {
+        "assetPath": "/models/official/space/orbit-astronaut.glb",
+        "previewPath": "/models/official/space/previews/orbit-astronaut.jpg",
+        "faceCount": 25168,
+        "generation": "Tripo H3.1 image-to-3D"
+      }
+    },
+    {
+      "id": "pocket-rocket",
+      "name": "Pocket Rocket",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "05",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "space",
+        "other"
+      ],
+      "officialMesh": {
+        "assetPath": "/models/official/space/pocket-rocket.glb",
+        "previewPath": "/models/official/space/previews/pocket-rocket.jpg",
+        "faceCount": 22936,
+        "generation": "Tripo H3.1 image-to-3D"
+      }
+    },
+    {
+      "id": "smiling-saturn",
+      "name": "Smiling Saturn",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "05",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "space",
+        "other"
+      ],
+      "officialMesh": {
+        "assetPath": "/models/official/space/smiling-saturn.glb",
+        "previewPath": "/models/official/space/previews/smiling-saturn.jpg",
+        "faceCount": 25146,
+        "generation": "Tripo H3.1 image-to-3D"
+      }
+    },
+    {
+      "id": "crescent-moon",
+      "name": "Crescent Moon",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "05",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "space",
+        "other"
+      ],
+      "officialMesh": {
+        "assetPath": "/models/official/space/crescent-moon.glb",
+        "previewPath": "/models/official/space/previews/crescent-moon.jpg",
+        "faceCount": 23778,
+        "generation": "Tripo H3.1 image-to-3D"
+      }
+    },
+    {
+      "id": "friendly-ufo",
+      "name": "Friendly UFO",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "05",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "space",
+        "other"
+      ],
+      "officialMesh": {
+        "assetPath": "/models/official/space/friendly-ufo.glb",
+        "previewPath": "/models/official/space/previews/friendly-ufo.jpg",
+        "faceCount": 24312,
+        "generation": "Tripo H3.1 image-to-3D"
+      }
+    },
+    {
+      "id": "retro-robot",
+      "name": "Retro Robot",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "05",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "space",
+        "other"
+      ],
+      "officialMesh": {
+        "assetPath": "/models/official/space/retro-robot.glb",
+        "previewPath": "/models/official/space/previews/retro-robot.jpg",
+        "faceCount": 25222,
+        "generation": "Tripo H3.1 image-to-3D"
+      }
+    },
+    {
+      "id": "ladybug-friend",
+      "name": "Ladybug Friend",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "05",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "insect",
+        "animal"
+      ],
+      "officialMesh": {
+        "assetPath": "/models/official/insects/ladybug-friend.glb",
+        "previewPath": "/models/official/insects/previews/ladybug-friend.jpg",
+        "faceCount": 25414,
+        "generation": "Tripo H3.1 image-to-3D"
+      }
+    },
+    {
+      "id": "bumblebee-friend",
+      "name": "Bumblebee Friend",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "05",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "insect",
+        "animal"
+      ],
+      "officialMesh": {
+        "assetPath": "/models/official/insects/bumblebee-friend.glb",
+        "previewPath": "/models/official/insects/previews/bumblebee-friend.jpg",
+        "faceCount": 26938,
+        "generation": "Tripo H3.1 image-to-3D"
+      }
+    },
+    {
+      "id": "butterfly-friend",
+      "name": "Butterfly Friend",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "05",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "insect",
+        "animal"
+      ],
+      "officialMesh": {
+        "assetPath": "/models/official/insects/butterfly-friend.glb",
+        "previewPath": "/models/official/insects/previews/butterfly-friend.jpg",
+        "faceCount": 29546,
+        "generation": "Tripo H3.1 image-to-3D"
+      }
+    },
+    {
+      "id": "beetle-friend",
+      "name": "Beetle Friend",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "05",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "insect",
+        "animal"
+      ],
+      "officialMesh": {
+        "assetPath": "/models/official/insects/beetle-friend.glb",
+        "previewPath": "/models/official/insects/previews/beetle-friend.jpg",
+        "faceCount": 27064,
+        "generation": "Tripo H3.1 image-to-3D"
+      }
+    },
+    {
+      "id": "caterpillar-friend",
+      "name": "Caterpillar Friend",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "05",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "insect",
+        "animal"
+      ],
+      "officialMesh": {
+        "assetPath": "/models/official/insects/caterpillar-friend.glb",
+        "previewPath": "/models/official/insects/previews/caterpillar-friend.jpg",
+        "faceCount": 25248,
+        "generation": "Tripo H3.1 image-to-3D"
+      }
+    },
+    {
+      "id": "whale-friend",
+      "name": "Whale Friend",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "05",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "ocean",
+        "animal"
+      ],
+      "officialMesh": {
+        "assetPath": "/models/official/ocean/whale-friend.glb",
+        "previewPath": "/models/official/ocean/previews/whale-friend.jpg",
+        "faceCount": 24674,
+        "generation": "Tripo H3.1 image-to-3D"
+      }
+    },
+    {
+      "id": "octopus-friend",
+      "name": "Octopus Friend",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "05",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "ocean",
+        "animal"
+      ],
+      "officialMesh": {
+        "assetPath": "/models/official/ocean/octopus-friend.glb",
+        "previewPath": "/models/official/ocean/previews/octopus-friend.jpg",
+        "faceCount": 27222,
+        "generation": "Tripo H3.1 image-to-3D"
+      }
+    },
+    {
+      "id": "sea-turtle-friend",
+      "name": "Sea Turtle Friend",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "05",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "ocean",
+        "animal"
+      ],
+      "officialMesh": {
+        "assetPath": "/models/official/ocean/sea-turtle-friend.glb",
+        "previewPath": "/models/official/ocean/previews/sea-turtle-friend.jpg",
+        "faceCount": 29236,
+        "generation": "Tripo H3.1 image-to-3D"
+      }
+    },
+    {
+      "id": "seahorse-friend",
+      "name": "Seahorse Friend",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "05",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "ocean",
+        "animal"
+      ],
+      "officialMesh": {
+        "assetPath": "/models/official/ocean/seahorse-friend.glb",
+        "previewPath": "/models/official/ocean/previews/seahorse-friend.jpg",
+        "faceCount": 27460,
+        "generation": "Tripo H3.1 image-to-3D"
+      }
+    },
+    {
+      "id": "ocean-fish",
+      "name": "Ocean Fish",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "05",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "ocean",
+        "animal"
+      ],
+      "officialMesh": {
+        "assetPath": "/models/official/ocean/ocean-fish.glb",
+        "previewPath": "/models/official/ocean/previews/ocean-fish.jpg",
+        "faceCount": 27338,
+        "generation": "Tripo H3.1 image-to-3D"
+      }
+    },
+    {
+      "id": "starfish-friend",
+      "name": "Starfish Friend",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "05",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "ocean",
+        "animal"
+      ],
+      "officialMesh": {
+        "assetPath": "/models/official/ocean/starfish-friend.glb",
+        "previewPath": "/models/official/ocean/previews/starfish-friend.jpg",
+        "faceCount": 9900,
+        "generation": "Tripo H3.1 text-to-3D"
+      }
+    },
+    {
+      "id": "jack-o-lantern",
+      "name": "Jack-o'-Lantern",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "05",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "holiday",
+        "other"
+      ],
+      "officialMesh": {
+        "assetPath": "/models/official/holiday-pets/jack-o-lantern.glb",
+        "previewPath": "/models/official/holiday-pets/previews/jack-o-lantern.jpg",
+        "faceCount": 23474,
+        "generation": "Tripo H3.1 image-to-3D"
+      }
+    },
+    {
+      "id": "friendly-ghost",
+      "name": "Friendly Ghost",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "05",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "holiday",
+        "other"
+      ],
+      "officialMesh": {
+        "assetPath": "/models/official/holiday-pets/friendly-ghost.glb",
+        "previewPath": "/models/official/holiday-pets/previews/friendly-ghost.jpg",
+        "faceCount": 23966,
+        "generation": "Tripo H3.1 image-to-3D"
+      }
+    },
+    {
+      "id": "easter-bunny",
+      "name": "Easter Bunny",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "05",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "holiday",
+        "animal",
+        "pet"
+      ],
+      "officialMesh": {
+        "assetPath": "/models/official/holiday-pets/easter-bunny.glb",
+        "previewPath": "/models/official/holiday-pets/previews/easter-bunny.jpg",
+        "faceCount": 25444,
+        "generation": "Tripo H3.1 image-to-3D"
+      }
+    },
+    {
+      "id": "cozy-cat",
+      "name": "Cozy Cat",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "05",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "pet",
+        "animal"
+      ],
+      "officialMesh": {
+        "assetPath": "/models/official/holiday-pets/cozy-cat.glb",
+        "previewPath": "/models/official/holiday-pets/previews/cozy-cat.jpg",
+        "faceCount": 24880,
+        "generation": "Tripo H3.1 image-to-3D"
+      }
+    },
+    {
+      "id": "cozy-dog",
+      "name": "Cozy Dog",
+      "parts": 3,
+      "difficulty": "Medium",
+      "series": "05",
+      "style": "realistic",
+      "tags": [
+        "realistic",
+        "pet",
+        "animal"
+      ],
+      "officialMesh": {
+        "assetPath": "/models/official/holiday-pets/cozy-dog.glb",
+        "previewPath": "/models/official/holiday-pets/previews/cozy-dog.jpg",
+        "faceCount": 25684,
+        "generation": "Tripo H3.1 image-to-3D"
+      }
     }
   ],
   "printConstraint": "Every STL part is one connected watertight manifold solid.",

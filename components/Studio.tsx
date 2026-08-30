@@ -25,13 +25,16 @@ import {
   getDefaultShapeParameters,
   getManufacturingProfile,
   MODEL_LIBRARY,
-  MODEL_TAGS,
+  MODEL_STYLE_FAMILIES,
+  modelStyleFamily,
   STACK_TRIAL_GAPS,
+  SUBJECT_MODEL_TAGS,
   TOPPER_SIZE_LIMITS,
   type ModelBuild,
   type ModelDefinition,
   type ModelId,
   type ModelOptions,
+  type ModelStyleFamily,
   type ModelTag,
   type ManufacturingProfile,
   type ShapeParameterKey,
@@ -65,7 +68,7 @@ import {
   type TripoModelVersion,
   type TripoRegion,
 } from "../lib/tripo-mesh";
-import { loadOfficialMesh } from "../lib/official-mesh-browser";
+import { loadOfficialMesh, preloadOfficialMesh } from "../lib/official-mesh-browser";
 
 type ViewName = "orbit" | "front" | "top";
 type PanelName = "library" | "inspector";
@@ -76,6 +79,14 @@ type ViewportPalette = {
   ground: string;
   hemisphereGround: string;
   fill: string;
+};
+type PreviewStatus = {
+  kind: "loading" | "error";
+  modelId?: ModelId;
+  targetKey?: string;
+  progress?: number;
+  name: string;
+  detail: string;
 };
 
 const COLORS = ["#769567", "#294e35", "#a75f46", "#d3c5a5", "#d66c45"];
@@ -113,6 +124,29 @@ const TAG_LABELS: Record<ModelTag, string> = {
   holiday: "Holiday",
   pet: "Pet",
   other: "Other",
+};
+
+const STYLE_LABELS: Record<ModelStyleFamily, string> = {
+  "soft-sculpt": "Soft Sculpt",
+  "low-poly": "Low Poly",
+  "smooth-organic": "Smooth",
+};
+
+const DEFAULT_STUDIO_DEFINITION = MODEL_LIBRARY.find((item) => item.id === "tomato-pal") ?? MODEL_LIBRARY[0];
+const DEFAULT_STUDIO_HEIGHT = 65;
+const DEFAULT_STUDIO_OPTIONS: ModelOptions = {
+  ...DEFAULT_OPTIONS,
+  modelId: DEFAULT_STUDIO_DEFINITION.id,
+  ...DEFAULT_STUDIO_DEFINITION.defaults,
+  topperHeight: DEFAULT_STUDIO_HEIGHT,
+  topperWidth: Math.round(
+    DEFAULT_STUDIO_DEFINITION.defaults.topperWidth
+      / DEFAULT_STUDIO_DEFINITION.defaults.topperHeight
+      * DEFAULT_STUDIO_HEIGHT
+      / TOPPER_SIZE_LIMITS.step,
+  ) * TOPPER_SIZE_LIMITS.step,
+  faceted: DEFAULT_STUDIO_DEFINITION.style === "lowpoly",
+  shape: getDefaultShapeParameters(DEFAULT_STUDIO_DEFINITION),
 };
 
 function modelPreviewPath(definition: ModelDefinition) {
@@ -218,11 +252,12 @@ function objBlob(object: THREE.Object3D) {
   return new Blob([new OBJExporter().parse(object)], { type: "text/plain" });
 }
 
-function ModelViewport({ build, view, modelKey, palette }: {
+function ModelViewport({ build, view, modelKey, palette, onPresented }: {
   build: ModelBuild;
   view: { name: ViewName; nonce: number };
   modelKey: string;
   palette: ViewportPalette;
+  onPresented: (modelKey: string) => void;
 }) {
   const mountRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -341,10 +376,11 @@ function ModelViewport({ build, view, modelKey, palette }: {
     extentRef.current = extent;
     centerRef.current.copy(center);
     viewDistanceRef.current = extent * 2.4;
+    onPresented(modelKey);
     return () => {
       scene.remove(build.assembly);
     };
-  }, [build, modelKey]);
+  }, [build, modelKey, onPresented]);
 
   useEffect(() => {
     const camera = cameraRef.current;
@@ -396,6 +432,15 @@ function Slider({ label, value, min, max, step = 1, unit = "mm", onChange }: {
       <input aria-label={label} type="range" min={min} max={max} step={step} value={value} onChange={(event) => onChange(Number(event.target.value))} />
       <div className="range-label"><span>{min}</span><span>{max}</span></div>
     </div>
+  );
+}
+
+function InfoTip({ label, text }: { label: string; text: string }) {
+  return (
+    <span className="info-tip">
+      <button type="button" aria-label={label}>!</button>
+      <span role="tooltip">{text}</span>
+    </span>
   );
 }
 
@@ -775,11 +820,12 @@ function AiGenerateModal({ open, onClose, onGenerated, onMeshGenerated }: {
 }
 
 export function Studio() {
-  const [options, setOptions] = useState<ModelOptions>(DEFAULT_OPTIONS);
+  const [options, setOptions] = useState<ModelOptions>(DEFAULT_STUDIO_OPTIONS);
   const [view, setView] = useState<{ name: ViewName; nonce: number }>({ name: "orbit", nonce: 0 });
   const [exporting, setExporting] = useState(false);
   const [printerId, setPrinterId] = useState<BambuPrinterId>("a1-mini");
   const [activeTag, setActiveTag] = useState<"all" | ModelTag>("all");
+  const [activeStyle, setActiveStyle] = useState<"all" | ModelStyleFamily>("soft-sculpt");
   const [libraryQuery, setLibraryQuery] = useState("");
   const [tagsExpanded, setTagsExpanded] = useState(false);
   const [libraryMode, setLibraryMode] = useState<"official" | "mine">("official");
@@ -794,11 +840,25 @@ export function Studio() {
   const [resizingPanel, setResizingPanel] = useState<PanelName | null>(null);
   const [adaptiveEnvironment, setAdaptiveEnvironment] = useState(false);
   const [sampledViewportPalette, setSampledViewportPalette] = useState<{ path: string; palette: ViewportPalette } | null>(null);
+  const [topperAspectLocked, setTopperAspectLocked] = useState(true);
+  const topperAspectRatioRef = useRef(DEFAULT_STUDIO_OPTIONS.topperWidth / DEFAULT_STUDIO_OPTIONS.topperHeight);
+  const [previewStatus, setPreviewStatus] = useState<PreviewStatus | null>({
+    kind: "loading",
+    modelId: DEFAULT_STUDIO_OPTIONS.modelId,
+    targetKey: "pending-selection",
+    name: "Model preview",
+    detail: "Preparing the 3D workspace…",
+  });
   const workspaceRef = useRef<HTMLElement>(null);
   const glbInputRef = useRef<HTMLInputElement>(null);
   const officialLoadRef = useRef(0);
   const resizeCleanupRef = useRef<(() => void) | null>(null);
   const build = useMemo(() => createModel(options), [options]);
+  const handlePreviewPresented = useCallback((presentedKey: string) => {
+    setPreviewStatus((current) => current?.kind === "loading" && current.targetKey === presentedKey
+      ? null
+      : current);
+  }, []);
   useEffect(() => {
     const source = options.externalMesh;
     return () => {
@@ -830,8 +890,9 @@ export function Studio() {
   const normalizedLibraryQuery = libraryQuery.trim().toLowerCase();
   const visibleModels = useMemo(() => MODEL_LIBRARY.filter((item) => {
     const matchesTag = activeTag === "all" || item.tags.includes(activeTag);
-    return matchesTag && (!normalizedLibraryQuery || item.name.toLowerCase().includes(normalizedLibraryQuery));
-  }), [activeTag, normalizedLibraryQuery]);
+    const matchesStyle = activeStyle === "all" || modelStyleFamily(item) === activeStyle;
+    return matchesStyle && matchesTag && (!normalizedLibraryQuery || item.name.toLowerCase().includes(normalizedLibraryQuery));
+  }), [activeStyle, activeTag, normalizedLibraryQuery]);
   const mineCreations = useMemo(() => [
     ...tripoCreations.map((creation) => ({ kind: "tripo" as const, id: creation.id, createdAt: creation.createdAt, creation })),
     ...aiCreations.map((creation) => ({ kind: "ai" as const, id: creation.id, createdAt: creation.createdAt, creation })),
@@ -843,8 +904,10 @@ export function Studio() {
   }), [mineCreations, normalizedLibraryQuery]);
   const activePreviewPath = aiDesign || tripoDesign ? undefined : modelPreviewPath(definition);
   const viewportModelKey = tripoDesign
-    ? `tripo:${tripoDesign.id}`
-    : aiDesign ? `ai:${aiDesign.localId}` : `official:${definition.id}`;
+    ? `tripo:${tripoDesign.id}:mesh`
+    : aiDesign
+      ? `ai:${aiDesign.localId}:procedural`
+      : `official:${definition.id}:${definition.officialMesh ? (options.externalMesh ? "mesh" : "fallback") : "procedural"}`;
   const viewportPalette = useMemo(() => {
     if (!adaptiveEnvironment) return DEFAULT_VIEWPORT_PALETTE;
     if (!activePreviewPath) return paletteFromColor(options.primaryColor);
@@ -923,6 +986,7 @@ export function Studio() {
           prompt: example.prompt,
           recipe,
         };
+        topperAspectRatioRef.current = recipe.topperWidth / recipe.topperHeight;
         setOptions((current) => ({
           ...current,
           modelId: recipe.templateId,
@@ -941,15 +1005,40 @@ export function Studio() {
         setAiDesign({ ...recipe, prompt: example.prompt, localId });
         setTripoDesign(null);
         setLibraryMode("mine");
+        setPreviewStatus({
+          kind: "loading",
+          targetKey: `ai:${localId}:procedural`,
+          name: recipe.name,
+          detail: "Preparing the generated 3D model…",
+        });
         setMessage(`${recipe.name} example loaded`);
         return;
       }
+      const requestedStyle = search.get("style");
+      const initialStyle: "all" | ModelStyleFamily = requestedStyle === "all" || MODEL_STYLE_FAMILIES.includes(requestedStyle as ModelStyleFamily)
+        ? requestedStyle as "all" | ModelStyleFamily
+        : "soft-sculpt";
+      const requestedTag = search.get("tag");
+      const initialTag: "all" | ModelTag = requestedTag === "all" || SUBJECT_MODEL_TAGS.includes(requestedTag as typeof SUBJECT_MODEL_TAGS[number])
+        ? requestedTag as "all" | ModelTag
+        : "all";
+      setLibraryQuery((search.get("q") ?? "").slice(0, 80));
       const requestedModel = search.get("model");
       const selected = MODEL_LIBRARY.find((item) => item.id === requestedModel);
-      if (!selected) return;
+      if (!selected) {
+        chooseModel(DEFAULT_STUDIO_DEFINITION.id, {
+          topperHeight: DEFAULT_STUDIO_OPTIONS.topperHeight,
+          topperWidth: DEFAULT_STUDIO_OPTIONS.topperWidth,
+        });
+        setLibraryMode("official");
+        setActiveStyle(initialStyle);
+        setActiveTag(initialTag);
+        return;
+      }
       chooseModel(selected.id);
       setLibraryMode("official");
       setActiveTag("all");
+      setActiveStyle(modelStyleFamily(selected));
     });
     return () => window.cancelAnimationFrame(frame);
   }, []);
@@ -962,6 +1051,30 @@ export function Studio() {
 
   const update = <K extends keyof ModelOptions>(key: K, value: ModelOptions[K]) => {
     setOptions((current) => ({ ...current, [key]: value }));
+  };
+
+  const updateTopperDimension = (dimension: "topperHeight" | "topperWidth", requestedValue: number) => {
+    setOptions((current) => {
+      if (!topperAspectLocked) return { ...current, [dimension]: requestedValue };
+      const ratio = topperAspectRatioRef.current;
+      const step = TOPPER_SIZE_LIMITS.step;
+      const roundToStep = (value: number) => Number((Math.round(value / step) * step).toFixed(1));
+      if (dimension === "topperHeight") {
+        const min = Math.max(TOPPER_SIZE_LIMITS.height.min, TOPPER_SIZE_LIMITS.width.min / ratio);
+        const max = Math.min(TOPPER_SIZE_LIMITS.height.max, TOPPER_SIZE_LIMITS.width.max / ratio);
+        const topperHeight = roundToStep(THREE.MathUtils.clamp(requestedValue, min, max));
+        return { ...current, topperHeight, topperWidth: roundToStep(topperHeight * ratio) };
+      }
+      const min = Math.max(TOPPER_SIZE_LIMITS.width.min, TOPPER_SIZE_LIMITS.height.min * ratio);
+      const max = Math.min(TOPPER_SIZE_LIMITS.width.max, TOPPER_SIZE_LIMITS.height.max * ratio);
+      const topperWidth = roundToStep(THREE.MathUtils.clamp(requestedValue, min, max));
+      return { ...current, topperWidth, topperHeight: roundToStep(topperWidth / ratio) };
+    });
+  };
+
+  const toggleTopperAspectLock = (locked: boolean) => {
+    if (locked) topperAspectRatioRef.current = options.topperWidth / options.topperHeight;
+    setTopperAspectLocked(locked);
   };
 
   const updateShape = (key: ShapeParameterKey, value: number) => {
@@ -1023,15 +1136,30 @@ export function Studio() {
     }
   };
 
-  function chooseModel(modelId: ModelId) {
+  function chooseModel(
+    modelId: ModelId,
+    dimensions?: Pick<ModelOptions, "topperHeight" | "topperWidth">,
+  ) {
     const selected = MODEL_LIBRARY.find((item) => item.id === modelId);
     if (!selected) return;
+    topperAspectRatioRef.current = dimensions
+      ? dimensions.topperWidth / dimensions.topperHeight
+      : selected.defaults.topperWidth / selected.defaults.topperHeight;
     const loadId = officialLoadRef.current + 1;
     officialLoadRef.current = loadId;
+    setPreviewStatus({
+      kind: "loading",
+      modelId: selected.id,
+      targetKey: `official:${selected.id}:${selected.officialMesh ? "mesh" : "procedural"}`,
+      progress: selected.officialMesh ? 0 : undefined,
+      name: selected.name,
+      detail: selected.officialMesh ? "Loading the bundled 3D mesh…" : "Preparing the procedural 3D model…",
+    });
     setOptions((current) => ({
       ...current,
       modelId,
       ...selected.defaults,
+      ...dimensions,
       faceted: selected.style === "lowpoly",
       shape: getDefaultShapeParameters(selected),
       aiProgram: undefined,
@@ -1039,10 +1167,17 @@ export function Studio() {
     }));
     setAiDesign(null);
     setTripoDesign(null);
-    setMessage(selected.officialMesh ? `Loading bundled ${selected.name} mesh…` : `${selected.name} loaded`);
+    setMessage(selected.officialMesh ? "" : `${selected.name} loaded`);
     setMobilePanel("preview");
     if (selected.officialMesh) {
-      void loadOfficialMesh(selected).then((parsed) => {
+      void loadOfficialMesh(selected, {
+        onProgress: ({ ratio }) => {
+          if (officialLoadRef.current !== loadId || ratio === undefined) return;
+          setPreviewStatus((current) => current?.kind === "loading" && current.modelId === selected.id
+            ? { ...current, progress: ratio }
+            : current);
+        },
+      }).then((parsed) => {
         if (officialLoadRef.current !== loadId) {
           disposeObject(parsed.object);
           return;
@@ -1053,7 +1188,9 @@ export function Studio() {
         setMessage(`${selected.name} official mesh loaded · ${parsed.faceCount.toLocaleString()} faces`);
       }).catch((error) => {
         if (officialLoadRef.current === loadId) {
-          setMessage(error instanceof Error ? error.message : "The bundled official mesh could not be loaded");
+          const detail = error instanceof Error ? error.message : "The bundled official mesh could not be loaded";
+          setPreviewStatus({ kind: "error", modelId: selected.id, name: selected.name, detail });
+          setMessage("");
         }
       });
     }
@@ -1074,6 +1211,13 @@ export function Studio() {
   const applyAiDesign = (recipe: AiDesignRecipe, prompt: string) => {
     officialLoadRef.current += 1;
     const localId = window.crypto.randomUUID();
+    topperAspectRatioRef.current = recipe.topperWidth / recipe.topperHeight;
+    setPreviewStatus({
+      kind: "loading",
+      targetKey: `ai:${localId}:procedural`,
+      name: recipe.name,
+      detail: "Preparing the generated 3D model…",
+    });
     const creation: LocalAiCreation = { id: localId, createdAt: new Date().toISOString(), prompt, recipe };
     setOptions((current) => ({
       ...current,
@@ -1101,6 +1245,13 @@ export function Studio() {
   const chooseAiCreation = (creation: LocalAiCreation) => {
     officialLoadRef.current += 1;
     const recipe = normalizeAiRecipe(creation.recipe);
+    topperAspectRatioRef.current = recipe.topperWidth / recipe.topperHeight;
+    setPreviewStatus({
+      kind: "loading",
+      targetKey: `ai:${creation.id}:procedural`,
+      name: recipe.name,
+      detail: "Preparing the saved 3D model…",
+    });
     setOptions((current) => ({
       ...current,
       modelId: recipe.templateId,
@@ -1124,6 +1275,13 @@ export function Studio() {
 
   const applyTripoDesign = (metadata: LocalTripoMeshMetadata, parsed: ParsedTripoMesh, promote = true) => {
     officialLoadRef.current += 1;
+    topperAspectRatioRef.current = metadata.topperWidth / metadata.topperHeight;
+    setPreviewStatus({
+      kind: "loading",
+      targetKey: `tripo:${metadata.id}:mesh`,
+      name: metadata.name,
+      detail: "Preparing the 3D mesh preview…",
+    });
     setOptions((current) => ({
       ...current,
       modelId: "sprout",
@@ -1144,29 +1302,46 @@ export function Studio() {
   };
 
   const chooseTripoCreation = async (metadata: LocalTripoMeshMetadata) => {
-    setMessage(`Loading ${metadata.name} from this browser…`);
+    const loadId = officialLoadRef.current + 1;
+    officialLoadRef.current = loadId;
+    setPreviewStatus({ kind: "loading", name: metadata.name, detail: "Loading the saved mesh from this browser…" });
+    setMessage("");
     try {
       const record = await getLocalTripoMesh(metadata.id);
       if (!record) throw new Error("This local mesh is no longer available.");
       const parsed = await parseTripoGlb(record.glb.slice(0), {
         maxFaceCount: metadata.source === "local-file" ? TRIPO_LOCAL_MESH_FACE_LIMIT : undefined,
       });
+      if (officialLoadRef.current !== loadId) {
+        disposeObject(parsed.object);
+        return;
+      }
       applyTripoDesign(metadata, parsed, false);
       setMessage(`${metadata.name} loaded from this browser`);
     } catch (loadError) {
-      setMessage(loadError instanceof Error ? loadError.message : "The local mesh could not be loaded");
+      if (officialLoadRef.current !== loadId) return;
+      const detail = loadError instanceof Error ? loadError.message : "The local mesh could not be loaded";
+      setPreviewStatus({ kind: "error", name: metadata.name, detail });
+      setMessage("");
     }
   };
 
   const importLocalGlb = async (file?: File) => {
     if (!file) return;
-    setMessage(`Checking ${file.name} locally…`);
+    const loadId = officialLoadRef.current + 1;
+    officialLoadRef.current = loadId;
+    setPreviewStatus({ kind: "loading", name: file.name, detail: "Checking and preparing this GLB locally…" });
+    setMessage("");
     let parsed: ParsedTripoMesh | null = null;
     try {
       if (!file.name.toLowerCase().endsWith(".glb")) throw new Error("Choose a binary .glb model file.");
       if (!file.size || file.size > MAX_LOCAL_GLB_BYTES) throw new Error("Local GLB must be between 1 byte and 40 MB.");
       const glb = await file.arrayBuffer();
       parsed = await parseTripoGlb(glb.slice(0), { maxFaceCount: TRIPO_LOCAL_MESH_FACE_LIMIT });
+      if (officialLoadRef.current !== loadId) {
+        disposeObject(parsed.object);
+        return;
+      }
       const id = window.crypto.randomUUID();
       const baseName = file.name.replace(/\.glb$/i, "").trim() || "Imported GLB";
       const metadata: LocalTripoMeshMetadata = {
@@ -1190,7 +1365,10 @@ export function Studio() {
       setMessage(`${metadata.name} imported locally · ${metadata.faceCount.toLocaleString()} faces`);
     } catch (error) {
       if (parsed) disposeObject(parsed.object);
-      setMessage(error instanceof Error ? error.message : "The local GLB could not be imported");
+      if (officialLoadRef.current !== loadId) return;
+      const detail = error instanceof Error ? error.message : "The local GLB could not be imported";
+      setPreviewStatus({ kind: "error", name: file.name, detail });
+      setMessage("");
     }
   };
 
@@ -1201,6 +1379,7 @@ export function Studio() {
       setTripoCreations((current) => current.filter((item) => item.id !== metadata.id));
       if (tripoDesign?.id === metadata.id) {
         const selected = MODEL_LIBRARY[0];
+        topperAspectRatioRef.current = selected.defaults.topperWidth / selected.defaults.topperHeight;
         setOptions((current) => ({
           ...current,
           modelId: selected.id,
@@ -1212,6 +1391,13 @@ export function Studio() {
         }));
         setTripoDesign(null);
         setLibraryMode("official");
+        setPreviewStatus({
+          kind: "loading",
+          modelId: selected.id,
+          targetKey: `official:${selected.id}:procedural`,
+          name: selected.name,
+          detail: "Preparing the procedural 3D model…",
+        });
       }
       setMessage(`${metadata.name} and its local GLB were removed`);
     } catch {
@@ -1405,7 +1591,7 @@ export function Studio() {
           for (const [partIndex, part] of modelBuild.parts.entries()) {
             const solid = await solidifyObject(wasm, part.object, { flipZ: part.printFlipZ });
             solids.push(solid);
-            projectParts.push({ name: part.label, mesh: solid, color: part.color });
+            projectParts.push({ name: part.label, mesh: solid, color: part.color, palette: part.palette });
             if (part.id === "adapter") {
               if (!adapterWritten) {
                 root.file("stl/00-universal-adapter-33x41.stl", stlBlob(solid));
@@ -1516,6 +1702,25 @@ export function Studio() {
             />
             {libraryQuery && <button type="button" onClick={() => setLibraryQuery("")} aria-label="Clear model search">×</button>}
           </label>
+          {libraryMode === "official" && <div className="style-filter-shell">
+            <span>STYLE</span>
+            <div className="style-filter" role="group" aria-label="Filter designs by style">
+              {MODEL_STYLE_FAMILIES.map((style) => (
+                <button
+                  type="button"
+                  key={style}
+                  className={activeStyle === style ? "active" : ""}
+                  onClick={() => { setActiveStyle(style); setActiveTag("all"); }}
+                  aria-pressed={activeStyle === style}
+                >
+                  {STYLE_LABELS[style]} <span>{MODEL_LIBRARY.filter((item) => modelStyleFamily(item) === style).length}</span>
+                </button>
+              ))}
+              <button type="button" className={activeStyle === "all" ? "active" : ""} onClick={() => setActiveStyle("all")} aria-pressed={activeStyle === "all"}>
+                All <span>{MODEL_LIBRARY.length}</span>
+              </button>
+            </div>
+          </div>}
           {libraryMode === "mine" && <div className="local-import-bar">
             <input
               ref={glbInputRef}
@@ -1534,10 +1739,13 @@ export function Studio() {
           {libraryMode === "official" && <div className={`tag-filter-shell ${tagsExpanded ? "expanded" : ""}`}>
             <div className="tag-filter" aria-label="Filter designs by tag">
               <button className={activeTag === "all" ? "active" : ""} onClick={() => setActiveTag("all")} aria-pressed={activeTag === "all"}>
-                All <span>{MODEL_LIBRARY.length}</span>
+                All <span>{MODEL_LIBRARY.filter((item) => activeStyle === "all" || modelStyleFamily(item) === activeStyle).length}</span>
               </button>
-              {MODEL_TAGS.map((tag) => {
-                const count = MODEL_LIBRARY.filter((item) => item.tags.includes(tag)).length;
+              {SUBJECT_MODEL_TAGS.map((tag) => {
+                const count = MODEL_LIBRARY.filter((item) => (
+                  activeStyle === "all" || modelStyleFamily(item) === activeStyle
+                ) && item.tags.includes(tag)).length;
+                if (!count) return null;
                 return (
                   <button key={tag} className={activeTag === tag ? "active" : ""} onClick={() => setActiveTag(tag)} aria-pressed={activeTag === tag}>
                     {TAG_LABELS[tag]} <span>{count}</span>
@@ -1552,18 +1760,26 @@ export function Studio() {
           <div className="asset-list">
             {libraryMode === "official" && visibleModels.map((item) => {
               const previewPath = modelPreviewPath(item);
-              const visibleTags = item.tags.slice(0, 2);
-              const hiddenTagCount = item.tags.length - visibleTags.length;
+              const subjectTags = item.tags.filter((tag) => SUBJECT_MODEL_TAGS.includes(tag as typeof SUBJECT_MODEL_TAGS[number]));
+              const visibleTags = subjectTags.slice(0, 2);
+              const hiddenTagCount = subjectTags.length - visibleTags.length;
               return (
-                <button key={item.id} className={`asset-card ${item.style} ${item.id === options.modelId ? "active" : ""}`} title={item.name} onClick={() => chooseModel(item.id)}>
+                <button
+                  key={item.id}
+                  className={`asset-card ${item.style} ${item.id === options.modelId ? "active" : ""}`}
+                  title={item.name}
+                  onPointerEnter={() => { if (item.officialMesh) void preloadOfficialMesh(item).catch(() => undefined); }}
+                  onFocus={() => { if (item.officialMesh) void preloadOfficialMesh(item).catch(() => undefined); }}
+                  onClick={() => chooseModel(item.id)}
+                >
                   {previewPath
                     ? <span className="asset-preview" aria-hidden="true" style={{ backgroundImage: `url(${previewPath})` }} />
                     : <span className="asset-number">{item.number}</span>}
                   <span className="asset-copy">
                     <strong>{item.name}</strong>
-                    <span className="asset-tags" aria-label={`Tags: ${item.tags.map((tag) => TAG_LABELS[tag]).join(", ")}`}>
+                    <span className="asset-tags" aria-label={`Style: ${STYLE_LABELS[modelStyleFamily(item)]}; tags: ${subjectTags.map((tag) => TAG_LABELS[tag]).join(", ") || "none"}`}>
                       {visibleTags.map((tag) => <i key={tag}>{TAG_LABELS[tag]}</i>)}
-                      {hiddenTagCount > 0 && <i className="asset-tags-more" title={item.tags.slice(2).map((tag) => TAG_LABELS[tag]).join(", ")}>+{hiddenTagCount}</i>}
+                      {hiddenTagCount > 0 && <i className="asset-tags-more" title={subjectTags.slice(2).map((tag) => TAG_LABELS[tag]).join(", ")}>+{hiddenTagCount}</i>}
                     </span>
                   </span>
                 </button>
@@ -1586,7 +1802,7 @@ export function Studio() {
                 <button className="local-creation-remove" aria-label={`Remove ${item.creation.recipe.name}`} onClick={() => removeAiCreation(item.creation)}>×</button>
               </div>
             ))}
-            {libraryMode === "official" && visibleModels.length === 0 && <div className="local-empty-state"><span>⌕</span><b>No matching Official models</b><p>Try a shorter title or clear the selected tag.</p><button onClick={() => { setLibraryQuery(""); setActiveTag("all"); }}>Show all models</button></div>}
+            {libraryMode === "official" && visibleModels.length === 0 && <div className="local-empty-state"><span>✦</span><b>No ready-made match yet</b><p>Generate a custom topper from this idea, or reset style, tags and search to browse the full library.</p><div className="empty-actions"><button onClick={() => setAiOpen(true)}>AI Generate</button><button className="secondary" onClick={() => { setLibraryQuery(""); setActiveTag("all"); setActiveStyle("all"); }}>Show all models</button></div></div>}
             {libraryMode === "mine" && mineCreations.length > 0 && visibleMineCreations.length === 0 && <div className="local-empty-state"><span>⌕</span><b>No matching local titles</b><p>Clear the title search to restore your saved order.</p><button onClick={() => setLibraryQuery("")}>Clear search</button></div>}
             {libraryMode === "mine" && mineCreations.length === 0 && <div className="local-empty-state"><span>✦</span><b>No local creations yet</b><p>Generate a bounded shape, direct Tripo mesh, or import a local GLB. It stays only in this browser.</p><button onClick={() => setAiOpen(true)}>Generate your first model</button></div>}
           </div>
@@ -1608,17 +1824,32 @@ export function Studio() {
           onDoubleClick={() => setPanelWidths((current) => ({ ...current, library: DEFAULT_PANEL_WIDTHS.library }))}
         />
 
-        <section className="stage" id="studio-preview" aria-label="3D model preview">
-          <div className="view-tools" aria-label="View tools">
+        <section className="stage" id="studio-preview" aria-label="3D model preview" data-preview-state={previewStatus?.kind}>
+          {!previewStatus && <div className="view-tools" aria-label="View tools">
             {(["orbit", "front", "top"] as ViewName[]).map((name) => (
               <button key={name} className={view.name === name ? "active" : ""} onClick={() => requestView(name)}>{name[0].toUpperCase() + name.slice(1)}</button>
             ))}
+          </div>}
+          <div className={`viewport-shell ${previewStatus ? "is-pending" : ""}`} aria-hidden={previewStatus ? true : undefined}>
+            <ModelViewport build={build} view={view} modelKey={viewportModelKey} palette={viewportPalette} onPresented={handlePreviewPresented} />
           </div>
-          <ModelViewport build={build} view={view} modelKey={viewportModelKey} palette={viewportPalette} />
-          <div className="dimension-summary" aria-label="Model dimensions">
+          {!previewStatus && <div className="dimension-summary" aria-label="Model dimensions">
             <span>TOPPER / ASSEMBLY</span><b>W {build.measurements.topperWidth.toFixed(1)} × H {build.measurements.topperHeight.toFixed(1)} / {build.measurements.width.toFixed(1)} × {build.measurements.height.toFixed(1)} mm</b>
-          </div>
-          {message && <div className="stage-toast" role="status" aria-live="polite">{message}</div>}
+          </div>}
+          {previewStatus && <div className={`stage-preview-status ${previewStatus.kind}`} role={previewStatus.kind === "error" ? "alert" : "status"} aria-live="polite" aria-busy={previewStatus.kind === "loading"}>
+            {previewStatus.kind === "loading" ? <span className="stage-preview-spinner" aria-hidden="true" /> : <span className="stage-preview-error-mark" aria-hidden="true">!</span>}
+            <p>{previewStatus.kind === "loading" ? "LOADING 3D MODEL" : "MODEL COULD NOT LOAD"}</p>
+            <h3>{previewStatus.name}</h3>
+            <small>{previewStatus.detail}</small>
+            {previewStatus.kind === "loading" && previewStatus.progress !== undefined && <div className="stage-preview-progress" aria-label={`${Math.round(previewStatus.progress * 100)}% downloaded`}>
+              <span style={{ width: `${Math.round(previewStatus.progress * 100)}%` }} />
+              <i>{Math.round(previewStatus.progress * 100)}%</i>
+            </div>}
+            {previewStatus.kind === "error" && <button type="button" onClick={() => chooseModel(previewStatus.modelId ?? "sprout")}>
+              {previewStatus.modelId ? "Try again" : "Load Little Sprout"}
+            </button>}
+          </div>}
+          {!previewStatus && message && <div className="stage-toast" role="status" aria-live="polite">{message}</div>}
         </section>
 
         <button
@@ -1639,104 +1870,99 @@ export function Studio() {
 
         <aside className="inspector-panel" id="studio-adjustments" aria-label="Model adjustments">
           <div className="inspector-title">
-            <div><p>{tripoDesign ? tripoDesign.source === "local-file" ? "LOCAL GLB" : "TRIPO MESH" : isOfficialMesh ? "OFFICIAL MESH" : aiDesign ? "AI DESIGN" : `MODEL ${definition.number}`}</p><h2>{designName}</h2><span>{designSubtitle}</span></div>
-            <span className="part-count">{designParts} {designParts === 1 ? "PART" : "PARTS"}</span>
+            <div><p>{tripoDesign ? tripoDesign.source === "local-file" ? "LOCAL GLB" : "TRIPO MESH" : isOfficialMesh ? "OFFICIAL MESH" : aiDesign ? "AI DESIGN" : `MODEL ${definition.number}`}</p><h2>{designName}</h2><span>{tripoDesign ? "Local browser model" : aiDesign ? aiDesign.subtitle : definition.subtitle}</span></div>
+            <div className="inspector-title-actions"><span className="part-count">{designParts} {designParts === 1 ? "PART" : "PARTS"}</span><InfoTip label="Model details" text={`${designSubtitle}. ${manufacturing.status}; ${manufacturing.supportStrategy}.`} /></div>
           </div>
           <div className="inspector-content">
             <section className="inspector-section">
-              <div className="section-heading"><div><p>SHAPE</p><span>Maximum upper-shape envelope</span></div></div>
-              <Slider label="Topper height" value={options.topperHeight} min={TOPPER_SIZE_LIMITS.height.min} max={TOPPER_SIZE_LIMITS.height.max} step={TOPPER_SIZE_LIMITS.step} onChange={(value) => update("topperHeight", value)} />
-              <Slider label="Topper width" value={options.topperWidth} min={TOPPER_SIZE_LIMITS.width.min} max={TOPPER_SIZE_LIMITS.width.max} step={TOPPER_SIZE_LIMITS.step} onChange={(value) => update("topperWidth", value)} />
-              <p className="parameter-note">The upper artwork is centered and fitted inside this fixed envelope. Signature controls can change its form, but cannot push it beyond the selected width or height.</p>
+              <div className="section-heading"><div><p>SIZE</p><span>Topper envelope</span></div><InfoTip label="About topper size" text="Width and height define the maximum artwork envelope. Fine-tune controls cannot push geometry beyond it." /></div>
+              <div className="aspect-lock-row">
+                <label><input type="checkbox" checked={topperAspectLocked} onChange={(event) => toggleTopperAspectLock(event.target.checked)} /><span>Keep proportions</span></label>
+                <InfoTip label="About proportion lock" text="When enabled, changing height or width scales the other dimension with it." />
+              </div>
+              <Slider label="Topper height" value={options.topperHeight} min={TOPPER_SIZE_LIMITS.height.min} max={TOPPER_SIZE_LIMITS.height.max} step={TOPPER_SIZE_LIMITS.step} onChange={(value) => updateTopperDimension("topperHeight", value)} />
+              <Slider label="Topper width" value={options.topperWidth} min={TOPPER_SIZE_LIMITS.width.min} max={TOPPER_SIZE_LIMITS.width.max} step={TOPPER_SIZE_LIMITS.step} onChange={(value) => updateTopperDimension("topperWidth", value)} />
             </section>
 
-            <section className="inspector-section connection-section">
-              <div className="section-heading"><div><p>CONNECTION</p><span>Flush fit or one-piece print</span></div></div>
-              <div className="control-group compact">
-                <label>
-                  <span>Assembly</span>
-                  <select
-                    aria-label="Connection mode"
-                    value={options.connectionMode}
-                    onChange={(event) => update("connectionMode", event.target.value as ModelOptions["connectionMode"])}
-                  >
-                    <option value="detachable">Flush detachable pin</option>
-                    <option value="integrated">One-piece print</option>
-                  </select>
-                </label>
+            <details className="inspector-disclosure settings-disclosure">
+              <summary><span><b>Print setup</b><small>{integrated ? "One-piece print" : "Flush detachable pin"}</small></span><i>+</i></summary>
+              <div className="disclosure-content">
+                <div className="control-group compact">
+                  <label>
+                    <span>Assembly</span>
+                    <select
+                      aria-label="Connection mode"
+                      value={options.connectionMode}
+                      onChange={(event) => update("connectionMode", event.target.value as ModelOptions["connectionMode"])}
+                    >
+                      <option value="detachable">Flush detachable pin</option>
+                      <option value="integrated">One-piece print</option>
+                    </select>
+                  </label>
+                </div>
+                <div className="inline-help"><InfoTip label="About connection mode" text={integrated ? "Adapter and topper are fused by a hidden internal core, so the export contains one part." : "A removable pin enters an embedded blind socket without a raised outer collar."} /><span>{integrated ? "Exports one fused part" : "Keeps the topper removable"}</span></div>
               </div>
-              <p className="parameter-note">{integrated
-                ? "Adapter and topper are fused by a hidden internal core; no pin or socket gap is exported."
-                : "The pin enters an embedded blind socket inside the object, without a raised outer collar."}</p>
-            </section>
+            </details>
 
-            {!isAiSculpture && !isTripoMesh && (definition.parameters?.length ?? 0) > 0 && <section className="inspector-section signature-section">
-              <div className="section-heading">
-                <div><p>SIGNATURE</p><span>{definition.parameters?.length} model-specific controls</span></div>
-                <div className="section-actions"><button onClick={randomizeShape}>Vary</button><button onClick={resetShape}>Reset</button></div>
+            {!isAiSculpture && !isTripoMesh && (definition.parameters?.length ?? 0) > 0 && <details className="inspector-disclosure settings-disclosure signature-section">
+              <summary><span><b>Fine tune shape</b><small>{definition.parameters?.length} model-specific controls</small></span><i>+</i></summary>
+              <div className="disclosure-content">
+                <div className="section-actions disclosure-actions"><button onClick={randomizeShape}>Vary</button><button onClick={resetShape}>Reset</button></div>
+                {definition.parameters?.map((parameter) => (
+                  <Slider
+                    key={parameter.key}
+                    label={parameter.label}
+                    value={options.shape[parameter.key] ?? parameter.defaultValue}
+                    min={parameter.min}
+                    max={parameter.max}
+                    step={parameter.step}
+                    unit={parameter.unit ?? ""}
+                    onChange={(value) => updateShape(parameter.key, value)}
+                  />
+                ))}
+                <div className="inline-help"><InfoTip label="About fine tuning" text="These print-safe ranges preserve minimum feature size and required intersections inside the selected envelope." /><span>Print-safe ranges</span></div>
               </div>
-              {definition.parameters?.map((parameter) => (
-                <Slider
-                  key={parameter.key}
-                  label={parameter.label}
-                  value={options.shape[parameter.key] ?? parameter.defaultValue}
-                  min={parameter.min}
-                  max={parameter.max}
-                  step={parameter.step}
-                  unit={parameter.unit ?? ""}
-                  onChange={(value) => updateShape(parameter.key, value)}
-                />
-              ))}
-              <p className="parameter-note">Ranges preserve the minimum printable feature size and required intersections while the fixed topper envelope remains the outer limit.</p>
-            </section>}
+            </details>}
 
             <section className="inspector-section appearance-section">
-              <div className="section-heading"><div><p>APPEARANCE</p><span>{isTripoMesh ? "Single-color printable mesh" : isAiSculpture ? "Three-role generated palette" : definition.style === "realistic" ? "Smooth realistic model" : "Faceted printable model"}</span></div></div>
-              {(isTripoMesh || isAiSculpture || definition.style === "lowpoly") && <div className="control-group compact"><label><span>Surface style</span><select value={options.faceted ? "low" : "soft"} onChange={(event) => update("faceted", event.target.value === "low")}><option value="low">Low poly</option><option value="soft">Smooth faceted</option></select></label></div>}
-              <label className="environment-toggle" htmlFor="adaptive-environment-toggle">
-                <span className="sr-only">Match preview environment</span>
-                <input
-                  id="adaptive-environment-toggle"
-                  type="checkbox"
-                  checked={adaptiveEnvironment}
-                  onChange={(event) => {
-                    const checked = event.target.checked;
-                    setAdaptiveEnvironment(checked);
-                    try {
-                      window.localStorage.setItem(ADAPTIVE_ENVIRONMENT_STORAGE_KEY, String(checked));
-                    } catch {
-                      setMessage("The environment preference could not be saved");
-                    }
-                  }}
-                />
-                <span><b>Match preview environment</b><small>{activePreviewPath ? "Samples the selected cover once and applies a subtle editor tint." : "Uses the active topper color for this local design."}</small></span>
-              </label>
+              <div className="section-heading"><div><p>COLORS</p><span>{isAiSculpture ? "Three-color generated palette" : "Topper and adapter"}</span></div></div>
               <div className="control-group color-control"><span>{options.modelId === "mushroom" ? "Cap color" : "Topper color"}</span><div>{COLORS.map((color) => <button key={color} className={`swatch ${options.primaryColor === color ? "active" : ""}`} style={{ background: color }} aria-label={`Use ${color}`} onClick={() => update("primaryColor", color)} />)}<input className="color-input" aria-label="Custom topper color" type="color" value={options.primaryColor} onChange={(event) => update("primaryColor", event.target.value)} /></div></div>
               {isAiSculpture && <div className="control-group color-control"><span>Secondary color</span><div><input className="color-input" aria-label="Custom secondary color" type="color" value={options.secondaryColor ?? "#d8a33e"} onChange={(event) => update("secondaryColor", event.target.value)} /></div></div>}
               {isAiSculpture && <div className="control-group color-control"><span>Detail color</span><div><input className="color-input" aria-label="Custom detail color" type="color" value={options.detailColor ?? "#f4eee2"} onChange={(event) => update("detailColor", event.target.value)} /></div></div>}
               <div className="control-group color-control"><span>{options.modelId === "mushroom" ? "Stem + base color" : "Adapter color"}</span><div><button className={`swatch ${options.accentColor === "#d7d0bf" ? "active" : ""}`} style={{ background: "#d7d0bf" }} onClick={() => update("accentColor", "#d7d0bf")} aria-label="Warm stone" /><button className={`swatch ${options.accentColor === "#1f3f2e" ? "active" : ""}`} style={{ background: "#1f3f2e" }} onClick={() => update("accentColor", "#1f3f2e")} aria-label="LetPot green" /><input className="color-input" aria-label="Custom adapter color" type="color" value={options.accentColor} onChange={(event) => update("accentColor", event.target.value)} /></div></div>
             </section>
 
-            <details className="inspector-disclosure">
-              <summary><span><b>Base & fit</b><small>Ø33 / Ø41 mm · fixed standard</small></span><i>+</i></summary>
+            <details className="inspector-disclosure settings-disclosure">
+              <summary><span><b>Preview options</b><small>{adaptiveEnvironment ? "Matched environment" : "Neutral environment"}</small></span><i>+</i></summary>
               <div className="disclosure-content">
-                <div className="calibration-note">Locked pod-fit standard shared by every design. Base dimensions are intentionally not adjustable.</div>
-                <dl className="compact-spec">
-                  <div><dt>Lower section</dt><dd>Ø{ADAPTER_STANDARD.lowerDiameter} × {ADAPTER_STANDARD.lowerHeight.toFixed(1)} mm</dd></div>
-                  <div><dt>Transition layer</dt><dd>Ø{ADAPTER_STANDARD.lowerDiameter}→Ø{ADAPTER_STANDARD.upperDiameter} × {ADAPTER_STANDARD.transitionHeight.toFixed(1)} mm</dd></div>
-                  <div><dt>Upper vertical band</dt><dd>Ø{ADAPTER_STANDARD.upperDiameter} × {ADAPTER_STANDARD.upperBandHeight.toFixed(1)} mm</dd></div>
-                  <div><dt>Total height</dt><dd>{ADAPTER_STANDARD.totalHeight.toFixed(1)} mm</dd></div>
-                  <div><dt>Logo</dt><dd>Outer rim · crown outward</dd></div>
-                  <div><dt>Connection</dt><dd>{integrated ? "Hidden fused core · one part" : "Flush hex pin R3.96 · 7.4 mm"}</dd></div>
-                </dl>
+                {(isTripoMesh || isAiSculpture || definition.style === "lowpoly") && <div className="control-group compact"><label><span>Surface style</span><select value={options.faceted ? "low" : "soft"} onChange={(event) => update("faceted", event.target.value === "low")}><option value="low">Low poly</option><option value="soft">Smooth faceted</option></select></label></div>}
+                <label className="environment-toggle" htmlFor="adaptive-environment-toggle">
+                  <span className="sr-only">Match preview environment</span>
+                  <input
+                    id="adaptive-environment-toggle"
+                    type="checkbox"
+                    checked={adaptiveEnvironment}
+                    onChange={(event) => {
+                      const checked = event.target.checked;
+                      setAdaptiveEnvironment(checked);
+                      try {
+                        window.localStorage.setItem(ADAPTIVE_ENVIRONMENT_STORAGE_KEY, String(checked));
+                      } catch {
+                        setMessage("The environment preference could not be saved");
+                      }
+                    }}
+                  />
+                  <span><b>Match preview environment</b><small>{activePreviewPath ? "Samples the selected cover and applies a subtle editor tint." : "Uses the active topper color for this local design."}</small></span>
+                </label>
               </div>
             </details>
 
             <details className="inspector-disclosure readiness-disclosure">
-              <summary><span><b>Print readiness</b><small>{manufacturing.status} · {designParts} manifold parts</small></span><i className={manufacturing.status === "Production trial" ? "verified" : "review"}>{manufacturing.status === "Production trial" ? "✓" : "!"}</i></summary>
+              <summary><span><b>Model &amp; print info</b><small>Ø33 / Ø41 fit · {manufacturing.status}</small></span><i className={manufacturing.status === "Production trial" ? "verified" : "review"}>{manufacturing.status === "Production trial" ? "✓" : "!"}</i></summary>
               <div className="disclosure-content">
+                <div className="inline-help"><InfoTip label="About the fixed base" text={`Every design keeps the same Ø${ADAPTER_STANDARD.lowerDiameter}/${ADAPTER_STANDARD.upperDiameter} mm pod-fit geometry. These dimensions are intentionally not adjustable.`} /><span>Fixed base · {integrated ? "hidden fused core" : "flush removable pin"}</span></div>
                 <p className="print-note">{designPrintNote}</p>
-                <dl className="compact-spec"><div><dt>Orientation</dt><dd>{manufacturing.orientation}</dd></div><div><dt>Support</dt><dd>{manufacturing.supportStrategy}</dd></div><div><dt>Minimum wall</dt><dd>{manufacturing.minWall.toFixed(1)} mm</dd></div><div><dt>Minimum feature</dt><dd>{manufacturing.minFeature.toFixed(1)} mm</dd></div><div><dt>Batch mode</dt><dd>{manufacturing.batchMode}</dd></div></dl>
+                <dl className="compact-spec"><div><dt>Base</dt><dd>Ø{ADAPTER_STANDARD.lowerDiameter}→Ø{ADAPTER_STANDARD.upperDiameter} × {ADAPTER_STANDARD.totalHeight.toFixed(1)} mm</dd></div><div><dt>Connection</dt><dd>{integrated ? "Hidden fused core · one part" : "Flush hex pin R3.96 · 7.4 mm"}</dd></div><div><dt>Orientation</dt><dd>{manufacturing.orientation}</dd></div><div><dt>Support</dt><dd>{manufacturing.supportStrategy}</dd></div><div><dt>Minimum wall / feature</dt><dd>{manufacturing.minWall.toFixed(1)} / {manufacturing.minFeature.toFixed(1)} mm</dd></div><div><dt>Batch mode</dt><dd>{manufacturing.batchMode}</dd></div></dl>
                 <ul className="audit-list">{manufacturing.details.map((detail) => <li key={detail}>{detail}</li>)}</ul>
               </div>
             </details>
