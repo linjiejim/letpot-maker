@@ -160,12 +160,7 @@ function LiveModel({
       controls.enablePan = false;
       controls.enableZoom = interactive;
       controls.enabled = interactive;
-      controls.autoRotate = interactive && !reduceMotion;
-      controls.autoRotateSpeed = 0.55;
-      if (interactive) {
-        controls.minAzimuthAngle = -Math.PI / 4;
-        controls.maxAzimuthAngle = Math.PI / 4;
-      }
+      controls.autoRotate = false;
 
       scene.add(new THREE.HemisphereLight("#fffdf5", "#607362", 2.9));
       const key = new THREE.DirectionalLight("#fff8e7", 5.2);
@@ -183,7 +178,13 @@ function LiveModel({
       const diameter = Math.max(size.x, size.y, size.z);
       controls.target.copy(center);
       const cameraOrbit = diameter * 2.24;
-      camera.position.set(cameraOrbit / Math.SQRT2, center.y + diameter * 0.72, cameraOrbit / Math.SQRT2);
+      // The optimized Tripo GLBs retain their authored front on +X; procedural models face +Z.
+      const frontAzimuth = definition.officialMesh ? Math.PI / 2 : 0;
+      camera.position.set(
+        Math.sin(frontAzimuth) * cameraOrbit,
+        center.y + diameter * 0.72,
+        Math.cos(frontAzimuth) * cameraOrbit,
+      );
       camera.lookAt(center);
       controls.update();
 
@@ -218,14 +219,6 @@ function LiveModel({
           return;
         }
         if (!interactive && !reduceMotion) build.assembly.rotation.y += 0.0032;
-        if (interactive && controls.autoRotate) {
-          const azimuth = controls.getAzimuthalAngle();
-          if (azimuth <= controls.minAzimuthAngle + 0.012) {
-            controls.autoRotateSpeed = -Math.abs(controls.autoRotateSpeed);
-          } else if (azimuth >= controls.maxAzimuthAngle - 0.012) {
-            controls.autoRotateSpeed = Math.abs(controls.autoRotateSpeed);
-          }
-        }
         controls.update();
         renderer.render(scene, camera);
         frame = window.requestAnimationFrame(render);

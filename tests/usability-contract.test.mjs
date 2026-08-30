@@ -111,10 +111,12 @@ test("landing hero cycles visual model choices while keeping the live model fron
   assert.match(landingPage, /INITIAL_GALLERY_MODELS: ModelId\[\] = \["monstera-cluster", "tomato-pal", "reindeer", "orbit-astronaut"\]/);
   assert.match(landingPage, /\}, 5000\);/);
   assert.match(landingPage, /item\.officialMesh\.previewPath/);
-  assert.match(landingPage, /controls\.minAzimuthAngle = -Math\.PI \/ 4/);
-  assert.match(landingPage, /controls\.maxAzimuthAngle = Math\.PI \/ 4/);
-  assert.match(landingPage, /controls\.getAzimuthalAngle\(\)/);
-  assert.match(landingPage, /cameraOrbit \/ Math\.SQRT2/);
+  assert.match(landingPage, /definition\.officialMesh \? Math\.PI \/ 2 : 0/);
+  assert.match(landingPage, /controls\.autoRotate = false/);
+  assert.match(landingPage, /controls\.enabled = interactive/);
+  assert.match(landingPage, /Math\.sin\(frontAzimuth\) \* cameraOrbit/);
+  assert.match(landingPage, /Math\.cos\(frontAzimuth\) \* cameraOrbit/);
+  assert.doesNotMatch(landingPage, /controls\.minAzimuthAngle|controls\.maxAzimuthAngle/);
   assert.match(globalCss, /\.featured-switcher \{[^}]*grid-template-columns: repeat\(4,minmax\(0,1fr\)\)/);
 });
 
