@@ -232,12 +232,12 @@ function LiveModel({
           presentationMotion += ((controlsActive ? 0 : 1) - presentationMotion) * 0.075;
           const time = performance.now() * 0.001;
           presentationRig.position.set(
-            Math.sin(time * 0.72 + 0.9) * diameter * 0.0045 * presentationMotion,
-            Math.sin(time * 1.08) * diameter * 0.01 * presentationMotion,
+            Math.sin(time * 0.72 + 0.9) * diameter * 0.011 * presentationMotion,
+            Math.sin(time * 1.08) * diameter * 0.022 * presentationMotion,
             0,
           );
-          presentationRig.rotation.z = Math.sin(time * 0.62 + 1.8) * 0.005 * presentationMotion;
-          const breathingScale = 1 + Math.sin(time * 0.86 + 1.7) * 0.005 * presentationMotion;
+          presentationRig.rotation.z = Math.sin(time * 0.62 + 1.8) * 0.012 * presentationMotion;
+          const breathingScale = 1 + Math.sin(time * 0.86 + 1.7) * 0.012 * presentationMotion;
           presentationRig.scale.setScalar(breathingScale);
         }
         controls.update();
