@@ -34,8 +34,6 @@ export async function loadNodeManifold() {
 function geometryToManifold(wasm: ManifoldToplevel, source: THREE.Mesh) {
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", source.geometry.getAttribute("position").clone());
-  const sourceColorRoles = source.geometry.getAttribute("aiColorRole") ?? source.geometry.getAttribute("_aicolorrole");
-  if (sourceColorRoles) geometry.setAttribute("aiColorRole", sourceColorRoles.clone());
   if (source.geometry.index) geometry.setIndex(source.geometry.index.clone());
   geometry.applyMatrix4(source.matrixWorld);
 
@@ -81,14 +79,11 @@ function geometryToManifold(wasm: ManifoldToplevel, source: THREE.Mesh) {
         }
 
         const vertexProperties = new Float32Array(position.count * 4);
-        const vertexColorRoles = welded.getAttribute("aiColorRole") ?? welded.getAttribute("_aicolorrole");
         for (let vertex = 0; vertex < position.count; vertex += 1) {
           vertexProperties[vertex * 4] = position.getX(vertex);
           vertexProperties[vertex * 4 + 1] = position.getY(vertex);
           vertexProperties[vertex * 4 + 2] = position.getZ(vertex);
-          vertexProperties[vertex * 4 + 3] = vertexColorRoles
-            ? Math.round(vertexColorRoles.getX(vertex))
-            : colorRole;
+          vertexProperties[vertex * 4 + 3] = colorRole;
         }
         const mesh = new wasm.Mesh({
           numProp: 4,

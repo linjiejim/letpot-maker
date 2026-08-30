@@ -37,7 +37,7 @@ Model definitions + parameters
 
 `lib/model-factory.ts` is the authoritative model catalog and geometry source. A definition contains identity, tags, defaults, bounded parameters, parts, and manufacturing guidance. `createModel()` turns those inputs into the Three.js assembly used everywhere else. Its shared connection layer supports a flush detachable pin/socket embedded inside the subject and an optional one-piece adapter/topper union with a hidden internal core.
 
-The browser preview is not exported directly as overlapping display meshes. `lib/solidify.ts` converts meshes through Manifold boolean operations so each exported part is a connected watertight solid. Categorical face-color roles are preserved through those booleans for generated sculptures and opt-in Official palette studies.
+The browser preview is not exported directly as overlapping display meshes. `lib/solidify.ts` converts meshes through Manifold boolean operations so each exported part is a connected watertight solid. Generated sculptures preserve their semantic colors through those booleans, while bundled Official neural meshes remain single-color.
 
 `lib/three-mf.ts` arranges solid parts for the supported Bambu printer profiles and writes standards-based 3MF packages.
 

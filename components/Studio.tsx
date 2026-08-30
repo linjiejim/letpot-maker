@@ -870,8 +870,6 @@ export function Studio() {
   const isTripoMesh = Boolean(tripoDesign && options.externalMesh);
   const isOfficialMesh = Boolean(definition.officialMesh && options.externalMesh && !tripoDesign);
   const isExternalMesh = isTripoMesh || isOfficialMesh;
-  const paletteStudy = isOfficialMesh ? definition.officialMesh?.paletteStudy : undefined;
-  const isPaletteStudy = Boolean(paletteStudy);
   const integrated = options.connectionMode === "integrated";
   const designParts = integrated ? 1 : isAiSculpture || isExternalMesh ? 3 : definition.parts;
   const designName = tripoDesign?.name ?? aiDesign?.name ?? definition.name;
@@ -1151,8 +1149,6 @@ export function Studio() {
       modelId,
       ...selected.defaults,
       ...dimensions,
-      secondaryColor: selected.officialMesh?.paletteStudy?.[1] ?? DEFAULT_OPTIONS.secondaryColor,
-      detailColor: selected.officialMesh?.paletteStudy?.[2] ?? DEFAULT_OPTIONS.detailColor,
       faceted: selected.style === "lowpoly",
       shape: getDefaultShapeParameters(selected),
       aiProgram: undefined,
@@ -1918,10 +1914,10 @@ export function Studio() {
             </details>}
 
             <section className="inspector-section appearance-section">
-              <div className="section-heading"><div><p>COLORS</p><span>{isPaletteStudy ? "Experimental three-color mesh" : isAiSculpture ? "Three-color generated palette" : "Topper and adapter"}</span></div>{isPaletteStudy && <InfoTip label="About the Santa color study" text="This pilot assigns crisp face regions to three printable colors. It has not been rolled out to the rest of the catalog." />}</div>
+              <div className="section-heading"><div><p>COLORS</p><span>{isAiSculpture ? "Three-color generated palette" : "Topper and adapter"}</span></div></div>
               <div className="control-group color-control"><span>{options.modelId === "mushroom" ? "Cap color" : "Topper color"}</span><div>{COLORS.map((color) => <button key={color} className={`swatch ${options.primaryColor === color ? "active" : ""}`} style={{ background: color }} aria-label={`Use ${color}`} onClick={() => update("primaryColor", color)} />)}<input className="color-input" aria-label="Custom topper color" type="color" value={options.primaryColor} onChange={(event) => update("primaryColor", event.target.value)} /></div></div>
-              {(isAiSculpture || isPaletteStudy) && <div className="control-group color-control"><span>{isPaletteStudy ? "Beard + trim" : "Secondary color"}</span><div><input className="color-input" aria-label="Custom secondary color" type="color" value={options.secondaryColor ?? "#f2e3c7"} onChange={(event) => update("secondaryColor", event.target.value)} /></div></div>}
-              {(isAiSculpture || isPaletteStudy) && <div className="control-group color-control"><span>{isPaletteStudy ? "Face" : "Detail color"}</span><div><input className="color-input" aria-label="Custom detail color" type="color" value={options.detailColor ?? "#e7aa84"} onChange={(event) => update("detailColor", event.target.value)} /></div></div>}
+              {isAiSculpture && <div className="control-group color-control"><span>Secondary color</span><div><input className="color-input" aria-label="Custom secondary color" type="color" value={options.secondaryColor ?? "#d8a33e"} onChange={(event) => update("secondaryColor", event.target.value)} /></div></div>}
+              {isAiSculpture && <div className="control-group color-control"><span>Detail color</span><div><input className="color-input" aria-label="Custom detail color" type="color" value={options.detailColor ?? "#f4eee2"} onChange={(event) => update("detailColor", event.target.value)} /></div></div>}
               <div className="control-group color-control"><span>{options.modelId === "mushroom" ? "Stem + base color" : "Adapter color"}</span><div><button className={`swatch ${options.accentColor === "#d7d0bf" ? "active" : ""}`} style={{ background: "#d7d0bf" }} onClick={() => update("accentColor", "#d7d0bf")} aria-label="Warm stone" /><button className={`swatch ${options.accentColor === "#1f3f2e" ? "active" : ""}`} style={{ background: "#1f3f2e" }} onClick={() => update("accentColor", "#1f3f2e")} aria-label="LetPot green" /><input className="color-input" aria-label="Custom adapter color" type="color" value={options.accentColor} onChange={(event) => update("accentColor", event.target.value)} /></div></div>
             </section>
 

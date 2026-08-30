@@ -160,7 +160,6 @@ export interface ModelDefinition {
     previewPath: string;
     faceCount: number;
     generation: "Tripo H3.1 image-to-3D" | "Tripo H3.1 text-to-3D";
-    paletteStudy?: readonly [string, string, string];
   };
   parameters?: ShapeParameterDefinition[];
   defaults: Pick<ModelOptions, "topperHeight" | "topperWidth" | "primaryColor" | "accentColor">;
@@ -712,7 +711,6 @@ const CORE_MODEL_LIBRARY: ModelDefinition[] = [
       previewPath: "/models/official/christmas/previews/santa.jpg",
       faceCount: 39_312,
       generation: "Tripo H3.1 image-to-3D",
-      paletteStudy: ["#c9483b", "#f2e3c7", "#e7aa84"],
     },
     defaults: { topperHeight: 90, topperWidth: 62, primaryColor: "#b92f34", accentColor: "#d7d0bf" },
     printNote: "Print upright with automatic snug supports. The rounded hat, beard and mitten arms are fused into one repaired official mesh with a code-owned blind socket.",
@@ -1289,67 +1287,6 @@ function supportsDirectExternalMeshSocket(sculpture: THREE.Object3D) {
   return coveredSamples[0] && coveredSamples.filter(Boolean).length >= 5;
 }
 
-function paintOfficialMeshStudy(
-  geometry: THREE.BufferGeometry,
-  options: ModelOptions,
-  palette: readonly [string, string, string],
-) {
-  const painted = geometry.index ? geometry.toNonIndexed() : geometry.clone();
-  const position = painted.getAttribute("position");
-  painted.computeBoundingBox();
-  const bounds = painted.boundingBox!;
-  const size = bounds.getSize(new THREE.Vector3());
-  const center = bounds.getCenter(new THREE.Vector3());
-  const roles = new Float32Array(position.count);
-  const colors = new Float32Array(position.count * 3);
-  const secondaryColor = options.secondaryColor === DEFAULT_OPTIONS.secondaryColor
-    ? palette[1]
-    : options.secondaryColor ?? palette[1];
-  const detailColor = options.detailColor === DEFAULT_OPTIONS.detailColor
-    ? palette[2]
-    : options.detailColor ?? palette[2];
-  const resolvedPalette = [
-    options.primaryColor,
-    secondaryColor,
-    detailColor,
-  ] as const;
-  const threeColors = resolvedPalette.map((color) => new THREE.Color(color));
-
-  for (let vertex = 0; vertex < position.count; vertex += 3) {
-    const x = (
-      position.getX(vertex) + position.getX(vertex + 1) + position.getX(vertex + 2)
-    ) / 3;
-    const y = (
-      position.getY(vertex) + position.getY(vertex + 1) + position.getY(vertex + 2)
-    ) / 3;
-    const z = (
-      position.getZ(vertex) + position.getZ(vertex + 1) + position.getZ(vertex + 2)
-    ) / 3;
-    const normalizedX = (x - center.x) / Math.max(size.x / 2, 0.001);
-    const normalizedY = (y - bounds.min.y) / Math.max(size.y, 0.001);
-    const normalizedZ = (z - center.z) / Math.max(size.z / 2, 0.001);
-    const front = normalizedZ > 0.04;
-    const hatBand = front && normalizedY > 0.755 && normalizedY < 0.835 && Math.abs(normalizedX) < 0.76;
-    const face = front
-      && (normalizedX / 0.39) ** 2 + ((normalizedY - 0.695) / 0.125) ** 2 < 1;
-    const beard = front
-      && normalizedY < 0.72
-      && (normalizedX / 0.61) ** 2 + ((normalizedY - 0.515) / 0.255) ** 2 < 1;
-    const role = hatBand ? 1 : face ? 2 : beard ? 1 : 0;
-    const color = threeColors[role];
-    for (let offset = 0; offset < 3; offset += 1) {
-      roles[vertex + offset] = role;
-      colors[(vertex + offset) * 3] = color.r;
-      colors[(vertex + offset) * 3 + 1] = color.g;
-      colors[(vertex + offset) * 3 + 2] = color.b;
-    }
-  }
-
-  painted.setAttribute("aiColorRole", new THREE.BufferAttribute(roles, 1));
-  painted.setAttribute("color", new THREE.BufferAttribute(colors, 3));
-  return { geometry: painted, palette: resolvedPalette };
-}
-
 function buildExternalMeshTopper(options: ModelOptions, source: THREE.Object3D) {
   const topper = prepareTopper(options);
   topper.name = "tripo_mesh_topper";
@@ -1358,26 +1295,12 @@ function buildExternalMeshTopper(options: ModelOptions, source: THREE.Object3D) 
   source.updateMatrixWorld(true);
   source.traverse((child) => {
     if (!(child instanceof THREE.Mesh) || !child.visible || !child.geometry.getAttribute("position")) return;
-    let geometry = child.geometry.clone();
+    const geometry = child.geometry.clone();
     geometry.applyMatrix4(child.matrixWorld);
     if (!geometry.getAttribute("normal")) geometry.computeVertexNormals();
-    const definition = MODEL_LIBRARY.find((item) => item.id === options.modelId);
-    const paletteStudy = definition?.officialMesh?.paletteStudy;
-    if (paletteStudy) {
-      const sourceGeometry = geometry;
-      const painted = paintOfficialMeshStudy(sourceGeometry, options, paletteStudy);
-      geometry = painted.geometry;
-      sourceGeometry.dispose();
-      topper.userData.colorPalette = painted.palette;
-    }
-    const printableMesh = mesh(geometry, paletteStudy ? "#ffffff" : options.primaryColor, options.faceted);
-    if (paletteStudy) {
-      const printableMaterial = printableMesh.material as THREE.MeshStandardMaterial;
-      printableMaterial.vertexColors = true;
-      printableMaterial.needsUpdate = true;
-    }
+    const printableMesh = mesh(geometry, options.primaryColor, options.faceted);
     printableMesh.name = child.name ? `tripo_${child.name}` : "tripo_mesh_part";
-    if (!paletteStudy) printableMesh.userData.aiColorRole = "primary";
+    printableMesh.userData.aiColorRole = "primary";
     printableMesh.userData.allowSmallGapRepair = true;
     sculpture.add(printableMesh);
   });
@@ -3849,9 +3772,6 @@ export function createModel(options: ModelOptions): ModelBuild {
     const topper = buildExternalMeshTopper(options, options.externalMesh);
     if (integrated) {
       printableRoot.add(buildIntegratedBaseJoint(options), topper);
-      if (topper.userData.colorPalette) {
-        printableRoot.userData.colorPalette = [...topper.userData.colorPalette, options.accentColor];
-      }
     } else {
       const pinGroup = buildConnectorPin(options, "tripo_mesh_double_ended_connector_pin");
       printableRoot.add(pinGroup, topper);
@@ -3863,7 +3783,6 @@ export function createModel(options: ModelOptions): ModelBuild {
           label: directSocket ? "Direct socketed Tripo mesh" : "Reinforced socketed Tripo mesh",
           object: topper,
           color: options.primaryColor,
-          palette: topper.userData.colorPalette,
         },
       );
     }
@@ -3999,7 +3918,7 @@ export function createModel(options: ModelOptions): ModelBuild {
       label: "One-piece adapter and topper",
       object: printableRoot,
       color: options.primaryColor,
-      palette: printableRoot.userData.colorPalette ?? [
+      palette: [
         options.primaryColor,
         options.secondaryColor ?? "#d8a33e",
         options.detailColor ?? "#f4eee2",

@@ -158,11 +158,10 @@ test("Studio keeps advanced inspector information collapsed behind accessible he
   assert.match(globalCss, /\.info-tip:hover > span\[role="tooltip"\], \.info-tip:focus-within/);
 });
 
-test("Santa is the only opt-in three-color official mesh study", () => {
-  assert.match(modelFactory, /paletteStudy: \["#c9483b", "#f2e3c7", "#e7aa84"\]/);
-  assert.match(modelFactory, /function paintOfficialMeshStudy/);
-  assert.match(modelFactory, /painted\.setAttribute\("aiColorRole"/);
-  assert.match(studio, /Experimental three-color mesh/);
+test("Official neural meshes, including Santa, stay single-color", () => {
+  assert.doesNotMatch(modelFactory, /paletteStudy|paintOfficialMeshStudy/);
+  assert.match(modelFactory, /printableMesh\.userData\.aiColorRole = "primary"/);
+  assert.doesNotMatch(studio, /Experimental three-color mesh|Beard \+ trim|Santa color study/);
 });
 
 test("all procedural Studio cards have checked-in geometry renders", async () => {
