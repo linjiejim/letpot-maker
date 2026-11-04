@@ -7,6 +7,7 @@ services:
       context: .
       dockerfile: Dockerfile
     restart: unless-stopped
+    mem_limit: ${LETPOT_MEM_LIMIT:-512m}
     init: true
     ports:
       - "${LETPOT_BIND_ADDRESS:-127.0.0.1}:${LETPOT_PORT:-3000}:3000"
